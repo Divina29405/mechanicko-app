@@ -1,20 +1,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { Redirect, Tabs } from "expo-router";
+import { Redirect, Tabs, Stack } from "expo-router"; // <-- Swapped Stack for Slot
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    AppState,
-    Linking,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  AppState,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { MechanicProvider, useMechanic } from "@/contexts/MechanicContext";
 import { colors, radii, spacing } from "@/lib/theme";
+import { supabase } from "@/lib/supabase";
 
 function MechanicTabs() {
   const { unreadMessages } = useMechanic();
@@ -107,12 +108,40 @@ async function checkLocationAccess() {
 
 export default function AppLayout() {
   const { session, loading } = useAuth();
+  
+  const [role, setRole] = useState<string | null>(null);
+  const [fetchingRole, setFetchingRole] = useState(true);
+
   const [locationStatus, setLocationStatus] = useState<
     "checking" | "granted" | "blocked"
   >("checking");
   const [locationMessage, setLocationMessage] = useState(
     "Checking your device location...",
   );
+
+  useEffect(() => {
+    async function fetchRole() {
+      if (!session?.user?.id) {
+        setFetchingRole(false);
+        return;
+      }
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+        
+      if (!error && data) {
+        setRole(data.role);
+      } else {
+        setRole('motorist'); 
+      }
+      setFetchingRole(false);
+    }
+    
+    fetchRole();
+  }, [session]);
 
   useEffect(() => {
     let active = true;
@@ -172,7 +201,7 @@ export default function AppLayout() {
     };
   }, []);
 
-  if (loading) {
+  if (loading || fetchingRole) {
     return (
       <View style={styles.boot}>
         <ActivityIndicator color={colors.amber} />
@@ -237,10 +266,24 @@ export default function AppLayout() {
     );
   }
 
+  // --- DUAL ROLE ROUTING ---
+  
+  if (role === 'mechanic') {
+    return (
+      <MechanicProvider>
+        <MechanicTabs />
+      </MechanicProvider>
+    );
+  }
+  // Motorist View
   return (
-    <MechanicProvider>
-      <MechanicTabs />
-    </MechanicProvider>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+      <Stack.Screen name="MotoristMap" />
+      <Stack.Screen name="motorist-profile" />
+      <Stack.Screen name="motorist-activity" />
+      <Stack.Screen name="emergency-checklist" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="schedule" options={{ presentation: 'modal' }} />
+    </Stack>
   );
 }
 

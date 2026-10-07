@@ -15,11 +15,12 @@ export default function Index() {
     );
   }
 
+  // Absolute paths guarantee no infinite loops
   if (session) {
     return getUserRole(session.user) === "mechanic" ? (
       <Redirect href="/(app)" />
     ) : (
-      <Redirect href="/(auth)/login" />
+      <Redirect href="/MotoristMap" />
     );
   }
 

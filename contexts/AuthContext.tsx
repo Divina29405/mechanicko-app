@@ -168,12 +168,7 @@ async function completeMechanicSignIn(
       ? "customer"
       : (await loadProfileRole(user.id)) || "mechanic";
 
-  if (role !== "mechanic") {
-    await supabase.auth.signOut();
-    return {
-      error: "This account cannot access the mechanic dashboard.",
-    };
-  }
+  // We removed the strict mechanic bouncer here so Motorists can enter the app!
 
   await upsertProfile(
     user.id,

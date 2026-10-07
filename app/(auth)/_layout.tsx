@@ -1,7 +1,7 @@
 import { Redirect, Stack } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
-import { useAuth } from '@/contexts/AuthContext';
+import { getUserRole, useAuth } from '@/contexts/AuthContext';
 import { colors } from '@/lib/theme';
 
 export default function AuthLayout() {
@@ -15,8 +15,13 @@ export default function AuthLayout() {
     );
   }
 
+  // Intercept the login and route based on role using absolute paths
   if (session) {
-    return <Redirect href="/(app)" />;
+    return getUserRole(session.user) === "mechanic" ? (
+      <Redirect href="/(app)" />
+    ) : (
+      <Redirect href="/MotoristMap" />
+    );
   }
 
   return (
