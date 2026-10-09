@@ -11,15 +11,31 @@ import {
     View,
 } from "react-native";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { colors, radii, spacing } from "@/lib/theme";
 
 async function checkLocationAccess() {
   const permission = await Location.getForegroundPermissionsAsync();
-  const provider = await Location.getProviderStatusAsync();
+  let serviceEnabled = false;
+
+  if (Platform.OS === "web") {
+    serviceEnabled =
+      typeof navigator !== "undefined" && "geolocation" in navigator
+        ? await new Promise<boolean>((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              () => resolve(true),
+              () => resolve(false),
+              { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 },
+            );
+          })
+        : false;
+  } else {
+    serviceEnabled = await Location.hasServicesEnabledAsync();
+  }
 
   return {
     permissionGranted: permission.status === "granted",
-    serviceEnabled: provider.locationServicesEnabled,
+    serviceEnabled,
   };
 }
 
@@ -35,6 +51,7 @@ async function openLocationSettings() {
 }
 
 export function LocationGate({ children }: { children: ReactNode }) {
+  const { loading } = useAuth();
   const [locationStatus, setLocationStatus] = useState<
     "checking" | "granted" | "blocked"
   >("checking");
@@ -43,6 +60,10 @@ export function LocationGate({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    if (loading) {
+      return;
+    }
+
     let active = true;
     let checkInProgress = false;
 
@@ -110,7 +131,11 @@ export function LocationGate({ children }: { children: ReactNode }) {
       subscription.remove();
       clearInterval(monitor);
     };
-  }, []);
+  }, [loading]);
+
+  if (loading) {
+    return <>{children}</>;
+  }
 
   if (locationStatus === "granted") {
     return <>{children}</>;

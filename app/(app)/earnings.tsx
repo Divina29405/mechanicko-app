@@ -9,7 +9,7 @@ export default function EarningsScreen() {
   const { todayEarnings, weeklyEarnings, completedToday, payouts, walletBalance } = useMechanic();
 
   return (
-    <MechanicScreen title="Earnings" subtitle="Kita, payout, at cashout">
+    <MechanicScreen title="Earnings" subtitle="Income, payouts, and cash out">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <Text style={styles.heroLabel}>This week</Text>

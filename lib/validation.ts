@@ -2,19 +2,19 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function validateEmail(email: string): string | null {
   const value = email.trim();
-  if (!value) return 'Kailangan ang email.';
-  if (!EMAIL_RE.test(value)) return 'Hindi valid ang email.';
+  if (!value) return 'Email is required.';
+  if (!EMAIL_RE.test(value)) return 'Enter a valid email address.';
   return null;
 }
 
 export function validatePassword(password: string): string | null {
-  if (!password) return 'Kailangan ang password.';
-  if (password.length < 6) return 'Hindi dapat mas maikli sa 6 characters.';
+  if (!password) return 'Password is required.';
+  if (password.length < 6) return 'Password must be at least 6 characters.';
   return null;
 }
 
 export function validateConfirmPassword(password: string, confirm: string): string | null {
-  if (!confirm) return 'Ulitin ang password.';
-  if (password !== confirm) return 'Hindi magkatugma ang password.';
+  if (!confirm) return 'Please confirm your password.';
+  if (password !== confirm) return 'Passwords do not match.';
   return null;
 }

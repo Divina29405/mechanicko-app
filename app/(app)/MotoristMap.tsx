@@ -1,7 +1,15 @@
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { WebView } from 'react-native-webview';
 import { supabase } from '@/lib/supabase'; // Adjust this path if needed
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +25,19 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return (R * c).toFixed(1);
 };
+
+const webLocation = {
+  coords: {
+    latitude: 14.5995,
+    longitude: 120.9842,
+    altitude: null,
+    accuracy: 100,
+    altitudeAccuracy: null,
+    heading: null,
+    speed: null,
+  },
+  timestamp: Date.now(),
+} as Location.LocationObject;
 
 export default function MotoristMap() {
   const router = useRouter();
@@ -57,6 +78,16 @@ export default function MotoristMap() {
 
   useEffect(() => {
     (async () => {
+      if (Platform.OS === "web") {
+        setHasPermission(true);
+        setLocation(webLocation);
+        fetchLiveMechanics(
+          webLocation.coords.latitude,
+          webLocation.coords.longitude,
+        );
+        return;
+      }
+
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status === 'granted') {
         setHasPermission(true);

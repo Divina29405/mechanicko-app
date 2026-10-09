@@ -3,5 +3,7 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  "workbench.browser.enableRemoteProxy": true,
+  "workbench.browser.experimentalUserTools.enabled": true
 }

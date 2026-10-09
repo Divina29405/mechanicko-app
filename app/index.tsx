@@ -1,7 +1,7 @@
 import { Redirect } from "expo-router";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 
-import { getUserRole, useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/theme";
 
 export default function Index() {
@@ -15,13 +15,8 @@ export default function Index() {
     );
   }
 
-  // Absolute paths guarantee no infinite loops
   if (session) {
-    return getUserRole(session.user) === "mechanic" ? (
-      <Redirect href="/(app)" />
-    ) : (
-      <Redirect href="/MotoristMap" />
-    );
+    return <Redirect href="/(app)" />;
   }
 
   return <Redirect href="/(auth)/login" />;

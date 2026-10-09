@@ -10,7 +10,7 @@ export default function HistoryScreen() {
   const { history } = useMechanic();
 
   return (
-    <MechanicScreen back title="Job history" subtitle="Natapos na trabaho at reviews">
+    <MechanicScreen back title="Job history" subtitle="Completed work and reviews">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {history.map((job) => (
           <View key={job.id} style={styles.card}>

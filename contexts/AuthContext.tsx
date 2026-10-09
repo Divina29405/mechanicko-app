@@ -1,20 +1,18 @@
 import { Session } from "@supabase/supabase-js";
 import * as ExpoLinking from "expo-linking";
-import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
 import {
     createContext,
     useContext,
     useEffect,
     useMemo,
+    useRef,
     useState,
     type ReactNode,
 } from "react";
-import { Platform } from "react-native";
-
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
-export type AuthRole = "mechanic" | "customer";
+export type AuthRole = "mechanic" | "customer" | "admin";
 
 export type MechanicApplication = {
   mobileNumber: string;
@@ -26,19 +24,12 @@ export type MechanicApplication = {
   licenseBackUri: string;
 };
 
-type DemoUser = {
-  id: string;
-  email: string;
-  password: string;
-  fullName: string;
-  role: AuthRole;
-};
-
 type ProfileRecord = {
   id: string;
   email: string | null;
   full_name: string | null;
   role: AuthRole | string | null;
+  application_status?: "pending" | "approved" | "rejected" | null;
 };
 
 type AuthResult = { error: string | null };
@@ -60,29 +51,13 @@ type AuthContextValue = {
 };
 
 function normalizeRole(role?: string | null): AuthRole {
-  return role === "customer" ? "customer" : "mechanic";
+  if (role?.toLowerCase() === "admin") return "admin";
+  return role?.toLowerCase() === "mechanic" ? "mechanic" : "customer";
 }
 
-function fullNameFromAnyUser(
-  user?: { user_metadata?: { full_name?: string | null } | null } | null,
-) {
-  const rawName = user?.user_metadata?.full_name;
-  return typeof rawName === "string" && rawName.trim().length > 0
-    ? rawName.trim()
-    : "Mechanic";
-}
-
-export function getUserRole(
-  user?: {
-    user_metadata?: { role?: string | null; full_name?: string | null };
-  } | null,
-): AuthRole {
-  return normalizeRole(user?.user_metadata?.role);
-}
-
-async function loadProfileRole(userId: string): Promise<AuthRole> {
+async function loadProfileRole(userId: string): Promise<AuthRole | null> {
   if (!isSupabaseConfigured) {
-    return "mechanic";
+    return null;
   }
 
   const { data, error } = await supabase
@@ -92,10 +67,37 @@ async function loadProfileRole(userId: string): Promise<AuthRole> {
     .maybeSingle();
 
   if (error || !data) {
-    return "mechanic";
+    return null;
   }
 
   return normalizeRole((data as ProfileRecord).role as string | null);
+}
+
+async function getAccountStatus(userId: string) {
+  if (!isSupabaseConfigured) return null;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("role,application_status")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (!error && data) {
+    return data as Pick<ProfileRecord, "role" | "application_status">;
+  }
+
+  const application = await supabase
+    .from("mechanic_applications")
+    .select("status")
+    .eq("id", userId)
+    .maybeSingle();
+  if (application.data) {
+    return {
+      role: "mechanic",
+      application_status: application.data.status as ProfileRecord["application_status"],
+    };
+  }
+  return null;
 }
 
 async function upsertProfile(
@@ -112,7 +114,7 @@ async function upsertProfile(
   },
 ) {
   if (!isSupabaseConfigured) {
-    return;
+    return "Supabase is not configured.";
   }
 
   const { error } = await supabase.from("profiles").upsert(
@@ -140,7 +142,37 @@ async function upsertProfile(
 
   if (error) {
     console.warn("Profile upsert failed:", error.message);
+    return error.message;
   }
+  return null;
+}
+
+async function upsertMechanicApplication(
+  userId: string,
+  email: string,
+  fullName: string,
+  application: MechanicApplication,
+  licenseFrontPath?: string,
+  licenseBackPath?: string,
+) {
+  const { error } = await supabase.from("mechanic_applications").upsert(
+    {
+      id: userId,
+      email,
+      full_name: fullName.trim() || "Mechanic",
+      mobile_number: application.mobileNumber,
+      home_address: application.homeAddress,
+      skills: application.skills,
+      certifications: application.certifications,
+      experience: application.experience,
+      license_front_path: licenseFrontPath ?? null,
+      license_back_path: licenseBackPath ?? null,
+      status: "pending",
+      submitted_at: new Date().toISOString(),
+    },
+    { onConflict: "id" },
+  );
+  return error?.message ?? null;
 }
 
 async function uploadLicensePhoto(
@@ -159,147 +191,68 @@ async function uploadLicensePhoto(
   return path;
 }
 
-async function completeMechanicSignIn(
-  user: Session["user"],
-  fallbackEmail: string,
-) {
-  const role =
-    getUserRole(user) === "customer"
-      ? "customer"
-      : (await loadProfileRole(user.id)) || "mechanic";
+async function completeSignIn(user: Session["user"]) {
+  const profile = await getAccountStatus(user.id);
+  if (
+    profile?.role === "mechanic" &&
+    profile.application_status !== "approved"
+  ) {
+    await supabase.auth.signOut();
+    return {
+      error:
+        profile.application_status === "rejected"
+          ? "Your mechanic application was rejected."
+          : "Your mechanic application is still under review.",
+    };
+  }
 
-  // We removed the strict mechanic bouncer here so Motorists can enter the app!
-
-  await upsertProfile(
-    user.id,
-    user.email ?? fallbackEmail,
-    fullNameFromAnyUser(user),
-    role,
-  );
   return { error: null };
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const DEMO_USERS_KEY = "mechaniko-demo-users";
-const DEMO_SESSION_KEY = "mechaniko-demo-session";
-
 WebBrowser.maybeCompleteAuthSession();
-
-const demoStorage = {
-  async getItem(key: string) {
-    if (Platform.OS === "web") {
-      return typeof localStorage !== "undefined"
-        ? localStorage.getItem(key)
-        : null;
-    }
-    return SecureStore.getItemAsync(key);
-  },
-  async setItem(key: string, value: string) {
-    if (Platform.OS === "web") {
-      if (typeof localStorage !== "undefined") {
-        localStorage.setItem(key, value);
-      }
-      return;
-    }
-    await SecureStore.setItemAsync(key, value);
-  },
-  async removeItem(key: string) {
-    if (Platform.OS === "web") {
-      if (typeof localStorage !== "undefined") {
-        localStorage.removeItem(key);
-      }
-      return;
-    }
-    await SecureStore.deleteItemAsync(key);
-  },
-};
-
-function createDemoSession(user: DemoUser): Session {
-  const now = Date.now();
-  const fullName = user.fullName.trim() || user.email.split("@")[0];
-
-  return {
-    access_token: `demo-access-${user.id}`,
-    refresh_token: `demo-refresh-${user.id}`,
-    expires_in: 3600,
-    expires_at: Math.floor(now / 1000) + 3600,
-    token_type: "bearer",
-    user: {
-      id: user.id,
-      email: user.email,
-      created_at: new Date(now).toISOString(),
-      updated_at: new Date(now).toISOString(),
-      app_metadata: { provider: "demo" },
-      user_metadata: { full_name: fullName, role: user.role },
-      aud: "authenticated",
-      role: "authenticated",
-    },
-  } as unknown as Session;
-}
-
-async function loadDemoUsers(): Promise<DemoUser[]> {
-  const raw = await demoStorage.getItem(DEMO_USERS_KEY);
-  if (!raw) return [];
-
-  try {
-    const parsed = JSON.parse(raw) as DemoUser[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-async function saveDemoUsers(users: DemoUser[]) {
-  await demoStorage.setItem(DEMO_USERS_KEY, JSON.stringify(users));
-}
-
-async function loadDemoSession(): Promise<Session | null> {
-  const raw = await demoStorage.getItem(DEMO_SESSION_KEY);
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw) as Session;
-  } catch {
-    return null;
-  }
-}
-
-async function saveDemoSession(session: Session | null) {
-  if (!session) {
-    await demoStorage.removeItem(DEMO_SESSION_KEY);
-    return;
-  }
-  await demoStorage.setItem(DEMO_SESSION_KEY, JSON.stringify(session));
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const signupInProgress = useRef(false);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      void (async () => {
-        const demoSession = await loadDemoSession();
-        setSession(demoSession);
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+
+    void (async () => {
+      if (!isSupabaseConfigured) {
+        if (!active) return;
+        setSession(null);
         setLoading(false);
-      })();
-      return;
-    }
+        return;
+      }
 
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+      const { data } = await supabase.auth.getSession();
+      if (!active) return;
+
+      if (data.session) {
+        setSession(data.session);
+      } else {
+        setSession(null);
+      }
       setLoading(false);
-    });
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, nextSession) => {
-        setSession(nextSession);
-      },
-    );
+      const { data: listener } = supabase.auth.onAuthStateChange(
+        (_event, nextSession) => {
+          if (!signupInProgress.current) {
+            setSession(nextSession);
+          }
+        },
+      );
+      unsubscribe = () => listener.subscription.unsubscribe();
+    })();
 
     return () => {
-      listener.subscription.unsubscribe();
+      active = false;
+      unsubscribe?.();
     };
   }, []);
 
@@ -308,29 +261,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       loading,
       async signIn(email, password) {
+        setSession(null);
         if (!isSupabaseConfigured) {
-          const users = await loadDemoUsers();
-          const normalizedEmail = email.trim().toLowerCase();
-          const user = users.find(
-            (entry) =>
-              entry.email.toLowerCase() === normalizedEmail &&
-              entry.password === password,
-          );
-
-          if (!user) {
-            return { error: "Invalid email or password" };
-          }
-
-          if (user.role !== "mechanic") {
-            return {
-              error: "This account cannot access the mechanic dashboard.",
-            };
-          }
-
-          const nextSession = createDemoSession(user);
-          await saveDemoSession(nextSession);
-          setSession(nextSession);
-          return { error: null };
+          return {
+            error: "Supabase is not configured. Check your environment settings.",
+          };
         }
 
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -342,7 +277,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { error: error.message };
         }
 
-        return completeMechanicSignIn(data.user, email.trim());
+        return completeSignIn(data.user);
       },
       async signInWithGoogle() {
         if (!isSupabaseConfigured) {
@@ -403,41 +338,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
         }
 
-        return completeMechanicSignIn(user, user.email ?? "");
+        return completeSignIn(user);
       },
       async signUp(
         email,
         password,
         fullName,
-        role = "mechanic",
+        role = "customer",
         application,
         mobileNumber,
       ) {
+        signupInProgress.current = true;
+        setSession(null);
+
         if (!isSupabaseConfigured) {
-          const normalizedEmail = email.trim().toLowerCase();
-          const users = await loadDemoUsers();
-          const existingUser = users.some(
-            (entry) => entry.email.toLowerCase() === normalizedEmail,
-          );
-
-          if (existingUser) {
-            return { error: "Email already exists. Try another one." };
-          }
-
-          const user: DemoUser = {
-            id: `demo-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-            email: normalizedEmail,
-            password,
-            fullName: fullName.trim() || "Mechanic",
-            role,
+          signupInProgress.current = false;
+          return {
+            error: "Supabase is not configured. Check your environment settings.",
           };
-
-          const nextUsers = [...users, user];
-
-          await saveDemoUsers(nextUsers);
-          await saveDemoSession(null);
-          setSession(null);
-          return { error: null };
         }
 
         const { data, error } = await supabase.auth.signUp({
@@ -463,6 +381,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
 
         if (error) {
+          signupInProgress.current = false;
           return { error: error.message ?? null };
         }
 
@@ -474,15 +393,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               uploadLicensePhoto(userId, application.licenseBackUri, "back"),
             ]);
 
-            await upsertProfile(
+            const applicationError = await upsertMechanicApplication(
               userId,
               email.trim(),
               fullName.trim() || "Mechanic",
-              role,
-              { ...application, licenseFrontPath, licenseBackPath },
+              application,
+              licenseFrontPath,
+              licenseBackPath,
             );
+            if (applicationError) {
+              signupInProgress.current = false;
+              await supabase.auth.signOut();
+              return { error: applicationError };
+            }
           } catch (uploadError) {
             await supabase.auth.signOut();
+            signupInProgress.current = false;
             return {
               error:
                 uploadError instanceof Error
@@ -490,29 +416,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   : "Could not save mechanic documents.",
             };
           }
+        } else if (userId && application) {
+          // The database trigger creates this pending application when email
+          // confirmation is enabled and no authenticated session is returned.
+          if (data.session) {
+            const applicationError = await upsertMechanicApplication(
+              userId,
+              email.trim(),
+              fullName.trim() || "Mechanic",
+              application,
+            );
+            if (applicationError) {
+              signupInProgress.current = false;
+              await supabase.auth.signOut();
+              return { error: applicationError };
+            }
+          }
         } else if (userId) {
-          await upsertProfile(
+          const profileError = await upsertProfile(
             userId,
             email.trim(),
             fullName.trim() || "Mechanic",
             role,
           );
+          if (profileError) {
+            signupInProgress.current = false;
+            await supabase.auth.signOut();
+            return { error: profileError };
+          }
         }
 
         if (data.session) {
           await supabase.auth.signOut();
         }
         setSession(null);
+        signupInProgress.current = false;
 
         return { error: null };
       },
       async signOut() {
         if (!isSupabaseConfigured) {
-          await saveDemoSession(null);
           setSession(null);
           return;
         }
         await supabase.auth.signOut();
+        setSession(null);
       },
     }),
     [session, loading],

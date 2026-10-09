@@ -5,6 +5,8 @@ export const colors = {
   amber: "#F0A202",
   amberMuted: "#C48402",
   amberSoft: "rgba(240, 162, 2, 0.12)",
+  blue: "#2563EB",
+  blueSoft: "rgba(37, 99, 235, 0.12)",
   text: "#101828",
   textMuted: "#667085",
   textDim: "#98A2B3",
