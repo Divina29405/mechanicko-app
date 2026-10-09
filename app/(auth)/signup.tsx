@@ -56,7 +56,7 @@ export default function SignupScreen() {
   async function pickLicensePhoto(side: "front" | "back") {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      allowsEditing: true,
+      allowsEditing: false,
       quality: 0.8,
     });
 
@@ -137,11 +137,6 @@ export default function SignupScreen() {
 
     setSuccess(true);
     setInfo("Application submitted for review.");
-    Alert.alert(
-      "Application submitted",
-      "Your mechanic application is under review. Please wait 7-10 working days.",
-      [{ text: "Back to Login", onPress: () => router.push("/(auth)/login") }],
-    );
   }
 
   async function onSubmit() {

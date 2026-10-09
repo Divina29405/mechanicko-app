@@ -1,7 +1,17 @@
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View, Modal, TextInput } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  Modal,
+  TextInput
+} from 'react-native';
 import { WebView } from 'react-native-webview';
 import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +36,19 @@ const CANCELLATION_REASONS = [
   "Issue was resolved locally",
   "Other"
 ];
+
+const webLocation = {
+  coords: {
+    latitude: 14.5995,
+    longitude: 120.9842,
+    altitude: null,
+    accuracy: 100,
+    altitudeAccuracy: null,
+    heading: null,
+    speed: null,
+  },
+  timestamp: Date.now(),
+} as Location.LocationObject;
 
 export default function MotoristMap() {
   const router = useRouter();
@@ -60,6 +83,16 @@ export default function MotoristMap() {
 
   useEffect(() => {
     (async () => {
+      if (Platform.OS === "web") {
+        setHasPermission(true);
+        setLocation(webLocation);
+        fetchLiveMechanics(
+          webLocation.coords.latitude,
+          webLocation.coords.longitude,
+        );
+        return;
+      }
+
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status === 'granted') {
         setHasPermission(true);

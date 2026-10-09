@@ -9,7 +9,7 @@ export default function MessagesScreen() {
   const { threads } = useMechanic();
 
   return (
-    <MechanicScreen title="Messages" subtitle="Mga kliyente at support">
+    <MechanicScreen title="Messages" subtitle="Clients and support">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {threads.map((thread) => (
           <View key={thread.id} style={styles.row}>

@@ -22,7 +22,7 @@ export function MechanicScreen({ children, title, subtitle, right, back }: Props
           <Pressable
             onPress={() => router.navigate('./')}
             style={({ pressed }) => [styles.back, pressed && styles.pressed]}
-            accessibilityLabel="Bumalik">
+            accessibilityLabel="Go back">
             <Ionicons name="chevron-back" size={22} color={colors.text} />
           </Pressable>
         ) : null}

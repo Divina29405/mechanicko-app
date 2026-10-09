@@ -12,7 +12,6 @@ export function AuthLogo() {
         </View>
       </View>
       <Text style={styles.wordmark}>MECHANIKO</Text>
-      <Text style={styles.tagline}>Hanapin ang mekaniko malapit sa’yo</Text>
     </View>
   );
 }
@@ -20,22 +19,22 @@ export function AuthLogo() {
 const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.md,
   },
   badge: {
-    width: 72,
-    height: 72,
+    width: 60,
+    height: 60,
     borderRadius: 22,
     backgroundColor: colors.amberSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     borderWidth: 1,
     borderColor: 'rgba(240, 162, 2, 0.28)',
   },
   badgeInner: {
-    width: 48,
-    height: 48,
+    width: 42,
+    height: 42,
     borderRadius: 16,
     backgroundColor: colors.amber,
     alignItems: 'center',
@@ -43,15 +42,9 @@ const styles = StyleSheet.create({
   },
   wordmark: {
     color: colors.text,
-    fontSize: 28,
+    fontSize: 24,
     letterSpacing: 4,
     fontFamily: 'SpaceMono',
     fontWeight: '700',
-  },
-  tagline: {
-    marginTop: spacing.sm,
-    color: colors.textMuted,
-    fontSize: 15,
-    textAlign: 'center',
   },
 });
