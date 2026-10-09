@@ -1,7 +1,8 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { supabase } from '@/lib/supabase'; // Adjust this path if needed
+import { supabase } from '@/lib/supabase';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 const COMMON_SYMPTOMS = [
   'Flat Tire / Puncture',
@@ -16,6 +17,7 @@ const COMMON_SYMPTOMS = [
 export default function EmergencyChecklistScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { colors } = useAppTheme();
 
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [additionalNotes, setAdditionalNotes] = useState('');
@@ -32,26 +34,22 @@ export default function EmergencyChecklistScreen() {
 
   const handleSubmitEmergency = async () => {
     if (selectedSymptoms.length === 0) {
-      Alert.alert("Assessment Required", "Please select at least one symptom so the mechanic can prepare the right tools.");
+      Alert.alert("Assessment Required", "Please select at least one symptom.");
       return;
     }
-
     if (!additionalNotes.trim()) {
-      Alert.alert("Details Required", "Please tap the description box to provide your situation and exact location.");
+      Alert.alert("Details Required", "Please provide your situation and location.");
       return;
     }
-
     setIsSubmitting(true);
     
     const issueDescription = `Symptoms: ${selectedSymptoms.join(', ')}.\nNotes: ${additionalNotes}`;
-
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session ? session.user.id : 'guest_motorist';
 
     const { error } = await supabase
       .from('service_requests')
-      .insert([
-        { 
+      .insert([{ 
           motorist_id: userId,
           latitude: parseFloat(params.lat as string) || 14.5794, 
           longitude: parseFloat(params.lng as string) || 121.0359,
@@ -59,32 +57,24 @@ export default function EmergencyChecklistScreen() {
           request_type: 'emergency',
           search_radius_km: 5,
           vehicle_issue: issueDescription
-        }
-      ]);
+      }]);
 
     setIsSubmitting(false);
 
     if (error) {
       Alert.alert("Dispatch Error", error.message);
     } else {
-      Alert.alert("SOS Sent!", "Your emergency request and vehicle assessment have been dispatched to nearby mechanics.", [
+      Alert.alert("SOS Sent!", "Your emergency request has been dispatched.", [
         { text: "View Map", onPress: () => router.back() }
       ]);
     }
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1, backgroundColor: '#121212' }} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView 
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.headerTitle}>Emergency Assessment</Text>
-        <Text style={styles.headerSubtitle}>Select the symptoms you are experiencing. This helps mechanics bring the right tools to your location.</Text>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Emergency Assessment</Text>
+        <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>Select the symptoms you are experiencing. This helps mechanics bring the right tools to your location.</Text>
 
         <View style={styles.checklistContainer}>
           {COMMON_SYMPTOMS.map((symptom, index) => {
@@ -92,11 +82,15 @@ export default function EmergencyChecklistScreen() {
             return (
               <TouchableOpacity 
                 key={index} 
-                style={[styles.checklistItem, isSelected && styles.checklistItemSelected]} 
+                style={[
+                  styles.checklistItem, 
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                  isSelected && { borderColor: colors.primary, backgroundColor: 'rgba(255, 107, 0, 0.05)' }
+                ]} 
                 onPress={() => toggleSymptom(symptom)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.checklistText, isSelected && styles.checklistTextSelected]}>
+                <Text style={[styles.checklistText, { color: isSelected ? colors.primary : colors.text }]}>
                   {isSelected ? '✅ ' : '⬜ '} {symptom}
                 </Text>
               </TouchableOpacity>
@@ -104,58 +98,43 @@ export default function EmergencyChecklistScreen() {
           })}
         </View>
 
-        <Text style={styles.label}>Detailed Description & Location (Required)</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Detailed Description & Location (Required)</Text>
         
-        {/* Mock Input Button that opens the Full-Screen Modal */}
-        <TouchableOpacity 
-          style={styles.mockInputButton} 
-          onPress={() => setIsEditingNotes(true)}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.mockInputText, !additionalNotes && { color: '#888' }]}>
+        <TouchableOpacity style={[styles.mockInputButton, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setIsEditingNotes(true)} activeOpacity={0.8}>
+          <Text style={[styles.mockInputText, { color: additionalNotes ? colors.text : colors.textMuted }]}>
             {additionalNotes ? additionalNotes : "Tap here to type your exact location and situation..."}
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.confirmButton, isSubmitting && { opacity: 0.7 }]} 
-          onPress={handleSubmitEmergency}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.confirmButtonText}>
-            {isSubmitting ? 'Dispatching...' : '🚨 Dispatch Mechanic Now'}
-          </Text>
+        <TouchableOpacity style={[styles.confirmButton, isSubmitting && { opacity: 0.7 }]} onPress={handleSubmitEmergency} disabled={isSubmitting}>
+          <Text style={styles.confirmButtonText}>{isSubmitting ? 'Dispatching...' : '🚨 Dispatch Mechanic Now'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()} disabled={isSubmitting}>
-          <Text style={styles.cancelButtonText}>Cancel Emergency</Text>
+          <Text style={[styles.cancelButtonText, { color: colors.textMuted }]}>Cancel Emergency</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      {/* FULL SCREEN TYPING MODAL FOR ACCESSIBILITY */}
       <Modal visible={isEditingNotes} animationType="slide" presentationStyle="pageSheet">
-        <KeyboardAvoidingView style={styles.modalContainer} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView style={[styles.modalContainer, { backgroundColor: colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Your Location & Situation</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Your Location & Situation</Text>
             <TouchableOpacity onPress={() => setIsEditingNotes(false)}>
-              <Text style={styles.modalCloseText}>Done</Text>
+              <Text style={[styles.modalCloseText, { color: colors.primary }]}>Done</Text>
             </TouchableOpacity>
           </View>
           
           <TextInput
-            style={styles.fullScreenInput}
-            placeholder="e.g., Parked on the right shoulder before the overpass. Front tire is completely shredded. Wearing a blue jacket."
-            placeholderTextColor="#888"
+            style={[styles.fullScreenInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
+            placeholder="e.g., Parked on the right shoulder before the overpass..."
+            placeholderTextColor={colors.textMuted}
             multiline
             autoFocus={true}
             value={additionalNotes}
             onChangeText={setAdditionalNotes}
           />
           
-          <TouchableOpacity 
-            style={styles.modalSaveButton} 
-            onPress={() => setIsEditingNotes(false)}
-          >
+          <TouchableOpacity style={[styles.modalSaveButton, { backgroundColor: colors.primary }]} onPress={() => setIsEditingNotes(false)}>
             <Text style={styles.modalSaveButtonText}>Save Details</Text>
           </TouchableOpacity>
         </KeyboardAvoidingView>
@@ -165,139 +144,24 @@ export default function EmergencyChecklistScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 24,
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ef4444',
-    marginBottom: 6,
-    marginTop: 20,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#aaaaaa',
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  checklistContainer: {
-    marginBottom: 24,
-  },
-  checklistItem: {
-    backgroundColor: '#1e1e1e',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  checklistItemSelected: {
-    borderColor: '#ef4444',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-  },
-  checklistText: {
-    color: '#cccccc',
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  checklistTextSelected: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#ef4444',
-    marginBottom: 8,
-  },
-  mockInputButton: {
-    backgroundColor: '#1e1e1e',
-    padding: 16,
-    borderRadius: 12,
-    minHeight: 80,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#333',
-    justifyContent: 'center',
-  },
-  mockInputText: {
-    color: '#ffffff',
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  confirmButton: {
-    backgroundColor: '#ef4444',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 12,
-    elevation: 3,
-  },
-  confirmButtonText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-    fontSize: 16,
-    letterSpacing: 0.5,
-  },
-  cancelButton: {
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    color: '#aaaaaa',
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  
-  /* MODAL STYLES */
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#121212',
-    padding: 24,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  modalCloseText: {
-    color: '#3b82f6',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  fullScreenInput: {
-    flex: 1,
-    backgroundColor: '#1e1e1e',
-    color: '#ffffff',
-    padding: 20,
-    borderRadius: 16,
-    fontSize: 20, // Huge font size for easy reading
-    lineHeight: 28,
-    textAlignVertical: 'top',
-    borderWidth: 1,
-    borderColor: '#333',
-    marginBottom: 20,
-  },
-  modalSaveButton: {
-    backgroundColor: '#3b82f6',
-    paddingVertical: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: Platform.OS === 'ios' ? 20 : 0,
-  },
-  modalSaveButtonText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-    fontSize: 18,
-  },
+  container: { padding: 24, flexGrow: 1, justifyContent: 'center' },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 6, marginTop: 20 },
+  headerSubtitle: { fontSize: 14, marginBottom: 24, lineHeight: 20 },
+  checklistContainer: { marginBottom: 24 },
+  checklistItem: { padding: 16, borderRadius: 12, marginBottom: 10, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 3, elevation: 2 },
+  checklistText: { fontSize: 15, fontWeight: '600' },
+  label: { fontSize: 13, fontWeight: '700', marginBottom: 8 },
+  mockInputButton: { padding: 16, borderRadius: 12, minHeight: 80, marginBottom: 24, borderWidth: 1, justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 3, elevation: 2 },
+  mockInputText: { fontSize: 16, lineHeight: 22 },
+  confirmButton: { backgroundColor: '#FF3800', paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: 12, elevation: 5, shadowColor: '#FF3800', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5 },
+  confirmButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 16, letterSpacing: 0.5 },
+  cancelButton: { paddingVertical: 12, alignItems: 'center' },
+  cancelButtonText: { fontWeight: 'bold', fontSize: 15 },
+  modalContainer: { flex: 1, padding: 24, paddingTop: Platform.OS === 'ios' ? 60 : 40 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold' },
+  modalCloseText: { fontSize: 18, fontWeight: 'bold' },
+  fullScreenInput: { flex: 1, padding: 20, borderRadius: 16, fontSize: 18, lineHeight: 28, textAlignVertical: 'top', borderWidth: 1, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
+  modalSaveButton: { paddingVertical: 18, borderRadius: 12, alignItems: 'center', marginBottom: Platform.OS === 'ios' ? 20 : 0 },
+  modalSaveButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 18 },
 });

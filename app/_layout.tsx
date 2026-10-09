@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { LocationGate } from "@/components/LocationGate";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { colors } from "@/lib/theme";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 
 export { ErrorBoundary } from "expo-router";
 
@@ -32,21 +33,23 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <StatusBar style="dark" />
-      <LocationGate>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.bg },
-            animation: "fade",
-          }}
-        >
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(app)" />
-        </Stack>
-      </LocationGate>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <StatusBar style="auto" />
+        <LocationGate>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.bg },
+              animation: "fade",
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(app)" />
+          </Stack>
+        </LocationGate>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
