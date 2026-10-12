@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 import { MechanicScreen } from '@/components/mechanic/MechanicScreen';
+import { ComingSoonModal } from '@/components/ComingSoonModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMechanic } from '@/contexts/MechanicContext';
 import { colors, radii, spacing } from '@/lib/theme';
@@ -68,6 +69,7 @@ export default function ProfileScreen() {
   const [savingPrices, setSavingPrices] = useState(false);
   const [priceAdded, setPriceAdded] = useState(false);
   const [requestingDeletion, setRequestingDeletion] = useState(false);
+  const [comingSoonVisible, setComingSoonVisible] = useState(false);
   const [addressPickerVisible, setAddressPickerVisible] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<SelectedAddress | null>(null);
@@ -179,6 +181,14 @@ export default function ProfileScreen() {
       | 'maintenance-pricing'
       | 'account-details',
   ) {
+    if (
+      section === 'specializations' ||
+      section === 'documents' ||
+      section === 'certifications'
+    ) {
+      setComingSoonVisible(true);
+      return;
+    }
     setExpandedSection(section);
   }
 
@@ -775,6 +785,10 @@ export default function ProfileScreen() {
           </View>
         </SafeAreaView>
       </Modal>
+      <ComingSoonModal
+        visible={comingSoonVisible}
+        onClose={() => setComingSoonVisible(false)}
+      />
     </MechanicScreen>
   );
 }

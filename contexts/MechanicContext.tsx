@@ -86,8 +86,14 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
         .eq('id', session.user.id)
         .maybeSingle();
       if (active && data?.avatar_path) {
-        const url = supabase.storage.from('mechanic-avatars').getPublicUrl(data.avatar_path).data.publicUrl;
-        setAvatarUrl(`${url}?v=${Date.now()}`);
+        const signed = await supabase.storage
+          .from('mechanic-avatars')
+          .createSignedUrl(data.avatar_path, 60 * 60);
+        if (active && signed.data?.signedUrl) {
+          setAvatarUrl(
+            `${signed.data.signedUrl}${signed.data.signedUrl.includes('?') ? '&' : '?'}v=${Date.now()}`,
+          );
+        }
       }
       if (active && typeof data?.average_rating === 'number') {
         setRating(Math.min(5, Math.max(1, data.average_rating)));

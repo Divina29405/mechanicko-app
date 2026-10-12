@@ -32,6 +32,8 @@ export default function EmergencyChecklistScreen() {
   const { colors } = useAppTheme();
 
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
+  const [vehicleType, setVehicleType] = useState('');
+  const [plateNumber, setPlateNumber] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,6 +55,10 @@ export default function EmergencyChecklistScreen() {
       Alert.alert("Details Required", "Please provide your situation and location.");
       return;
     }
+    if (!vehicleType.trim() || !plateNumber.trim()) {
+      Alert.alert("Vehicle Details Required", "Please enter your vehicle model and plate number.");
+      return;
+    }
     setIsSubmitting(true);
     
     const issueDescription = `Symptoms: ${selectedSymptoms.join(', ')}.\nNotes: ${additionalNotes}`;
@@ -68,6 +74,8 @@ export default function EmergencyChecklistScreen() {
           status: 'pending',
           request_type: 'emergency',
           search_radius_km: 5,
+          vehicle_type: vehicleType.trim(),
+          plate_number: plateNumber.trim().toUpperCase(),
           vehicle_issue: issueDescription
       }]);
 
@@ -94,6 +102,24 @@ export default function EmergencyChecklistScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <Text style={[styles.label, { color: colors.text }]}>Vehicle information</Text>
+          <View style={styles.vehicleRow}>
+            <TextInput
+              style={[styles.vehicleInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
+              placeholder="Vehicle model"
+              placeholderTextColor={colors.textMuted}
+              value={vehicleType}
+              onChangeText={setVehicleType}
+            />
+            <TextInput
+              style={[styles.vehicleInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
+              placeholder="Plate number"
+              placeholderTextColor={colors.textMuted}
+              value={plateNumber}
+              onChangeText={setPlateNumber}
+              autoCapitalize="characters"
+            />
+          </View>
           <View style={[styles.checklistContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {COMMON_SYMPTOMS.map((symptom) => {
               const isSelected = selectedSymptoms.includes(symptom);
@@ -179,18 +205,20 @@ const styles = StyleSheet.create({
   backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerSpacer: { width: 40 },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800' },
-  container: { padding: 20, paddingBottom: 32 },
-  checklistContainer: { marginBottom: 26, borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
-  checklistItem: { minHeight: 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
-  symptomIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  container: { padding: 16, paddingBottom: 24 },
+  vehicleRow: { flexDirection: 'row', gap: 8, marginTop: 8, marginBottom: 12 },
+  vehicleInput: { flex: 1, minHeight: 42, borderWidth: 1, borderRadius: 9, paddingHorizontal: 10, fontSize: 13 },
+  checklistContainer: { marginBottom: 16, borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
+  checklistItem: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderBottomWidth: 1 },
+  symptomIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   checklistText: { flex: 1, fontSize: 14, fontWeight: '700' },
   label: { fontSize: 15, fontWeight: '800', marginBottom: 4 },
-  fieldHint: { fontSize: 12, marginBottom: 10 },
-  mockInputButton: { minHeight: 76, flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 14, borderWidth: 1, gap: 12 },
-  mockInputText: { flex: 1, fontSize: 14, lineHeight: 20 },
-  confirmButton: { minHeight: 54, flexDirection: 'row', gap: 10, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  fieldHint: { fontSize: 12, marginBottom: 7 },
+  mockInputButton: { minHeight: 60, flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 10, marginBottom: 12, borderWidth: 1, gap: 10 },
+  mockInputText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  confirmButton: { minHeight: 48, flexDirection: 'row', gap: 8, paddingHorizontal: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   disabledButton: { opacity: 0.65 },
-  confirmButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
+  confirmButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
   modalContainer: { flex: 1, padding: 20, paddingTop: Platform.OS === 'ios' ? 24 : 20 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 16, marginBottom: 16, borderBottomWidth: 1 },
   modalTitle: { fontSize: 19, fontWeight: '800' },

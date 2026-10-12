@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { File } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
-import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch } from 'react-native';
-import { useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { MechanicScreen } from '@/components/mechanic/MechanicScreen';
+import { ComingSoonModal } from '@/components/ComingSoonModal';
 
 const vehicleIcon = require('../../assets/images/vehicle.png');
 const locationIcon = require('../../assets/images/location.png');
@@ -16,9 +16,8 @@ const darkModeIcon = require('../../assets/images/dark-mode.png');
 const paymentMethodIcon = require('../../assets/images/payment-method.png');
 
 export default function MotoristProfileScreen() {
-  const router = useRouter();
   const { session, signOut } = useAuth();
-  const { colors, isDarkMode, toggleTheme } = useAppTheme();
+  const { colors } = useAppTheme();
 
   const email = session?.user.email ?? 'motorist@example.com';
   const fullName = typeof session?.user.user_metadata?.full_name === 'string'
@@ -31,7 +30,66 @@ export default function MotoristProfileScreen() {
   );
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [accountDetailsVisible, setAccountDetailsVisible] = useState(false);
+  const [editableEmail, setEditableEmail] = useState(email);
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [comingSoonVisible, setComingSoonVisible] = useState(false);
   const avatarRequestId = useRef(0);
+
+  useEffect(() => {
+    if (!accountDetailsVisible || !session?.user.id) return;
+    let active = true;
+    const loadMobileNumber = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('mobile_number')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (active && !error) setMobileNumber(data?.mobile_number ?? '');
+    };
+    void loadMobileNumber();
+    return () => {
+      active = false;
+    };
+  }, [accountDetailsVisible, session?.user.id]);
+
+  async function saveAccountDetails() {
+    if (!session?.user.id || savingDetails) return;
+    const nextEmail = editableEmail.trim();
+    const nextMobile = mobileNumber.trim();
+    if (!nextEmail || !nextEmail.includes('@')) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
+    if (!nextMobile) {
+      Alert.alert('Phone number required', 'Please enter your phone number.');
+      return;
+    }
+
+    setSavingDetails(true);
+    const profileUpdate = await supabase
+      .from('profiles')
+      .update({ email: nextEmail, mobile_number: nextMobile })
+      .eq('id', session.user.id);
+    if (profileUpdate.error) {
+      setSavingDetails(false);
+      Alert.alert('Update failed', profileUpdate.error.message);
+      return;
+    }
+
+    if (nextEmail !== email) {
+      const authUpdate = await supabase.auth.updateUser({ email: nextEmail });
+      if (authUpdate.error) {
+        setSavingDetails(false);
+        Alert.alert('Email update failed', authUpdate.error.message);
+        return;
+      }
+      Alert.alert('Changes saved successfully!', 'Please check your email to confirm the new email address.');
+    } else {
+      Alert.alert('Changes saved successfully!', 'Your account details have been updated.');
+    }
+    setSavingDetails(false);
+  }
 
   function initials(name: string) {
     return name
@@ -40,6 +98,10 @@ export default function MotoristProfileScreen() {
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase() ?? '')
       .join('');
+  }
+
+  function showComingSoon() {
+    setComingSoonVisible(true);
   }
 
   async function changeAvatar(source: 'camera' | 'gallery') {
@@ -149,27 +211,22 @@ export default function MotoristProfileScreen() {
             title="My Vehicles" 
             subtitle="Manage your registered motorcycles and cars" 
             colors={colors} 
-            onPress={() => router.push('/my-vehicles')}
+            onPress={showComingSoon}
           />
 
-          <SettingRow iconSource={paymentMethodIcon} title="Payment Methods" subtitle="Link GCash or Credit/Debit Cards" colors={colors} />
-          <SettingRow iconSource={locationIcon} title="Saved Locations" subtitle="Home, Work, and frequent stops" colors={colors} />
+          <SettingRow iconSource={paymentMethodIcon} title="Payment Methods" subtitle="Link GCash or Credit/Debit Cards" colors={colors} onPress={showComingSoon} />
+          <SettingRow iconSource={locationIcon} title="Saved Locations" subtitle="Home, Work, and frequent stops" colors={colors} onPress={showComingSoon} />
           
-          <View style={[styles.row, { borderBottomColor: colors.border }]}>
+          <TouchableOpacity style={[styles.row, { borderBottomColor: colors.border }]} onPress={showComingSoon}>
             <View style={styles.iconBox}>
               <Image source={darkModeIcon} style={styles.settingIconImage} />
             </View>
             <View style={styles.rowText}>
               <Text style={[styles.rowTitle, { color: colors.text }]}>Dark Mode</Text>
-              <Text style={[styles.rowSubtitle, { color: colors.textMuted }]}>Auto-switches at 6:00 PM</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.textMuted }]}>Coming soon</Text>
             </View>
-            <Switch 
-              value={isDarkMode} 
-              onValueChange={toggleTheme} 
-              trackColor={{ false: '#E5E7EB', true: '#FF6B00' }}
-              thumbColor={'#FFFFFF'}
-            />
-          </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
         </View>
 
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Account Details</Text>
@@ -177,7 +234,10 @@ export default function MotoristProfileScreen() {
         <View style={[styles.menuGroup, { backgroundColor: colors.card }]}>
           <TouchableOpacity
             style={[styles.row, { borderBottomColor: colors.border }]}
-            onPress={() => setAccountDetailsVisible(true)}
+            onPress={() => {
+              setEditableEmail(email);
+              setAccountDetailsVisible(true);
+            }}
           >
             <View style={styles.iconBox}>
               <Ionicons name="person-outline" size={20} color={colors.primary} />
@@ -212,10 +272,38 @@ export default function MotoristProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          <View style={[styles.detailsList, { backgroundColor: colors.card }]}>
+          <ScrollView style={[styles.detailsList, { backgroundColor: colors.card }]} keyboardShouldPersistTaps="handled">
             <AccountDetailRow label="Full Name" value={fullName} colors={colors} />
-            <AccountDetailRow label="Email Address" value={email} colors={colors} />
+            <View style={[styles.editableDetailRow, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Email Address</Text>
+              <TextInput
+                style={[styles.detailInput, { color: colors.text }]}
+                value={editableEmail}
+                onChangeText={setEditableEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            <View style={[styles.editableDetailRow, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Phone Number</Text>
+              <TextInput
+                style={[styles.detailInput, { color: colors.text }]}
+                value={mobileNumber}
+                onChangeText={setMobileNumber}
+                keyboardType="phone-pad"
+                placeholder="Enter phone number"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
             <AccountDetailRow label="Account Type" value="Motorist" colors={colors} />
+            <TouchableOpacity
+              style={[styles.saveDetailsButton, { backgroundColor: colors.primary }]}
+              onPress={() => void saveAccountDetails()}
+              disabled={savingDetails}
+            >
+              {savingDetails ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveDetailsText}>Save changes</Text>}
+            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.detailLogoutRow, { borderTopColor: colors.border }]}
               onPress={handleLogout}
@@ -224,9 +312,13 @@ export default function MotoristProfileScreen() {
               <Text style={styles.logoutText}>Mag-logout</Text>
               <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
+      <ComingSoonModal
+        visible={comingSoonVisible}
+        onClose={() => setComingSoonVisible(false)}
+      />
     </MechanicScreen>
   );
 }
@@ -287,9 +379,13 @@ const styles = StyleSheet.create({
   detailTitle: { fontSize: 18, fontWeight: '800' },
   closeButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   detailsList: { marginTop: 16 },
-  detailRow: { paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: 1 },
+  detailRow: { minHeight: 58, paddingHorizontal: 20, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
+  editableDetailRow: { minHeight: 58, paddingHorizontal: 20, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
   detailLabel: { fontSize: 13, fontWeight: '600' },
-  detailValue: { fontSize: 16, fontWeight: '700', marginTop: 6 },
+  detailValue: { flex: 1, fontSize: 15, fontWeight: '700', marginLeft: 20, textAlign: 'right' },
+  detailInput: { flex: 1, minHeight: 38, borderWidth: 0, paddingHorizontal: 0, paddingVertical: 4, fontSize: 15, fontWeight: '600', marginLeft: 20, textAlign: 'right' },
+  saveDetailsButton: { minHeight: 46, margin: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  saveDetailsText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
   detailLogoutRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 18, borderTopWidth: 1 },
   logoutText: { color: '#EF4444', fontSize: 15, fontWeight: '800', flex: 1 }
 });

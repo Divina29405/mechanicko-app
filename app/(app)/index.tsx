@@ -20,6 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useMechanic } from "@/contexts/MechanicContext";
+import { ComingSoonModal } from "@/components/ComingSoonModal";
 import { supabase } from "@/lib/supabase";
 import { colors, radii, spacing } from "@/lib/theme";
 
@@ -28,6 +29,7 @@ type AvailableJob = {
   motorist_id: string;
   mechanic_id: string | null;
   vehicle_type: string | null;
+  plate_number: string | null;
   vehicle_issue: string | null;
   request_type: string | null;
   created_at: string;
@@ -131,6 +133,18 @@ export default function MechanicHomeScreen() {
   const [mechanicLocation, setMechanicLocation] =
     useState<Coordinates | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [comingSoonVisible, setComingSoonVisible] = useState(false);
+
+  function openCustomerLocation(job: AvailableJob) {
+    if (job.latitude === null || job.longitude === null) {
+      setJobsError("Customer location is not available.");
+      return;
+    }
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${job.latitude},${job.longitude}`;
+    void Linking.openURL(mapsUrl).catch(() => {
+      setJobsError("Unable to open maps.");
+    });
+  }
 
   useEffect(() => {
     if (!online) {
@@ -182,7 +196,7 @@ export default function MechanicHomeScreen() {
 
       const { data, error } = await supabase
         .from("service_requests")
-        .select("id,motorist_id,mechanic_id,vehicle_type,vehicle_issue,request_type,created_at,scheduled_at,latitude,longitude")
+        .select("id,motorist_id,mechanic_id,vehicle_type,plate_number,vehicle_issue,request_type,created_at,scheduled_at,latitude,longitude")
         .or(`mechanic_id.is.null,mechanic_id.eq.${session.user.id}`)
         .in("status", ["pending", "scheduled"])
         .order("created_at", { ascending: false });
@@ -253,21 +267,6 @@ export default function MechanicHomeScreen() {
   function openDeclineDialog(id: string) {
     setDeclineReason("");
     setDeclineJobId(id);
-  }
-
-  async function callMotorist(job: AvailableJob) {
-    const phoneNumber = job.customer_contact?.replace(/[^\d+]/g, "");
-    if (!phoneNumber || job.customer_contact === "Not provided") {
-      setJobsError("Motorist phone number is not available.");
-      return;
-    }
-
-    const url = `tel:${phoneNumber}`;
-    if (await Linking.canOpenURL(url)) {
-      await Linking.openURL(url);
-    } else {
-      setJobsError("Unable to open the phone app.");
-    }
   }
 
   async function declineJob() {
@@ -468,12 +467,18 @@ export default function MechanicHomeScreen() {
                       </Text>
                     </View>
                     <View style={styles.requestValues}>
-                      <View style={styles.requestValueRow}>
+                      <Pressable
+                        style={styles.requestValueRow}
+                        onPress={() => openCustomerLocation(job)}
+                        disabled={job.latitude === null || job.longitude === null}
+                        accessibilityRole="button"
+                        accessibilityLabel="View customer location on map"
+                      >
                         <Ionicons name="location-outline" size={18} color={colors.sos} />
                         <Text style={styles.requestValue} numberOfLines={2}>
                           {formatPickupLocation(job)}
                         </Text>
-                      </View>
+                      </Pressable>
                       <View style={styles.requestValueRow}>
                         <Ionicons name="person-outline" size={18} color={colors.textMuted} />
                         <Text style={styles.requestValue} numberOfLines={1}>
@@ -542,7 +547,13 @@ export default function MechanicHomeScreen() {
               <Text style={styles.jobDetailCustomer}>
                 {selectedJob.customer_name}
               </Text>
-              <View style={styles.detailRoute}>
+              <Pressable
+                style={styles.detailRoute}
+                onPress={() => openCustomerLocation(selectedJob)}
+                disabled={selectedJob.latitude === null || selectedJob.longitude === null}
+                accessibilityRole="button"
+                accessibilityLabel="View customer location on map"
+              >
                 <View style={styles.detailRouteRow}>
                   <Ionicons
                     name="location"
@@ -562,8 +573,13 @@ export default function MechanicHomeScreen() {
                         : "Location not provided"}
                     </Text>
                   </View>
-                </View>
-              </View>
+                  </View>
+                  <Text style={styles.detailRouteHint}>
+                    {selectedJob.latitude !== null && selectedJob.longitude !== null
+                      ? "Tap to open in maps"
+                      : "Location not available"}
+                  </Text>
+                </Pressable>
               <View style={styles.fullDetailSection}>
                 <Text
                   style={[
@@ -589,22 +605,13 @@ export default function MechanicHomeScreen() {
                     ? new Date(selectedJob.scheduled_at).toLocaleString()
                     : "As soon as possible"}
                 </Text>
-                <Text style={styles.fullDetailLabel}>MOBILE NUMBER</Text>
-                <View style={styles.contactDetailRow}>
-                  <Text style={styles.fullDetailValue}>
-                    {selectedJob.customer_contact || "Not provided"}
-                  </Text>
-                  <Pressable
-                    style={styles.callMotoristButton}
-                    onPress={() => void callMotorist(selectedJob)}
-                    accessibilityLabel="Call motorist"
-                  >
-                    <Ionicons name="call" size={18} color={colors.white} />
-                  </Pressable>
-                </View>
                 <Text style={styles.fullDetailLabel}>VEHICLE</Text>
                 <Text style={styles.fullDetailValue}>
                   {selectedJob.vehicle_type || "Not provided"}
+                </Text>
+                <Text style={styles.fullDetailLabel}>PLATE NUMBER</Text>
+                <Text style={styles.fullDetailValue}>
+                  {selectedJob.plate_number || "Not provided"}
                 </Text>
                 <Text style={styles.fullDetailLabel}>SERVICE DETAILS</Text>
                 <Text style={styles.fullDetailValue}>
@@ -711,17 +718,27 @@ export default function MechanicHomeScreen() {
               onPress={() => closeSidebar(() => router.push("./profile"))}
             >
               <View style={styles.sidebarAvatar}>
-                <Text style={styles.avatarText}>{initials(name)}</Text>
+                {avatarUrl ? (
+                  <Image source={{ uri: avatarUrl }} style={styles.sidebarAvatarImage} />
+                ) : (
+                  <Text style={styles.avatarText}>{initials(name)}</Text>
+                )}
               </View>
               <Text style={styles.sidebarName} numberOfLines={2}>{name}</Text>
             </Pressable>
             <View style={styles.sidebarDivider} />
-            <Pressable style={styles.sidebarRow} onPress={() => closeSidebar()}>
+            <Pressable
+              style={styles.sidebarRow}
+              onPress={() => setComingSoonVisible(true)}
+            >
               <Ionicons name="help-circle-outline" size={23} color={colors.text} />
               <Text style={styles.sidebarRowText}>Help</Text>
               <Ionicons name="chevron-forward" size={19} color={colors.textDim} />
             </Pressable>
-            <Pressable style={styles.sidebarRow} onPress={() => closeSidebar()}>
+            <Pressable
+              style={styles.sidebarRow}
+              onPress={() => setComingSoonVisible(true)}
+            >
               <Ionicons name="settings-outline" size={23} color={colors.text} />
               <Text style={styles.sidebarRowText}>Settings</Text>
               <Ionicons name="chevron-forward" size={19} color={colors.textDim} />
@@ -734,6 +751,10 @@ export default function MechanicHomeScreen() {
           />
         </View>
       </Modal>
+      <ComingSoonModal
+        visible={comingSoonVisible}
+        onClose={() => setComingSoonVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -789,6 +810,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: spacing.md,
+    overflow: "hidden",
+  },
+  sidebarAvatarImage: {
+    width: "100%",
+    height: "100%",
   },
   sidebarName: {
     flex: 1,

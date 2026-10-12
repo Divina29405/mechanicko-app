@@ -101,6 +101,8 @@ export default function MotoristMap() {
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
   const [bookingReceiptVisible, setBookingReceiptVisible] = useState(false);
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
+  const [vehicleType, setVehicleType] = useState('');
+  const [plateNumber, setPlateNumber] = useState('');
   const [bookingDate, setBookingDate] = useState(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -291,6 +293,8 @@ export default function MotoristMap() {
       return;
     }
     setSelectedServices([]);
+    setVehicleType('');
+    setPlateNumber('');
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(9, 0, 0, 0);
@@ -300,6 +304,10 @@ export default function MotoristMap() {
 
   const handleBookNow = async () => {
     if (!selectedMechanic || !selectedServices.length || !session?.user?.id || !location || submittingBooking) return;
+    if (!vehicleType.trim() || !plateNumber.trim()) {
+      Alert.alert('Vehicle details required', 'Please enter your vehicle model and plate number.');
+      return;
+    }
     if (bookingDate.getTime() < Date.now()) {
       Alert.alert('Date required', 'Please choose a future date for this scheduled booking.');
       return;
@@ -316,6 +324,8 @@ export default function MotoristMap() {
           motorist_id: session.user.id, mechanic_id: selectedMechanic.id, latitude: location.coords.latitude, 
           longitude: location.coords.longitude, status: 'scheduled', request_type: 'scheduled',
           scheduled_at: bookingDate.toISOString(),
+          vehicle_type: vehicleType.trim(),
+          plate_number: plateNumber.trim().toUpperCase(),
           service_name: serviceNames, service_price: servicePrice,
           delivery_fee: deliveryFee, estimated_total: totalPrice,
           vehicle_issue: serviceNames,
@@ -785,6 +795,24 @@ export default function MotoristMap() {
             </TouchableOpacity>
           </View>
           <View style={styles.bookingContent}>
+            <Text style={[styles.bookingSectionTitle, { color: colors.text }]}>Vehicle details</Text>
+            <View style={styles.bookingVehicleRow}>
+              <TextInput
+                style={[styles.bookingVehicleInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
+                placeholder="Vehicle model"
+                placeholderTextColor={colors.textMuted}
+                value={vehicleType}
+                onChangeText={setVehicleType}
+              />
+              <TextInput
+                style={[styles.bookingVehicleInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
+                placeholder="Plate number"
+                placeholderTextColor={colors.textMuted}
+                value={plateNumber}
+                onChangeText={setPlateNumber}
+                autoCapitalize="characters"
+              />
+            </View>
             <Text style={[styles.bookingSectionTitle, { color: colors.text }]}>Service offerings</Text>
             <View style={[styles.bookingServices, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <ScrollView nestedScrollEnabled showsVerticalScrollIndicator contentContainerStyle={styles.bookingServicesContent}>
@@ -914,6 +942,18 @@ export default function MotoristMap() {
               </TouchableOpacity>
             </View>
             <View style={[styles.receiptDivider, { borderBottomColor: colors.border }]} />
+            <View style={styles.receiptRow}>
+              <Text style={[styles.receiptLabel, { color: colors.textMuted }]}>Vehicle</Text>
+              <Text style={[styles.receiptValue, { color: colors.text }]}>
+                {activeRequest?.vehicle_type || 'Not specified'}
+              </Text>
+            </View>
+            <View style={styles.receiptRow}>
+              <Text style={[styles.receiptLabel, { color: colors.textMuted }]}>Plate number</Text>
+              <Text style={[styles.receiptValue, { color: colors.text }]}>
+                {activeRequest?.plate_number || 'Not specified'}
+              </Text>
+            </View>
             <Text style={[styles.receiptLabel, { color: colors.textMuted }]}>SERVICES</Text>
             <Text style={[styles.receiptValue, { color: colors.text }]}>
               {activeRequest?.service_name || 'Selected services'}
@@ -1095,7 +1135,9 @@ const styles = StyleSheet.create({
   bookingSubtitle: { fontSize: 12, marginTop: 2 },
   bookingContent: { flex: 1, padding: 16 },
   bookingSectionTitle: { fontSize: 14, fontWeight: '800', marginBottom: 7 },
-  bookingServices: { height: 288, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  bookingVehicleRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  bookingVehicleInput: { flex: 1, minHeight: 42, borderWidth: 1, borderRadius: 9, paddingHorizontal: 10, fontSize: 13 },
+  bookingServices: { height: 240, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   bookingServicesContent: { flexGrow: 1 },
   bookingServiceRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1 },
   bookingRadio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginRight: 12 },

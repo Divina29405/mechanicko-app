@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import { useFocusEffect } from "expo-router";
-import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MechanicScreen } from "@/components/mechanic/MechanicScreen";
+import { ComingSoonModal } from "@/components/ComingSoonModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { colors, spacing } from "@/lib/theme";
@@ -18,6 +19,7 @@ type ServiceRequest = {
   motorist_id: string;
   mechanic_id: string | null;
   vehicle_type: string | null;
+  plate_number: string | null;
   vehicle_issue: string | null;
   request_type: string | null;
   status: string | null;
@@ -35,6 +37,11 @@ type ChatMessage = {
   sender_id: string;
   body: string;
   created_at: string;
+};
+
+type CustomerContactRow = {
+  customer_id: string;
+  mobile_number: string | null;
 };
 
 function getJobStatus(status: string | null): JobStatus | null {
@@ -56,6 +63,12 @@ function formatDate(value: string | null) {
   return new Date(value).toLocaleString();
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
 export default function JobsScreen() {
   const { session } = useAuth();
   const [jobs, setJobs] = useState<ServiceRequest[]>([]);
@@ -72,6 +85,7 @@ export default function JobsScreen() {
   const [issueJob, setIssueJob] = useState<ServiceRequest | null>(null);
   const [otherIssueReason, setOtherIssueReason] = useState("");
   const [enteringOtherReason, setEnteringOtherReason] = useState(false);
+  const [comingSoonVisible, setComingSoonVisible] = useState(false);
 
   const issueOptions = [
     "Vehicle or service issue changed",
@@ -89,7 +103,7 @@ export default function JobsScreen() {
     const { data, error: queryError } = await supabase
       .from("service_requests")
       .select(
-        "id,motorist_id,mechanic_id,vehicle_type,vehicle_issue,request_type,status,cancelled_by,latitude,longitude,created_at,scheduled_at",
+        "id,motorist_id,mechanic_id,vehicle_type,plate_number,vehicle_issue,request_type,status,cancelled_by,latitude,longitude,created_at,scheduled_at",
       )
       .or(`mechanic_id.is.null,mechanic_id.eq.${mechanicId}`)
       .order("created_at", { ascending: false });
@@ -102,21 +116,51 @@ export default function JobsScreen() {
         "customer_name" | "customer_contact"
       >[];
       const motoristIds = [...new Set(requests.map((job) => job.motorist_id))];
-      const { data: profiles } = motoristIds.length
+      const profileIds = motoristIds.filter(isUuid);
+      const { data: profiles, error: profilesError } = profileIds.length
         ? await supabase
             .from("profiles")
             .select("id,full_name,mobile_number,email")
-            .in("id", motoristIds)
-        : { data: [] };
+            .in("id", profileIds)
+        : { data: [], error: null };
+      if (profilesError) {
+        setError(profilesError.message);
+      }
+      const { data: contactRows, error: contactError } = profileIds.length
+        ? await supabase.rpc("get_customer_mobile_numbers", {
+            p_customer_ids: profileIds,
+          })
+        : { data: [], error: null };
+      if (contactError) {
+        setError(contactError.message);
+      }
+      const typedContactRows = (contactRows ?? []) as CustomerContactRow[];
+      const contactMap = new Map(
+        typedContactRows.map((profile) => [
+          profile.customer_id,
+          profile.mobile_number,
+        ]),
+      );
       const profileMap = new Map(
         (profiles ?? []).map((profile) => [
           profile.id,
           {
             name: profile.full_name || "Customer",
-            contact: profile.mobile_number || "Not provided",
+            contact:
+              profile.mobile_number ||
+              contactMap.get(profile.id) ||
+              "Not provided",
           },
         ]),
       );
+      for (const contact of typedContactRows) {
+        if (!profileMap.has(contact.customer_id)) {
+          profileMap.set(contact.customer_id, {
+            name: "Customer",
+            contact: contact.mobile_number || "Not provided",
+          });
+        }
+      }
       setJobs(
         requests.map((job) => ({
           ...job,
@@ -194,10 +238,16 @@ export default function JobsScreen() {
       .eq("mechanic_id", mechanicId);
     if (updateError) {
       setError(updateError.message);
-    } else {
+    } else if (status === "completed" || status === "cancelled") {
       setSelectedJob(null);
+    } else {
+      setSelectedJob((job) => (job ? { ...job, status } : job));
     }
     await loadJobs(true);
+  }
+
+  function showComingSoon() {
+    setComingSoonVisible(true);
   }
 
   function callCustomer(job: ServiceRequest) {
@@ -205,6 +255,7 @@ export default function JobsScreen() {
       setError("Customer contact number is not available.");
       return;
     }
+
     const phoneNumber = job.customer_contact.replace(/[^\d+]/g, "");
     void Linking.canOpenURL(`tel:${phoneNumber}`).then((canCall) => {
       if (!canCall) {
@@ -217,67 +268,23 @@ export default function JobsScreen() {
     });
   }
 
-  function confirmIssue(reason: string) {
-    if (!issueJob) return;
-    const booking = issueJob;
-    setIssueJob(null);
-    setEnteringOtherReason(false);
-    setOtherIssueReason("");
-    Alert.alert(
-      "Cancel booking?",
-      `You selected "${reason}". Do you want to cancel this booking?`,
-      [
-        {
-          text: "No",
-          style: "cancel",
-          onPress: () => {
-            setChatText(
-              `Hi, I need to report an issue with this booking: ${reason}. Can we discuss the next steps or cancellation?`,
-            );
-            setChatJob(booking);
-          },
-        },
-        {
-          text: "Yes",
-          style: "destructive",
-          onPress: () => void cancelBooking(booking.id),
-        },
-      ],
-    );
+  function openCustomerLocation(job: ServiceRequest) {
+    if (job.latitude === null || job.longitude === null) {
+      setError("Customer location is not available.");
+      return;
+    }
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${job.latitude},${job.longitude}`;
+    void Linking.openURL(mapsUrl).catch(() => {
+      setError("Unable to open maps.");
+    });
   }
 
   function selectIssue(reason: string) {
-    if (reason === "Others") {
-      setEnteringOtherReason(true);
-      return;
-    }
-    confirmIssue(reason);
+    setComingSoonVisible(true);
   }
 
   function submitOtherIssue() {
-    const reason = otherIssueReason.trim();
-    if (!reason) {
-      Alert.alert("Reason required", "Please enter the reason before continuing.");
-      return;
-    }
-    confirmIssue(reason);
-  }
-
-  async function cancelBooking(id: string) {
-    if (!mechanicId) return;
-    setRefreshing(true);
-    const { error: updateError } = await supabase
-      .from("service_requests")
-      .update({ status: "cancelled", cancelled_by: "mechanic" })
-      .eq("id", id)
-      .eq("mechanic_id", mechanicId);
-    if (updateError) {
-      setError(updateError.message);
-    } else {
-      setSelectedJob(null);
-      setActiveFilter("ongoing");
-    }
-    await loadJobs(true);
+    setComingSoonVisible(true);
   }
 
   const visibleJobs = jobs.filter(
@@ -428,7 +435,13 @@ export default function JobsScreen() {
                 {selectedJob.request_type === "emergency" ? "EMERGENCY" : "SCHEDULED SERVICE"}
               </Text>
               <Text style={styles.detailCustomer}>{selectedJob.customer_name}</Text>
-              <View style={styles.locationCard}>
+              <Pressable
+                style={styles.locationCard}
+                onPress={() => openCustomerLocation(selectedJob)}
+                disabled={selectedJob.latitude === null || selectedJob.longitude === null}
+                accessibilityRole="button"
+                accessibilityLabel="View customer location on map"
+              >
                 <Ionicons name="location" size={22} color={colors.amber} />
                 <View style={styles.locationText}>
                   <Text style={styles.locationLabel}>Customer location</Text>
@@ -437,14 +450,21 @@ export default function JobsScreen() {
                       ? `${selectedJob.latitude.toFixed(5)}, ${selectedJob.longitude.toFixed(5)}`
                       : "Location not provided"}
                   </Text>
+                  <Text style={styles.locationHint}>
+                    {selectedJob.latitude !== null && selectedJob.longitude !== null
+                      ? "Tap to open in maps"
+                      : "Location not available"}
+                  </Text>
                 </View>
-              </View>
+              </Pressable>
               <Text style={styles.detailLabel}>MOBILE NUMBER</Text>
               <Text style={styles.detailValue}>{selectedJob.customer_contact}</Text>
               <Text style={styles.detailLabel}>DATE SCHEDULED</Text>
               <Text style={styles.detailValue}>{formatDate(selectedJob.scheduled_at || selectedJob.created_at)}</Text>
               <Text style={styles.detailLabel}>VEHICLE</Text>
               <Text style={styles.detailValue}>{selectedJob.vehicle_type || "Not provided"}</Text>
+              <Text style={styles.detailLabel}>PLATE NUMBER</Text>
+              <Text style={styles.detailValue}>{selectedJob.plate_number || "Not provided"}</Text>
               <Text style={styles.detailLabel}>SERVICE DETAILS</Text>
               <Text style={styles.detailValue}>{selectedJob.vehicle_issue || "No issue description provided."}</Text>
             </ScrollView>
@@ -454,7 +474,7 @@ export default function JobsScreen() {
                 <View style={styles.chatSupportRow}>
                   <Pressable
                     style={styles.chatButton}
-                    onPress={() => setChatJob(selectedJob)}
+                    onPress={showComingSoon}
                   >
                     <Ionicons name="chatbubble-outline" size={19} color={colors.blue} />
                     <Text style={styles.chatText}>Chat customer</Text>
@@ -637,6 +657,10 @@ export default function JobsScreen() {
           </SafeAreaView>
         ) : null}
       </Modal>
+      <ComingSoonModal
+        visible={comingSoonVisible}
+        onClose={() => setComingSoonVisible(false)}
+      />
     </MechanicScreen>
   );
 }

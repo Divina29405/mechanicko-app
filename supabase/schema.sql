@@ -61,6 +61,8 @@ alter table if exists public.service_requests
   add column if not exists estimated_total numeric(10, 2);
 alter table if exists public.service_requests
   add column if not exists scheduled_at timestamptz;
+alter table if exists public.service_requests
+  add column if not exists plate_number text;
 
 create table if not exists public.chat_messages (
   id uuid primary key default gen_random_uuid(),

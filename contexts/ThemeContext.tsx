@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode } from 'react';
 
 export const lightTheme = {
   bg: '#F9FAFB',
@@ -29,28 +29,9 @@ type ThemeContextType = {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [isManualDark, setIsManualDark] = useState<boolean | null>(null);
-  const [isTimeDark, setIsTimeDark] = useState<boolean>(false);
-
-  useEffect(() => {
-    const checkTime = () => {
-      const hour = new Date().getHours();
-      // Automatically switch to dark mode between 6:00 PM (18) and 6:00 AM (6)
-      setIsTimeDark(hour >= 18 || hour < 6);
-    };
-    
-    checkTime();
-    const interval = setInterval(checkTime, 60000); // Check every minute
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  const isDarkMode = isManualDark !== null ? isManualDark : isTimeDark;
-  const colors = isDarkMode ? darkTheme : lightTheme;
-
-  const toggleTheme = () => {
-    setIsManualDark(!isDarkMode);
-  };
+  const isDarkMode = false;
+  const colors = lightTheme;
+  const toggleTheme = () => undefined;
 
   return (
     <ThemeContext.Provider value={{ isDarkMode, colors, toggleTheme }}>
