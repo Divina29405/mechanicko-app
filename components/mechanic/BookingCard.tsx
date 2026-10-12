@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Booking } from '@/lib/mechanic-mock';
 import { colors, radii, spacing } from '@/lib/theme';
@@ -8,25 +8,6 @@ type Props = {
   booking: Booking;
   onChat: () => void;
 };
-
-function openMaps(booking: Booking) {
-  const { lat, lng, address } = booking;
-  Alert.alert('Directions', `Papunta sa ${address}`, [
-    {
-      text: 'Google Maps',
-      onPress: () => {
-        Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
-      },
-    },
-    {
-      text: 'Waze',
-      onPress: () => {
-        Linking.openURL(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes`);
-      },
-    },
-    { text: 'Cancel', style: 'cancel' },
-  ]);
-}
 
 export function BookingCard({ booking, onChat }: Props) {
   return (
@@ -51,12 +32,6 @@ export function BookingCard({ booking, onChat }: Props) {
         <Pressable onPress={onChat} style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
           <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.amber} />
           <Text style={styles.actionText}>Chat</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => openMaps(booking)}
-          style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
-          <Ionicons name="navigate-outline" size={16} color={colors.amber} />
-          <Text style={styles.actionText}>Navigate</Text>
         </Pressable>
       </View>
     </View>

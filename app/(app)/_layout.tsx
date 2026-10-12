@@ -19,6 +19,7 @@ function MechanicTabs() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        animation: "fade",
         tabBarActiveTintColor: colors.amber,
         tabBarInactiveTintColor: colors.textDim,
         tabBarStyle: {

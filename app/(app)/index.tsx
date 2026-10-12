@@ -1,6 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
@@ -284,31 +283,6 @@ export default function MechanicHomeScreen() {
     setAcceptingJobId(null);
   }
 
-  async function openCustomerDirections(job: AvailableJob) {
-    if (
-      !mechanicLocation ||
-      job.latitude === null ||
-      job.longitude === null
-    ) {
-      setJobsError(
-        "Directions unavailable because your location or the customer's location is missing.",
-      );
-      return;
-    }
-
-    const origin = `${mechanicLocation.latitude},${mechanicLocation.longitude}`;
-    const destination = `${job.latitude},${job.longitude}`;
-    const mapsUrl =
-      `https://www.google.com/maps/dir/?api=1&origin=${origin}` +
-      `&destination=${destination}&travelmode=driving`;
-
-    try {
-      await Linking.openURL(mapsUrl);
-    } catch {
-      setJobsError("Unable to open Google Maps.");
-    }
-  }
-
   const closeSidebar = (onComplete?: () => void) => {
     if (!sidebarVisible) {
       onComplete?.();
@@ -551,12 +525,7 @@ export default function MechanicHomeScreen() {
               <Text style={styles.jobDetailCustomer}>
                 {selectedJob.customer_name}
               </Text>
-              <Pressable
-                style={styles.detailRoute}
-                onPress={() => void openCustomerDirections(selectedJob)}
-                accessibilityRole="link"
-                accessibilityLabel="Open customer location in Google Maps"
-              >
+              <View style={styles.detailRoute}>
                 <View style={styles.detailRouteRow}>
                   <Ionicons
                     name="location"
@@ -575,27 +544,9 @@ export default function MechanicHomeScreen() {
                         ? `${selectedJob.latitude.toFixed(5)}, ${selectedJob.longitude.toFixed(5)}`
                         : "Location not provided"}
                     </Text>
-                    <Text
-                      style={[
-                        styles.detailRouteHint,
-                        selectedJob.request_type !== "emergency" &&
-                          styles.scheduledDetailText,
-                      ]}
-                    >
-                      Tap to open directions in Google Maps
-                    </Text>
                   </View>
-                  <Ionicons
-                    name="open-outline"
-                    size={20}
-                    color={
-                      selectedJob.request_type === "emergency"
-                        ? colors.amber
-                        : colors.blue
-                    }
-                  />
                 </View>
-              </Pressable>
+              </View>
               <View style={styles.fullDetailSection}>
                 <Text
                   style={[

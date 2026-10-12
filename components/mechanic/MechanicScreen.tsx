@@ -20,10 +20,16 @@ export function MechanicScreen({ children, title, subtitle, right, back }: Props
       <View style={styles.header}>
         {back ? (
           <Pressable
-            onPress={() => router.navigate('./')}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('./');
+              }
+            }}
             style={({ pressed }) => [styles.back, pressed && styles.pressed]}
             accessibilityLabel="Go back">
-            <Ionicons name="chevron-back" size={22} color={colors.text} />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </Pressable>
         ) : null}
         <View style={styles.headerText}>
@@ -57,34 +63,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   header: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
+    minHeight: 56,
+    paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.bgElevated,
   },
   back: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.bgElevated,
-    borderWidth: 1,
-    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: spacing.xs,
   },
   headerText: {
     flex: 1,
   },
   title: {
     color: colors.text,
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '800',
   },
   subtitle: {
-    marginTop: 2,
+    display: 'none',
     color: colors.textMuted,
     fontSize: 13,
   },

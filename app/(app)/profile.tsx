@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { File } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 import {
   Alert,
   Image,
@@ -16,9 +15,9 @@ import {
 } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
 
 import { MechanicScreen } from '@/components/mechanic/MechanicScreen';
-import { GoogleLocationPicker } from '@/components/GoogleLocationPicker';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMechanic } from '@/contexts/MechanicContext';
 import { colors, radii, spacing } from '@/lib/theme';
@@ -33,8 +32,14 @@ type MaintenancePrice = {
   price: string;
 };
 
+type SelectedAddress = {
+  address: string;
+  latitude: number;
+  longitude: number;
+};
+
 function createAddressMapHtml(latitude: number, longitude: number) {
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>*{box-sizing:border-box}body{margin:0;font-family:sans-serif}#map{position:fixed;inset:0}.search{position:fixed;z-index:1000;top:16px;left:16px;right:16px;display:flex;gap:8px}input{flex:1;padding:13px;border:1px solid #E5E7EB;border-radius:12px;font-size:15px}button{border:0;border-radius:12px;padding:0 16px;background:#F0A202;color:white;font-weight:700}#results{position:fixed;z-index:1000;top:70px;left:16px;right:16px;max-height:230px;overflow:auto}.result{display:block;width:100%;padding:12px;margin-bottom:6px;text-align:left;background:white;color:#101828;border:1px solid #E5E7EB}.hint{position:fixed;z-index:999;left:16px;right:16px;bottom:18px;padding:12px;border-radius:12px;background:rgba(16,24,40,.88);color:white;text-align:center;font-size:13px}</style></head><body><div id="map"></div><div class="search"><input id="query" placeholder="Search home address"><button onclick="searchAddress()">Search</button></div><div id="results"></div><div class="hint">Tap the exact spot to move your pin.</div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>*{box-sizing:border-box}body{margin:0;font-family:sans-serif}#map{position:fixed;inset:0}.search{position:fixed;z-index:1000;top:16px;left:16px;right:16px;display:flex;gap:8px}input{flex:1;padding:13px;border:1px solid #E5E7EB;border-radius:12px;font-size:15px}button{border:0;border-radius:12px;padding:0 16px;background:#F0A202;color:white;font-weight:700}#results{position:fixed;z-index:1000;top:70px;left:16px;right:16px;max-height:230px;overflow:auto}.result{display:block;width:100%;padding:12px;margin-bottom:6px;text-align:left;background:white;color:#101828;border:1px solid #E5E7EB}.hint{position:fixed;z-index:999;left:16px;right:16px;bottom:18px;padding:12px;border-radius:12px;background:rgba(16,24,40,.88);color:white;text-align:center;font-size:13px}</style></head><body><div id="map"></div><div class="search"><input id="query" placeholder="Search home address"><button onclick="searchAddress()">Search</button></div><div id="results"></div><div class="hint">Tap the map to place your pin.</div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
   var map=L.map('map').setView([${latitude},${longitude}],16),marker=null;
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
   function sendPin(lat,lng,address){if(marker)marker.setLatLng([lat,lng]);else marker=L.marker([lat,lng]).addTo(map);window.ReactNativeWebView.postMessage(JSON.stringify({type:'pin',latitude:lat,longitude:lng,address:address}));}
@@ -48,7 +53,6 @@ export default function ProfileScreen() {
   const { session, signOut } = useAuth();
   const { rating, online, avatarUrl, setAvatarUrl, avatarLoading } = useMechanic();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [avatarLoadError, setAvatarLoadError] = useState<string | null>(null);
   const [expandedSection, setExpandedSection] = useState<
     | 'specializations'
     | 'documents'
@@ -64,8 +68,7 @@ export default function ProfileScreen() {
   const [requestingDeletion, setRequestingDeletion] = useState(false);
   const [addressPickerVisible, setAddressPickerVisible] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
-  const [addressMapCenter, setAddressMapCenter] = useState({ latitude: 14.5995, longitude: 120.9842 });
-  const [selectedAddress, setSelectedAddress] = useState<{ address: string; latitude: number; longitude: number } | null>(null);
+  const [selectedAddress, setSelectedAddress] = useState<SelectedAddress | null>(null);
   const [profile, setProfile] = useState<{
     mobile_number: string | null;
     home_address: string | null;
@@ -133,7 +136,7 @@ export default function ProfileScreen() {
             : [],
         );
       });
-  }, [session?.user.id]);
+  }, [session?.user.id, session?.user.user_metadata]);
 
   const specializations = (profile?.skills ?? '')
     .split(',')
@@ -197,99 +200,6 @@ export default function ProfileScreen() {
     ]);
   }
 
-  function openAddressPicker() {
-    if (profile?.home_latitude != null && profile.home_longitude != null) {
-      setAddressMapCenter({ latitude: profile.home_latitude, longitude: profile.home_longitude });
-    }
-    setSelectedAddress(null);
-    setAddressPickerVisible(true);
-    void Location.requestForegroundPermissionsAsync().then(async (permission) => {
-      if (permission.status !== 'granted' || profile?.home_latitude != null) return;
-      const current = await Location.getCurrentPositionAsync({});
-      setAddressMapCenter({
-        latitude: current.coords.latitude,
-        longitude: current.coords.longitude,
-      });
-    }).catch(() => {
-      // The picker can still use its default map center without location access.
-    });
-  }
-
-  function handleAddressMapMessage(event: { nativeEvent: { data: string } }) {
-    try {
-      const message = JSON.parse(event.nativeEvent.data) as {
-        type?: string; address?: string; latitude?: number; longitude?: number;
-      };
-      if (message.type === 'pin' && message.address && typeof message.latitude === 'number' && typeof message.longitude === 'number') {
-        setSelectedAddress({ address: message.address, latitude: message.latitude, longitude: message.longitude });
-      }
-    } catch {
-      Alert.alert('Map unavailable', 'Hindi nabasa ang napiling location. Subukan ulit.');
-    }
-  }
-
-  async function saveSelectedAddress() {
-    if (!session?.user.id) {
-      Alert.alert('Unable to save address', 'Your session has expired. Please log in again.');
-      return;
-    }
-    if (!selectedAddress) {
-      Alert.alert('Location required', 'Search for an address or tap the map to place a pin first.');
-      return;
-    }
-
-    setSavingAddress(true);
-    const { data, error } = await supabase.rpc('save_mechanic_home_location', {
-      p_home_address: selectedAddress.address,
-      p_home_latitude: selectedAddress.latitude,
-      p_home_longitude: selectedAddress.longitude,
-    });
-    setSavingAddress(false);
-
-    if (error) {
-      Alert.alert('Unable to save address', error.message);
-      return;
-    }
-
-    const saved = Array.isArray(data) ? data[0] : data;
-    if (!saved?.home_address) {
-      Alert.alert(
-        'Unable to save address',
-        'No mechanic profile was updated. Make sure your account has an approved mechanic profile.',
-      );
-      return;
-    }
-    const { error: metadataError } = await supabase.auth.updateUser({
-      data: {
-        home_address: saved.home_address,
-        home_latitude: saved.home_latitude,
-        home_longitude: saved.home_longitude,
-      },
-    });
-    if (metadataError) {
-      Alert.alert('Address saved with sync warning', metadataError.message);
-    }
-    setProfile((current) => ({
-      ...(current ?? {
-        mobile_number: null,
-        home_address: null,
-        home_latitude: null,
-        home_longitude: null,
-        skills: null,
-        certifications: null,
-        maintenance_pricing: null,
-        experience: null,
-        license_front_path: null,
-        license_back_path: null,
-      }),
-      home_address: saved.home_address,
-      home_latitude: saved.home_latitude,
-      home_longitude: saved.home_longitude,
-    }));
-    setAddressPickerVisible(false);
-    setSelectedAddress(null);
-  }
-
   function requestAccountDeletion() {
     if (!session?.user.id || requestingDeletion) return;
 
@@ -324,6 +234,73 @@ export default function ProfileScreen() {
         },
       ],
     );
+  }
+
+  function openAddressPicker() {
+    setSelectedAddress(null);
+    setAddressPickerVisible(true);
+  }
+
+  function handleAddressMapMessage(event: { nativeEvent: { data: string } }) {
+    try {
+      const message = JSON.parse(event.nativeEvent.data) as {
+        type?: string;
+        address?: string;
+        latitude?: number;
+        longitude?: number;
+      };
+      if (
+        message.type === 'pin' &&
+        message.address &&
+        typeof message.latitude === 'number' &&
+        typeof message.longitude === 'number'
+      ) {
+        setSelectedAddress({
+          address: message.address,
+          latitude: message.latitude,
+          longitude: message.longitude,
+        });
+      }
+    } catch {
+      Alert.alert('Map unavailable', 'Hindi nabasa ang napiling location. Subukan ulit.');
+    }
+  }
+
+  async function saveSelectedAddress() {
+    if (!session?.user.id) {
+      Alert.alert('Unable to save address', 'Your session has expired. Please log in again.');
+      return;
+    }
+    if (!selectedAddress) {
+      Alert.alert('Location required', 'Search for an address or tap the map to place a pin first.');
+      return;
+    }
+
+    setSavingAddress(true);
+    const { data, error } = await supabase.rpc('save_mechanic_home_location', {
+      p_home_address: selectedAddress.address,
+      p_home_latitude: selectedAddress.latitude,
+      p_home_longitude: selectedAddress.longitude,
+    });
+    setSavingAddress(false);
+
+    if (error) {
+      Alert.alert('Unable to save address', error.message);
+      return;
+    }
+    const saved = Array.isArray(data) ? data[0] : data;
+    if (!saved?.home_address) {
+      Alert.alert('Unable to save address', 'No mechanic profile was updated.');
+      return;
+    }
+    setProfile((current) => (current ? {
+      ...current,
+      home_address: saved.home_address,
+      home_latitude: saved.home_latitude,
+      home_longitude: saved.home_longitude,
+    } : current));
+    setAddressPickerVisible(false);
+    setSelectedAddress(null);
   }
 
   async function changeAvatar(source: 'camera' | 'gallery') {
@@ -406,7 +383,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <MechanicScreen title="Profile" subtitle="Specializations, documents, and settings">
+    <MechanicScreen back title="My Profile">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
           <Pressable onPress={chooseAvatar} style={styles.avatarButton} disabled={uploadingAvatar}>
@@ -421,7 +398,7 @@ export default function ProfileScreen() {
                   const nativeError = event.nativeEvent.error;
                   Alert.alert(
                     'Profile photo unavailable',
-                    avatarLoadError ?? nativeError ?? 'The image URL could not be loaded.',
+                    nativeError ?? 'The image URL could not be loaded.',
                   );
                 }}
               />
@@ -578,14 +555,16 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
                 <Pressable
-                  style={styles.accountDetailRow}
                   onPress={openAddressPicker}
+                  style={({ pressed }) => [styles.accountDetailRow, pressed && styles.pressed]}
                 >
                   <Text style={styles.accountDetailLabel}>Home address</Text>
-                  <Text style={styles.accountDetailValue}>
-                    {profile?.home_address || 'Not provided'}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+                  <View style={styles.accountDetailValueRow}>
+                    <Text style={styles.accountDetailValue}>
+                      {profile?.home_address || 'Not provided'}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                  </View>
                 </Pressable>
                 <View style={styles.accountDetailRow}>
                   <Text style={styles.accountDetailLabel}>Account type</Text>
@@ -701,32 +680,47 @@ export default function ProfileScreen() {
         presentationStyle="fullScreen"
         onRequestClose={() => setAddressPickerVisible(false)}
       >
-        <SafeAreaView style={styles.mapPicker} edges={['top', 'bottom']}>
-          <View style={styles.mapPickerHeader}>
-            <Pressable onPress={() => setAddressPickerVisible(false)} style={styles.closeButton}>
+        <SafeAreaView style={styles.addressPickerScreen} edges={['top', 'bottom']}>
+          <View style={styles.detailTopRow}>
+            <Text style={styles.detailHeaderTitle}>Set Home Address</Text>
+            <Pressable
+              onPress={() => setAddressPickerVisible(false)}
+              style={styles.closeButton}
+              accessibilityLabel="Close address picker"
+            >
               <Ionicons name="close" size={24} color={colors.text} />
             </Pressable>
-            <Text style={styles.mapPickerTitle}>Pin home address</Text>
-            <View style={styles.headerSpacer} />
           </View>
-          <GoogleLocationPicker
-            initialLocation={
-              selectedAddress ??
-              (profile?.home_latitude !== null &&
-              profile?.home_longitude !== null &&
-              profile?.home_latitude !== undefined &&
-              profile?.home_longitude !== undefined
-                ? {
-                    address: profile.home_address ?? 'Pinned home address',
-                    latitude: profile.home_latitude,
-                    longitude: profile.home_longitude,
-                  }
-                : null)
-            }
-            onSelect={setSelectedAddress}
-            onConfirm={() => void saveSelectedAddress()}
-            confirming={savingAddress}
+          <View style={styles.detailDivider} />
+          <WebView
+            source={{
+              html: createAddressMapHtml(
+                profile?.home_latitude || 14.5995,
+                profile?.home_longitude || 120.9842,
+              ),
+            }}
+            onMessage={handleAddressMapMessage}
+            javaScriptEnabled
+            style={styles.addressMap}
           />
+          <View style={styles.addressPickerFooter}>
+            <Text style={styles.selectedAddressText} numberOfLines={2}>
+              {selectedAddress?.address || 'Search or tap the map to choose your home address.'}
+            </Text>
+            <Pressable
+              onPress={saveSelectedAddress}
+              disabled={savingAddress}
+              style={({ pressed }) => [
+                styles.saveAddressButton,
+                pressed && styles.pressed,
+                savingAddress && styles.disabled,
+              ]}
+            >
+              <Text style={styles.saveAddressButtonText}>
+                {savingAddress ? 'Saving...' : 'Save address'}
+              </Text>
+            </Pressable>
+          </View>
         </SafeAreaView>
       </Modal>
     </MechanicScreen>
@@ -877,43 +871,6 @@ const styles = StyleSheet.create({
   detailContent: {
     padding: spacing.md,
   },
-  mapPicker: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  mapPickerHeader: {
-    minHeight: 60,
-    paddingHorizontal: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  mapPickerTitle: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  map: {
-    flex: 1,
-  },
-  confirmLocationButton: {
-    minHeight: 52,
-    margin: spacing.md,
-    borderRadius: radii.md,
-    backgroundColor: colors.amber,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  confirmLocationText: {
-    color: colors.white,
-    fontSize: 15,
-    fontWeight: '800',
-  },
   detailIntro: {
     color: colors.textMuted,
     lineHeight: 20,
@@ -999,6 +956,42 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1.4,
     textAlign: 'right',
+  },
+  accountDetailValueRow: {
+    flex: 1.4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing.xs,
+  },
+  addressPickerScreen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  addressMap: {
+    flex: 1,
+  },
+  addressPickerFooter: {
+    gap: spacing.sm,
+    padding: spacing.md,
+    backgroundColor: colors.bgElevated,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  selectedAddressText: {
+    color: colors.textMuted,
+    lineHeight: 19,
+  },
+  saveAddressButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.sm,
+    backgroundColor: colors.amber,
+  },
+  saveAddressButtonText: {
+    color: colors.white,
+    fontWeight: '800',
   },
   deleteAccountRow: {
     minHeight: 60,

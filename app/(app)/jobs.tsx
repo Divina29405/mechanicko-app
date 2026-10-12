@@ -9,7 +9,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { colors, spacing } from "@/lib/theme";
 
-const callIcon = require("../../assets/images/call-icon.png");
 const issueIcon = require("../../assets/images/issue-icon.png");
 
 type JobStatus = "ongoing" | "resolved" | "dropped";
@@ -55,13 +54,6 @@ function getJobStatus(status: string | null): JobStatus | null {
 function formatDate(value: string | null) {
   if (!value) return "Time not specified";
   return new Date(value).toLocaleString();
-}
-
-function openDirections(job: ServiceRequest) {
-  if (job.latitude === null || job.longitude === null) return;
-  void Linking.openURL(
-    `https://www.google.com/maps/dir/?api=1&destination=${job.latitude},${job.longitude}`,
-  );
 }
 
 export default function JobsScreen() {
@@ -295,7 +287,7 @@ export default function JobsScreen() {
   );
 
   return (
-    <MechanicScreen title="Jobs" subtitle="Live service requests assigned to you">
+    <MechanicScreen back title="Jobs">
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -337,7 +329,6 @@ export default function JobsScreen() {
         ) : (
           <View style={styles.stack}>
             {visibleJobs.map((job) => {
-              const isResolved = activeFilter === "resolved";
               const isReadOnly = activeFilter !== "ongoing";
               const terminalDate = job.created_at;
               const recordContent = (
@@ -437,11 +428,7 @@ export default function JobsScreen() {
                 {selectedJob.request_type === "emergency" ? "EMERGENCY" : "SCHEDULED SERVICE"}
               </Text>
               <Text style={styles.detailCustomer}>{selectedJob.customer_name}</Text>
-              <Pressable
-                style={styles.locationCard}
-                onPress={() => openDirections(selectedJob)}
-                disabled={selectedJob.latitude === null || selectedJob.longitude === null}
-              >
+              <View style={styles.locationCard}>
                 <Ionicons name="location" size={22} color={colors.amber} />
                 <View style={styles.locationText}>
                   <Text style={styles.locationLabel}>Customer location</Text>
@@ -450,10 +437,8 @@ export default function JobsScreen() {
                       ? `${selectedJob.latitude.toFixed(5)}, ${selectedJob.longitude.toFixed(5)}`
                       : "Location not provided"}
                   </Text>
-                  <Text style={styles.locationHint}>Tap to open Google Maps directions</Text>
                 </View>
-                <Ionicons name="open-outline" size={19} color={colors.amber} />
-              </Pressable>
+              </View>
               <Text style={styles.detailLabel}>CONTACT NO.</Text>
               <Text style={styles.detailValue}>{selectedJob.customer_contact}</Text>
               <Text style={styles.detailLabel}>DATE SCHEDULED</Text>
@@ -641,7 +626,7 @@ export default function JobsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: spacing.sm, paddingBottom: spacing.xxl },
+  content: { paddingBottom: spacing.xxl },
   toolbar: { marginBottom: spacing.md },
   filters: {
     flexDirection: "row",
@@ -660,7 +645,7 @@ const styles = StyleSheet.create({
   filterButtonActive: { borderBottomColor: colors.amber },
   filterText: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
   filterTextActive: { color: colors.text, fontWeight: "700" },
-  refreshButton: { alignSelf: "flex-end", flexDirection: "row", gap: 6, alignItems: "center", paddingVertical: spacing.sm },
+  refreshButton: { alignSelf: "flex-end", flexDirection: "row", gap: 6, alignItems: "center", paddingHorizontal: spacing.sm, paddingVertical: spacing.sm },
   refreshText: { color: colors.amber, fontSize: 13, fontWeight: "700" },
   loader: { marginTop: spacing.xl },
   error: { color: colors.sos, marginBottom: spacing.md },

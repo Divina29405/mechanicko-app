@@ -87,7 +87,7 @@ export default function MessagesScreen() {
   }, [loadChats]));
 
   return (
-    <MechanicScreen title="Messages" subtitle="Motorist chats from ongoing bookings">
+    <MechanicScreen back title="Chat">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {loading ? <ActivityIndicator color={colors.amber} /> : null}
         {!loading && chats.length === 0 ? (
