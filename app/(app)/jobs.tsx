@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import { useFocusEffect } from "expo-router";
-import { ActivityIndicator, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MechanicScreen } from "@/components/mechanic/MechanicScreen";
@@ -9,8 +9,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { colors, spacing } from "@/lib/theme";
 
-const callIcon = require("../../assets/images/issue-icon.png");
-const issueIcon = require("../../assets/images/call-icon.png");
+const callIcon = require("../../assets/images/call-icon.png");
+const issueIcon = require("../../assets/images/issue-icon.png");
 
 type JobStatus = "ongoing" | "resolved" | "dropped";
 
@@ -22,6 +22,7 @@ type ServiceRequest = {
   vehicle_issue: string | null;
   request_type: string | null;
   status: string | null;
+  cancelled_by: "mechanic" | "motorist" | null;
   latitude: number | null;
   longitude: number | null;
   created_at: string;
@@ -39,8 +40,8 @@ type ChatMessage = {
 
 function getJobStatus(status: string | null): JobStatus | null {
   const normalized = status?.toLowerCase();
-  if (normalized === "declined") {
-    return null;
+  if (["pending", "accepted", "arrived", "in_transit", "in_progress", "ongoing"].includes(normalized ?? "")) {
+    return "ongoing";
   }
   if (normalized === "completed" || normalized === "done" || normalized === "resolved") {
     return "resolved";
@@ -48,7 +49,7 @@ function getJobStatus(status: string | null): JobStatus | null {
   if (normalized === "cancelled" || normalized === "canceled" || normalized === "rejected" || normalized === "dropped") {
     return "dropped";
   }
-  return "ongoing";
+  return null;
 }
 
 function formatDate(value: string | null) {
@@ -77,13 +78,15 @@ export default function JobsScreen() {
   const [chatLoading, setChatLoading] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [issueJob, setIssueJob] = useState<ServiceRequest | null>(null);
+  const [otherIssueReason, setOtherIssueReason] = useState("");
+  const [enteringOtherReason, setEnteringOtherReason] = useState(false);
 
   const issueOptions = [
     "Vehicle or service issue changed",
     "Customer is unavailable",
     "Unsafe pickup location",
     "Unable to reach the customer",
-    "Other booking concern",
+    "Others",
   ];
 
   const loadJobs = useCallback(async (showRefreshState = false) => {
@@ -94,7 +97,7 @@ export default function JobsScreen() {
     const { data, error: queryError } = await supabase
       .from("service_requests")
       .select(
-        "id,motorist_id,mechanic_id,vehicle_type,vehicle_issue,request_type,status,latitude,longitude,created_at,scheduled_at",
+        "id,motorist_id,mechanic_id,vehicle_type,vehicle_issue,request_type,status,cancelled_by,latitude,longitude,created_at,scheduled_at",
       )
       .or(`mechanic_id.is.null,mechanic_id.eq.${mechanicId}`)
       .order("created_at", { ascending: false });
@@ -189,7 +192,7 @@ export default function JobsScreen() {
     setSendingMessage(false);
   }
 
-  async function updateJobStatus(id: string, status: "arrived" | "completed") {
+  async function updateJobStatus(id: string, status: "arrived" | "completed" | "cancelled") {
     if (!mechanicId) return;
     setRefreshing(true);
     const { error: updateError } = await supabase
@@ -211,16 +214,78 @@ export default function JobsScreen() {
       return;
     }
     const phoneNumber = job.customer_contact.replace(/[^\d+]/g, "");
-    void Linking.openURL(`tel:${phoneNumber}`);
+    void Linking.canOpenURL(`tel:${phoneNumber}`).then((canCall) => {
+      if (!canCall) {
+        setError("Calling is not available on this device.");
+        return;
+      }
+      return Linking.openURL(`tel:${phoneNumber}`);
+    }).catch(() => {
+      setError("Unable to open the phone app.");
+    });
+  }
+
+  function confirmIssue(reason: string) {
+    if (!issueJob) return;
+    const booking = issueJob;
+    setIssueJob(null);
+    setEnteringOtherReason(false);
+    setOtherIssueReason("");
+    Alert.alert(
+      "Cancel booking?",
+      `You selected "${reason}". Do you want to cancel this booking?`,
+      [
+        {
+          text: "No",
+          style: "cancel",
+          onPress: () => {
+            setChatText(
+              `Hi, I need to report an issue with this booking: ${reason}. Can we discuss the next steps or cancellation?`,
+            );
+            setChatJob(booking);
+          },
+        },
+        {
+          text: "Yes",
+          style: "destructive",
+          onPress: () => void cancelBooking(booking.id),
+        },
+      ],
+    );
   }
 
   function selectIssue(reason: string) {
-    if (!issueJob) return;
-    setChatText(
-      `Hi, I need to report an issue with this booking: ${reason}. Can we discuss the next steps or cancellation?`,
-    );
-    setChatJob(issueJob);
-    setIssueJob(null);
+    if (reason === "Others") {
+      setEnteringOtherReason(true);
+      return;
+    }
+    confirmIssue(reason);
+  }
+
+  function submitOtherIssue() {
+    const reason = otherIssueReason.trim();
+    if (!reason) {
+      Alert.alert("Reason required", "Please enter the reason before continuing.");
+      return;
+    }
+    confirmIssue(reason);
+  }
+
+  async function cancelBooking(id: string) {
+    if (!mechanicId) return;
+    setRefreshing(true);
+    const { error: updateError } = await supabase
+      .from("service_requests")
+      .update({ status: "cancelled", cancelled_by: "mechanic" })
+      .eq("id", id)
+      .eq("mechanic_id", mechanicId);
+    if (updateError) {
+      setError(updateError.message);
+    } else {
+      setSelectedJob(null);
+      setActiveFilter("ongoing");
+    }
+    await loadJobs(true);
   }
 
   const visibleJobs = jobs.filter(
@@ -273,40 +338,49 @@ export default function JobsScreen() {
           <View style={styles.stack}>
             {visibleJobs.map((job) => {
               const isResolved = activeFilter === "resolved";
+              const isReadOnly = activeFilter !== "ongoing";
+              const terminalDate = job.created_at;
               const recordContent = (
                 <>
-                  <View style={styles.cardHeader}>
+                  <View style={styles.recordHeader}>
                     <Text
                       style={[
-                        styles.service,
-                        job.request_type === "emergency"
+                        styles.recordType,
+                        activeFilter === "dropped"
+                          ? styles.emergencyText
+                          : job.request_type === "emergency"
                           ? styles.emergencyText
                           : styles.scheduledText,
                       ]}
                     >
-                      {job.request_type === "emergency" ? "Emergency request" : "Scheduled service"}
+                      {activeFilter === "dropped"
+                        ? job.cancelled_by === "mechanic"
+                          ? "Mechanic cancelled"
+                          : "Motorist cancelled"
+                        : job.request_type === "emergency"
+                          ? "Emergency"
+                          : "Scheduled"}
                     </Text>
-                    <Text
-                      style={[
-                        styles.status,
-                        isResolved ? styles.completedText : (
-                          job.request_type === "emergency"
-                            ? styles.emergencyText
-                            : styles.scheduledText
-                        ),
-                      ]}
-                    >
-                      {isResolved ? "Completed" : (job.status ?? "pending")}
-                    </Text>
+                    <Text style={styles.recordDate}>{formatDate(terminalDate)}</Text>
                   </View>
-                  <Text style={styles.vehicle}>{job.vehicle_type || "Vehicle details unavailable"}</Text>
-                  <Text style={styles.customer}>{job.customer_name}</Text>
-                  <Text style={styles.issue}>{job.vehicle_issue || "No issue description provided."}</Text>
-                  <Text style={styles.meta}>
-                    {isResolved ? "Completed: " : "Requested: "}
-                    {formatDate(job.scheduled_at || job.created_at)}
-                  </Text>
-                  {!isResolved ? (
+                  {isReadOnly ? (
+                    <>
+                      <Text style={styles.recordLocation}>
+                        {job.latitude !== null && job.longitude !== null
+                          ? `Motorist location: ${job.latitude.toFixed(5)}, ${job.longitude.toFixed(5)}`
+                          : "Motorist location unavailable"}
+                      </Text>
+                      <Text style={styles.recordId}>Booking ID: {job.id}</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.vehicle}>{job.vehicle_type || "Vehicle details unavailable"}</Text>
+                      <Text style={styles.customer}>{job.customer_name}</Text>
+                      <Text style={styles.issue}>{job.vehicle_issue || "No issue description provided."}</Text>
+                      <Text style={styles.meta}>Requested: {formatDate(job.scheduled_at || job.created_at)}</Text>
+                    </>
+                  )}
+                  {!isReadOnly ? (
                     <View style={styles.compactCardFooter}>
                       <Text style={styles.compactHint}>Tap to view booking</Text>
                       <Ionicons name="chevron-forward" size={18} color={colors.amber} />
@@ -316,12 +390,16 @@ export default function JobsScreen() {
               );
 
               return (
-                isResolved ? (
+                isReadOnly ? (
                   <View key={job.id} style={styles.card}>
                     {recordContent}
                   </View>
                 ) : (
-                  <Pressable key={job.id} style={styles.card} onPress={() => setSelectedJob(job)}>
+                  <Pressable
+                    key={job.id}
+                    style={[styles.card, styles.ongoingCard]}
+                    onPress={() => setSelectedJob(job)}
+                  >
                     {recordContent}
                   </Pressable>
                 )
@@ -352,24 +430,7 @@ export default function JobsScreen() {
                 <Ionicons name="arrow-back" size={24} color={colors.white} />
               </Pressable>
               <Text style={styles.detailHeaderTitle}>Ongoing booking</Text>
-              <View style={styles.detailHeaderActions}>
-                <Pressable
-                  style={styles.headerIconButton}
-                  onPress={() => callCustomer(selectedJob)}
-                  accessibilityLabel="Call customer"
-                >
-                  <Image source={callIcon} style={styles.headerActionImage} />
-                </Pressable>
-                <Pressable
-                  style={styles.headerIssueButton}
-                  onPress={() => {
-                    setIssueJob(selectedJob);
-                  }}
-                  accessibilityLabel="Report issue or request cancellation"
-                >
-                  <Image source={issueIcon} style={styles.headerActionImage} />
-                </Pressable>
-              </View>
+              <View style={styles.headerSpacer} />
             </View>
             <ScrollView contentContainerStyle={styles.detailContent}>
               <Text style={styles.detailType}>
@@ -405,13 +466,29 @@ export default function JobsScreen() {
             <View style={styles.detailActions}>
               <View style={styles.chatSupportSection}>
                 <Text style={styles.supportTitle}>Customer support</Text>
-                <Pressable
-                  style={styles.chatButton}
-                  onPress={() => setChatJob(selectedJob)}
-                >
-                  <Ionicons name="chatbubble-outline" size={19} color={colors.blue} />
-                  <Text style={styles.chatText}>Chat customer</Text>
-                </Pressable>
+                <View style={styles.chatSupportRow}>
+                  <Pressable
+                    style={styles.chatButton}
+                    onPress={() => setChatJob(selectedJob)}
+                  >
+                    <Ionicons name="chatbubble-outline" size={19} color={colors.blue} />
+                    <Text style={styles.chatText}>Chat customer</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.supportIconButton}
+                    onPress={() => callCustomer(selectedJob)}
+                    accessibilityLabel="Call customer"
+                  >
+                    <Ionicons name="call" size={24} color={colors.success} />
+                  </Pressable>
+                  <Pressable
+                    style={styles.supportIconButton}
+                    onPress={() => setIssueJob(selectedJob)}
+                    accessibilityLabel="Report issue or request cancellation"
+                  >
+                    <Image source={issueIcon} style={styles.headerActionImage} />
+                  </Pressable>
+                </View>
               </View>
               {selectedJob.status?.toLowerCase() === "arrived" ? (
                 <Pressable
@@ -444,25 +521,51 @@ export default function JobsScreen() {
           <View style={styles.issueModalCard}>
             <Text style={styles.issueModalTitle}>Report booking issue</Text>
             <Text style={styles.issueModalHint}>
-              Select the reason so the customer understands the concern.
+              {enteringOtherReason
+                ? "Please explain the issue before continuing."
+                : "Select the reason so the customer understands the concern."}
             </Text>
-            <View style={styles.issueOptions}>
-              {issueOptions.map((reason) => (
-                <Pressable
-                  key={reason}
-                  style={styles.issueOption}
-                  onPress={() => selectIssue(reason)}
-                >
-                  <Text style={styles.issueOptionText}>{reason}</Text>
-                  <Ionicons name="chevron-forward" size={18} color={colors.sos} />
+            {enteringOtherReason ? (
+              <>
+                <TextInput
+                  value={otherIssueReason}
+                  onChangeText={setOtherIssueReason}
+                  placeholder="Enter reason"
+                  placeholderTextColor={colors.textDim}
+                  style={styles.otherIssueInput}
+                  multiline
+                  autoFocus
+                />
+                <Pressable style={styles.submitIssueButton} onPress={submitOtherIssue}>
+                  <Text style={styles.submitIssueText}>Continue</Text>
                 </Pressable>
-              ))}
-            </View>
+              </>
+            ) : (
+              <View style={styles.issueOptions}>
+                {issueOptions.map((reason) => (
+                  <Pressable
+                    key={reason}
+                    style={styles.issueOption}
+                    onPress={() => selectIssue(reason)}
+                  >
+                    <Text style={styles.issueOptionText}>{reason}</Text>
+                    <Ionicons name="chevron-forward" size={18} color={colors.sos} />
+                  </Pressable>
+                ))}
+              </View>
+            )}
             <Pressable
               style={styles.issueCancelButton}
-              onPress={() => setIssueJob(null)}
+              onPress={() => {
+                if (enteringOtherReason) {
+                  setEnteringOtherReason(false);
+                  setOtherIssueReason("");
+                } else {
+                  setIssueJob(null);
+                }
+              }}
             >
-              <Text style={styles.issueCancelText}>Cancel</Text>
+              <Text style={styles.issueCancelText}>{enteringOtherReason ? "Back" : "Cancel"}</Text>
             </Pressable>
           </View>
         </View>
@@ -540,27 +643,45 @@ export default function JobsScreen() {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.sm, paddingBottom: spacing.xxl },
   toolbar: { marginBottom: spacing.md },
-  filters: { flexDirection: "row", gap: 8 },
+  filters: {
+    flexDirection: "row",
+    backgroundColor: colors.bgElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   filterButton: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.bgElevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 0,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
   },
-  filterButtonActive: { backgroundColor: colors.amber, borderColor: colors.amber },
-  filterText: { color: colors.textMuted, fontSize: 13, fontWeight: "700" },
-  filterTextActive: { color: colors.bg },
+  filterButtonActive: { borderBottomColor: colors.amber },
+  filterText: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
+  filterTextActive: { color: colors.text, fontWeight: "700" },
   refreshButton: { alignSelf: "flex-end", flexDirection: "row", gap: 6, alignItems: "center", paddingVertical: spacing.sm },
   refreshText: { color: colors.amber, fontSize: 13, fontWeight: "700" },
   loader: { marginTop: spacing.xl },
   error: { color: colors.sos, marginBottom: spacing.md },
   stack: { gap: 10 },
   card: { backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.border, borderRadius: 0, padding: spacing.md },
+  ongoingCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: colors.amber,
+    backgroundColor: colors.bgElevated,
+    shadowColor: colors.amber,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", gap: spacing.sm, marginBottom: spacing.sm },
+  recordHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  recordType: { flex: 1, fontSize: 15, fontWeight: "800", textTransform: "uppercase" },
+  recordDate: { color: colors.textMuted, fontSize: 12, fontWeight: "700", textAlign: "right" },
+  recordLocation: { color: colors.textMuted, fontSize: 13, marginTop: spacing.md },
+  recordId: { color: colors.textDim, fontSize: 11, marginTop: spacing.sm },
   service: { color: colors.text, fontWeight: "800", flex: 1 },
   status: { color: colors.amber, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
   completedText: { color: colors.success },
@@ -586,15 +707,15 @@ const styles = StyleSheet.create({
   backButton: { width: 42, height: 42, justifyContent: "center" },
   headerSpacer: { width: 42 },
   detailHeaderTitle: { color: colors.white, fontSize: 18, fontWeight: "800" },
-  detailHeaderActions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  headerIconButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerIssueButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerActionImage: { width: 27, height: 27, resizeMode: "contain" },
   issueModalOverlay: { flex: 1, justifyContent: "center", padding: spacing.md, backgroundColor: "rgba(0,0,0,0.5)" },
   issueModalCard: { backgroundColor: colors.bgElevated, padding: spacing.lg, borderWidth: 1, borderColor: colors.border },
   issueModalTitle: { color: colors.text, fontSize: 20, fontWeight: "800" },
   issueModalHint: { color: colors.textMuted, fontSize: 13, lineHeight: 19, marginTop: spacing.xs, marginBottom: spacing.md },
   issueOptions: { gap: spacing.xs },
+  otherIssueInput: { minHeight: 96, borderWidth: 1, borderColor: colors.border, color: colors.text, padding: spacing.sm, textAlignVertical: "top" },
+  submitIssueButton: { minHeight: 44, marginTop: spacing.sm, backgroundColor: colors.sos, alignItems: "center", justifyContent: "center" },
+  submitIssueText: { color: colors.white, fontWeight: "800" },
   issueOption: { minHeight: 48, paddingHorizontal: spacing.sm, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   issueOptionText: { flex: 1, color: colors.text, fontSize: 14, fontWeight: "700" },
   issueCancelButton: { minHeight: 44, marginTop: spacing.md, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
@@ -610,7 +731,9 @@ const styles = StyleSheet.create({
   detailLabel: { color: colors.textDim, fontSize: 11, fontWeight: "800", letterSpacing: 0.8, marginTop: spacing.lg },
   detailValue: { color: colors.text, fontSize: 16, lineHeight: 22, marginTop: 4 },
   detailActions: { gap: spacing.sm, padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bgElevated },
-  chatButton: { minHeight: 48, borderWidth: 1, borderColor: colors.blue, flexDirection: "row", gap: spacing.sm, alignItems: "center", justifyContent: "center" },
+  chatButton: { flex: 1, minHeight: 48, borderWidth: 1, borderColor: colors.blue, flexDirection: "row", gap: spacing.sm, alignItems: "center", justifyContent: "center" },
+  chatSupportRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  supportIconButton: { width: 48, height: 48, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
   chatText: { color: colors.blue, fontWeight: "800", fontSize: 14 },
   chatSupportSection: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border, paddingVertical: spacing.sm, gap: spacing.sm },
   supportTitle: { color: colors.textDim, fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase" },

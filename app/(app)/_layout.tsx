@@ -90,6 +90,7 @@ function MechanicTabs() {
       <Tabs.Screen name="MotoristMap" options={{ href: null }} />
       <Tabs.Screen name="motorist-profile" options={{ href: null }} />
       <Tabs.Screen name="motorist-activity" options={{ href: null }} />
+      <Tabs.Screen name="my-vehicles" options={{ href: null }} />
       <Tabs.Screen name="emergency-checklist" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />
     </Tabs>
@@ -196,6 +197,7 @@ export default function AppLayout() {
           <Stack.Screen name="MotoristMap" />
           <Stack.Screen name="motorist-profile" />
           <Stack.Screen name="motorist-activity" />
+          <Stack.Screen name="my-vehicles" />
           <Stack.Screen
             name="emergency-checklist"
             options={{ presentation: "modal" }}

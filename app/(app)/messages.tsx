@@ -1,46 +1,114 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 
 import { MechanicScreen } from '@/components/mechanic/MechanicScreen';
-import { useMechanic } from '@/contexts/MechanicContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { colors, spacing } from '@/lib/theme';
 
+type OngoingChat = {
+  id: string;
+  customerName: string;
+  preview: string;
+  time: string;
+};
+
 export default function MessagesScreen() {
-  const { threads } = useMechanic();
+  const { session } = useAuth();
+  const [chats, setChats] = useState<OngoingChat[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadChats = useCallback(async () => {
+    const mechanicId = session?.user.id;
+    if (!mechanicId) {
+      setChats([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const { data: jobs, error: jobsError } = await supabase
+      .from('service_requests')
+      .select('id,motorist_id,status')
+      .eq('mechanic_id', mechanicId);
+
+    if (jobsError) {
+      setChats([]);
+      setLoading(false);
+      return;
+    }
+
+    const ongoingStatuses = new Set(['pending', 'accepted', 'arrived', 'in_transit', 'in_progress', 'ongoing']);
+    const ongoingJobs = (jobs ?? []).filter((job) =>
+      ongoingStatuses.has(String(job.status ?? '').toLowerCase()),
+    );
+    if (ongoingJobs.length === 0) {
+      setChats([]);
+      setLoading(false);
+      return;
+    }
+
+    const motoristIds = [...new Set(ongoingJobs.map((job) => job.motorist_id))];
+    const [{ data: profiles }, { data: messages }] = await Promise.all([
+      supabase.from('profiles').select('id,full_name,email').in('id', motoristIds),
+      supabase
+        .from('chat_messages')
+        .select('service_request_id,body,created_at')
+        .in('service_request_id', ongoingJobs.map((job) => job.id))
+        .order('created_at', { ascending: false }),
+    ]);
+    const profileMap = new Map(
+      (profiles ?? []).map((profile) => [profile.id, profile.full_name || profile.email || 'Customer']),
+    );
+    const latestByJob = new Map<string, { body: string; created_at: string }>();
+    (messages ?? []).forEach((message) => {
+      if (!latestByJob.has(message.service_request_id)) {
+        latestByJob.set(message.service_request_id, message);
+      }
+    });
+    setChats(
+      ongoingJobs.map((job) => {
+        const latest = latestByJob.get(job.id);
+        return {
+          id: job.id,
+          customerName: profileMap.get(job.motorist_id) ?? 'Customer',
+          preview: latest?.body ?? 'No messages yet. Open the ongoing booking to chat.',
+          time: latest ? new Date(latest.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '',
+        };
+      }),
+    );
+    setLoading(false);
+  }, [session?.user.id]);
+
+  useFocusEffect(useCallback(() => {
+    void loadChats();
+  }, [loadChats]));
 
   return (
-    <MechanicScreen title="Messages" subtitle="Clients and support">
+    <MechanicScreen title="Messages" subtitle="Motorist chats from ongoing bookings">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {threads.map((thread) => (
-          <View key={thread.id} style={styles.row}>
+        {loading ? <ActivityIndicator color={colors.amber} /> : null}
+        {!loading && chats.length === 0 ? (
+          <Text style={styles.empty}>No ongoing motorist chats.</Text>
+        ) : null}
+        {chats.map((chat) => (
+          <View key={chat.id} style={styles.row}>
             <View style={styles.avatar}>
-              <Ionicons
-                name={thread.kind === 'support' ? 'headset-outline' : 'person-outline'}
-                size={18}
-                color={colors.amber}
-              />
+              <Ionicons name="person-outline" size={18} color={colors.amber} />
             </View>
             <View style={styles.body}>
               <View style={styles.top}>
-                <Text style={styles.name}>{thread.name}</Text>
-                <Text style={styles.time}>{thread.time}</Text>
+                <Text style={styles.name}>{chat.customerName}</Text>
+                <Text style={styles.time}>{chat.time}</Text>
               </View>
               <Text style={styles.preview} numberOfLines={1}>
-                {thread.preview}
+                {chat.preview}
               </Text>
             </View>
-            {thread.unread > 0 ? (
-              <View style={styles.unread}>
-                <Text style={styles.unreadText}>{thread.unread}</Text>
-              </View>
-            ) : null}
           </View>
         ))}
-        <Text
-          style={styles.soon}
-          onPress={() => Alert.alert('Chat', 'Live chat thread, susunod na build.')}>
-          Buksan ang thread sa susunod na update.
-        </Text>
       </ScrollView>
     </MechanicScreen>
   );
@@ -50,6 +118,11 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,
+  },
+  empty: {
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: spacing.xl,
   },
   row: {
     flexDirection: 'row',

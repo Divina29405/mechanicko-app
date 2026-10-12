@@ -117,13 +117,13 @@ export default function MechanicHomeScreen() {
     setOnline,
     rating,
     unreadNotifications,
+    avatarUrl,
   } = useMechanic();
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [sidebarProgress] = useState(() => new Animated.Value(0));
   const [availableJobs, setAvailableJobs] = useState<AvailableJob[]>([]);
   const [acceptingJobId, setAcceptingJobId] = useState<string | null>(null);
   const [jobsError, setJobsError] = useState<string | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<AvailableJob | null>(null);
   const [declineJobId, setDeclineJobId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
@@ -169,27 +169,6 @@ export default function MechanicHomeScreen() {
       clearInterval(interval);
     };
   }, [online]);
-
-  useEffect(() => {
-    let active = true;
-    async function loadAvatar() {
-      if (!session?.user.id) return;
-      const { data } = await supabase
-        .from("profiles")
-        .select("avatar_path")
-        .eq("id", session.user.id)
-        .maybeSingle();
-      if (!active || !data?.avatar_path) return;
-      const publicUrl = supabase.storage
-        .from("mechanic-avatars")
-        .getPublicUrl(data.avatar_path).data.publicUrl;
-      if (active) setAvatarUrl(`${publicUrl}?v=${Date.now()}`);
-    }
-    void loadAvatar();
-    return () => {
-      active = false;
-    };
-  }, [session?.user.id]);
 
   useEffect(() => {
     let active = true;
