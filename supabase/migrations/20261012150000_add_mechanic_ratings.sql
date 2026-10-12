@@ -53,7 +53,17 @@ begin
   returning * into rating_row;
 
   update public.profiles
-  set updated_at = now()
+  set average_rating = coalesce((
+    select round(avg(rating)::numeric, 1)
+    from public.mechanic_ratings
+    where mechanic_id = p_mechanic_id
+  ), 5.0),
+  rating_count = (
+    select count(*)
+    from public.mechanic_ratings
+    where mechanic_id = p_mechanic_id
+  ),
+  updated_at = now()
   where id = p_mechanic_id;
 
   return rating_row;

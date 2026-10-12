@@ -8,7 +8,10 @@ create or replace function public.get_nearby_mechanics(
 returns table (
   id uuid,
   full_name text,
+  mobile_number text,
+  is_online boolean,
   skills text,
+  maintenance_pricing jsonb,
   avatar_path text,
   average_rating numeric,
   home_latitude double precision,
@@ -22,7 +25,10 @@ as $$
   select
     mechanic.id,
     mechanic.full_name,
+    mechanic.mobile_number,
+    mechanic.is_online,
     mechanic.skills,
+    mechanic.maintenance_pricing,
     mechanic.avatar_path,
     mechanic.average_rating,
     mechanic.home_latitude,

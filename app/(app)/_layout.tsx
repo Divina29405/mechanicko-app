@@ -192,6 +192,7 @@ export default function AppLayout() {
           initialRouteName="MotoristMap"
           screenOptions={{
             headerShown: false,
+            animation: "fade",
             contentStyle: { backgroundColor: colors.bg },
           }}
         >

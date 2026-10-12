@@ -39,7 +39,7 @@ type ChatMessage = {
 
 function getJobStatus(status: string | null): JobStatus | null {
   const normalized = status?.toLowerCase();
-  if (["pending", "accepted", "arrived", "in_transit", "in_progress", "ongoing"].includes(normalized ?? "")) {
+  if (["pending", "scheduled", "accepted", "arrived", "in_transit", "in_progress", "ongoing"].includes(normalized ?? "")) {
     return "ongoing";
   }
   if (normalized === "completed" || normalized === "done" || normalized === "resolved") {
@@ -184,7 +184,7 @@ export default function JobsScreen() {
     setSendingMessage(false);
   }
 
-  async function updateJobStatus(id: string, status: "arrived" | "completed" | "cancelled") {
+  async function updateJobStatus(id: string, status: "in_transit" | "arrived" | "in_progress" | "completed" | "cancelled") {
     if (!mechanicId) return;
     setRefreshing(true);
     const { error: updateError } = await supabase
@@ -439,7 +439,7 @@ export default function JobsScreen() {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.detailLabel}>CONTACT NO.</Text>
+              <Text style={styles.detailLabel}>MOBILE NUMBER</Text>
               <Text style={styles.detailValue}>{selectedJob.customer_contact}</Text>
               <Text style={styles.detailLabel}>DATE SCHEDULED</Text>
               <Text style={styles.detailValue}>{formatDate(selectedJob.scheduled_at || selectedJob.created_at)}</Text>
@@ -478,10 +478,26 @@ export default function JobsScreen() {
               {selectedJob.status?.toLowerCase() === "arrived" ? (
                 <Pressable
                   style={styles.completeButton}
+                  onPress={() => void updateJobStatus(selectedJob.id, "in_progress")}
+                  disabled={refreshing}
+                >
+                  <Text style={styles.completeText}>{refreshing ? "Saving..." : "Start service"}</Text>
+                </Pressable>
+              ) : selectedJob.status?.toLowerCase() === "in_progress" ? (
+                <Pressable
+                  style={styles.completeButton}
                   onPress={() => void updateJobStatus(selectedJob.id, "completed")}
                   disabled={refreshing}
                 >
                   <Text style={styles.completeText}>{refreshing ? "Saving..." : "Complete booking"}</Text>
+                </Pressable>
+              ) : selectedJob.status?.toLowerCase() === "accepted" ? (
+                <Pressable
+                  style={styles.arrivedButton}
+                  onPress={() => void updateJobStatus(selectedJob.id, "in_transit")}
+                  disabled={refreshing}
+                >
+                  <Text style={styles.arrivedText}>{refreshing ? "Saving..." : "Start trip"}</Text>
                 </Pressable>
               ) : (
                 <Pressable

@@ -4,6 +4,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import {
   Alert,
+  ActivityIndicator,
   Image,
   Modal,
   Pressable,
@@ -65,6 +66,7 @@ export default function ProfileScreen() {
   const [newService, setNewService] = useState('');
   const [newPrice, setNewPrice] = useState('');
   const [savingPrices, setSavingPrices] = useState(false);
+  const [priceAdded, setPriceAdded] = useState(false);
   const [requestingDeletion, setRequestingDeletion] = useState(false);
   const [addressPickerVisible, setAddressPickerVisible] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
@@ -181,7 +183,7 @@ export default function ProfileScreen() {
   }
 
   async function saveMaintenancePrices(nextPrices: MaintenancePrice[]) {
-    if (!session?.user.id) return;
+    if (!session?.user.id) return false;
     setSavingPrices(true);
     const { error } = await supabase
       .from('profiles')
@@ -190,30 +192,33 @@ export default function ProfileScreen() {
     setSavingPrices(false);
     if (error) {
       Alert.alert('Unable to save pricing', error.message);
-      return;
+      return false;
     }
     setMaintenancePrices(nextPrices);
+    return true;
   }
 
-  function addMaintenancePrice() {
+  async function addMaintenancePrice() {
     const service = newService.trim();
     const price = newPrice.trim();
     if (!service || !price) {
       Alert.alert('Incomplete pricing', 'Enter the labor name and price first.');
       return;
     }
+    const numericPrice = Number(price.replace(/,/g, '').replace(/^₱\s*/, ''));
+    if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+      Alert.alert('Invalid price', 'Enter a valid price greater than zero.');
+      return;
+    }
     const nextPrices = [...maintenancePrices, { service, price }];
-    void saveMaintenancePrices(nextPrices);
-    setNewService('');
-    setNewPrice('');
-  }
-
-  function removeMaintenancePrice(index: number) {
-    const nextPrices = maintenancePrices.filter((_, itemIndex) => itemIndex !== index);
-    Alert.alert('Remove labor price?', 'This item will be removed from your public pricing list.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => void saveMaintenancePrices(nextPrices) },
-    ]);
+    setPriceAdded(false);
+    const saved = await saveMaintenancePrices(nextPrices);
+    if (saved) {
+      setNewService('');
+      setNewPrice('');
+      setPriceAdded(true);
+      setTimeout(() => setPriceAdded(false), 1800);
+    }
   }
 
   function requestAccountDeletion() {
@@ -656,28 +661,26 @@ export default function ProfileScreen() {
                     style={styles.priceInput}
                   />
                   <Pressable
-                    onPress={addMaintenancePrice}
+                    onPress={() => void addMaintenancePrice()}
                     disabled={savingPrices}
                     style={({ pressed }) => [styles.addPriceButton, pressed && styles.pressed]}
                   >
-                    <Ionicons name="add" size={20} color={colors.white} />
-                    <Text style={styles.addPriceText}>Add labor price</Text>
+                    {savingPrices ? (
+                      <ActivityIndicator size="small" color={colors.white} />
+                    ) : (
+                      <Ionicons name={priceAdded ? 'checkmark' : 'add'} size={20} color={colors.white} />
+                    )}
+                    <Text style={styles.addPriceText}>
+                      {savingPrices ? 'Adding...' : priceAdded ? 'Added' : 'Add labor price'}
+                    </Text>
                   </Pressable>
                 </View>
                 {maintenancePrices.length ? (
-                  maintenancePrices.map((item, index) => (
-                    <View key={`${item.service}-${index}`} style={styles.detailItem}>
+                  maintenancePrices.map((item) => (
+                    <View key={`${item.service}-${item.price}`} style={styles.detailItem}>
                       <Ionicons name="construct-outline" size={20} color={colors.amber} />
-                      <View style={styles.priceText}>
-                        <Text style={styles.detailItemText}>{item.service}</Text>
-                        <Text style={styles.priceValue}>{item.price}</Text>
-                      </View>
-                      <Pressable
-                        onPress={() => removeMaintenancePrice(index)}
-                        accessibilityLabel={`Remove ${item.service}`}
-                      >
-                        <Ionicons name="trash-outline" size={20} color={colors.error} />
-                      </Pressable>
+                      <Text style={styles.detailItemText}>{item.service}</Text>
+                      <Text style={styles.priceValue}>{item.price}</Text>
                     </View>
                   ))
                 ) : (
@@ -966,11 +969,9 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '600',
   },
-  priceText: {
-    flex: 1,
-  },
   priceValue: {
-    marginTop: 4,
+    minWidth: 72,
+    textAlign: 'right',
     color: colors.success,
     fontWeight: '800',
   },

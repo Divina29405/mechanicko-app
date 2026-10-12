@@ -6,11 +6,13 @@ create table if not exists public.profiles (
   full_name text,
   role text not null default 'customer' check (role in ('mechanic', 'customer', 'admin')),
   mobile_number text,
+  is_online boolean not null default true,
   home_address text,
   home_latitude double precision,
   home_longitude double precision,
   skills text,
   certifications text,
+  maintenance_pricing jsonb not null default '[]'::jsonb,
   experience text,
   license_front_path text,
   license_back_path text,
@@ -48,6 +50,17 @@ alter table if exists public.service_requests
 
 alter table if exists public.service_requests
   add column if not exists decline_reason text;
+
+alter table if exists public.service_requests
+  add column if not exists service_name text;
+alter table if exists public.service_requests
+  add column if not exists service_price numeric(10, 2);
+alter table if exists public.service_requests
+  add column if not exists delivery_fee numeric(10, 2);
+alter table if exists public.service_requests
+  add column if not exists estimated_total numeric(10, 2);
+alter table if exists public.service_requests
+  add column if not exists scheduled_at timestamptz;
 
 create table if not exists public.chat_messages (
   id uuid primary key default gen_random_uuid(),
@@ -138,7 +151,36 @@ using (
 )
 with check (mechanic_id = auth.uid());
 
+drop policy if exists "service_requests_insert_motorist_own"
+on public.service_requests;
+
+create policy "service_requests_insert_motorist_own"
+on public.service_requests
+for insert
+to authenticated
+with check (motorist_id = auth.uid()::text);
+
+drop policy if exists "service_requests_select_motorist_own"
+on public.service_requests;
+
+create policy "service_requests_select_motorist_own"
+on public.service_requests
+for select
+to authenticated
+using (motorist_id = auth.uid()::text);
+
+drop policy if exists "service_requests_update_motorist_own"
+on public.service_requests;
+
+create policy "service_requests_update_motorist_own"
+on public.service_requests
+for update
+to authenticated
+using (motorist_id = auth.uid()::text)
+with check (motorist_id = auth.uid()::text);
+
 alter table public.profiles add column if not exists mobile_number text;
+alter table public.profiles add column if not exists is_online boolean not null default true;
 alter table public.profiles alter column role set default 'customer';
 alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles add constraint profiles_role_check
@@ -148,6 +190,8 @@ alter table public.profiles add column if not exists home_latitude double precis
 alter table public.profiles add column if not exists home_longitude double precision;
 alter table public.profiles add column if not exists skills text;
 alter table public.profiles add column if not exists certifications text;
+alter table public.profiles
+  add column if not exists maintenance_pricing jsonb not null default '[]'::jsonb;
 alter table public.profiles add column if not exists experience text;
 alter table public.profiles add column if not exists license_front_path text;
 alter table public.profiles add column if not exists license_back_path text;
@@ -193,6 +237,8 @@ $$;
 revoke all on function public.save_mechanic_home_location(text, double precision, double precision) from public;
 grant execute on function public.save_mechanic_home_location(text, double precision, double precision) to authenticated;
 
+drop function if exists public.get_nearby_mechanics(double precision, double precision, double precision);
+
 create or replace function public.get_nearby_mechanics(
   p_latitude double precision,
   p_longitude double precision,
@@ -201,7 +247,10 @@ create or replace function public.get_nearby_mechanics(
 returns table (
   id uuid,
   full_name text,
+  mobile_number text,
+  is_online boolean,
   skills text,
+  maintenance_pricing jsonb,
   avatar_path text,
   average_rating numeric,
   home_latitude double precision,
@@ -212,7 +261,8 @@ language sql
 security definer
 set search_path = public
 as $$
-  select mechanic.id, mechanic.full_name, mechanic.skills, mechanic.avatar_path, mechanic.average_rating,
+  select mechanic.id, mechanic.full_name, mechanic.mobile_number, mechanic.is_online,
+    mechanic.skills, mechanic.maintenance_pricing, mechanic.avatar_path, mechanic.average_rating,
     mechanic.home_latitude, mechanic.home_longitude,
     6371 * 2 * asin(sqrt(
       power(sin(radians(mechanic.home_latitude - p_latitude) / 2), 2) +
@@ -378,6 +428,15 @@ using (
   role = 'customer'
   and public.current_profile_role() = 'mechanic'
 );
+
+drop policy if exists "profiles_select_mechanic_basic"
+on public.profiles;
+
+create policy "profiles_select_mechanic_basic"
+on public.profiles
+for select
+to authenticated
+using (role = 'mechanic');
 
 drop policy if exists "profiles_insert_own" on public.profiles;
 create policy "profiles_insert_own"

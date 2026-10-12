@@ -1,6 +1,8 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { useAppTheme } from '@/contexts/ThemeContext';
 
@@ -13,6 +15,16 @@ const COMMON_SYMPTOMS = [
   'Out of Fuel',
   'Electrical Issue'
 ];
+
+const SYMPTOM_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  'Flat Tire / Puncture': 'ellipse-outline',
+  'Dead Battery': 'battery-dead-outline',
+  'Engine Won\'t Start': 'power-outline',
+  'Engine Overheating': 'thermometer-outline',
+  'Brake Failure': 'warning-outline',
+  'Out of Fuel': 'water-outline',
+  'Electrical Issue': 'flash-outline',
+};
 
 export default function EmergencyChecklistScreen() {
   const router = useRouter();
@@ -71,56 +83,73 @@ export default function EmergencyChecklistScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Emergency Assessment</Text>
-        <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>Select the symptoms you are experiencing. This helps mechanics bring the right tools to your location.</Text>
-
-        <View style={styles.checklistContainer}>
-          {COMMON_SYMPTOMS.map((symptom, index) => {
-            const isSelected = selectedSymptoms.includes(symptom);
-            return (
-              <TouchableOpacity 
-                key={index} 
-                style={[
-                  styles.checklistItem, 
-                  { backgroundColor: colors.card, borderColor: colors.border },
-                  isSelected && { borderColor: colors.primary, backgroundColor: 'rgba(255, 107, 0, 0.05)' }
-                ]} 
-                onPress={() => toggleSymptom(symptom)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.checklistText, { color: isSelected ? colors.primary : colors.text }]}>
-                  {isSelected ? '✅ ' : '⬜ '} {symptom}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+    <SafeAreaView style={[styles.screen, { backgroundColor: colors.bg }]} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={23} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Emergency Assessment</Text>
+          <View style={styles.headerSpacer} />
         </View>
 
-        <Text style={[styles.label, { color: colors.text }]}>Detailed Description & Location (Required)</Text>
+        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <View style={[styles.checklistContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {COMMON_SYMPTOMS.map((symptom) => {
+              const isSelected = selectedSymptoms.includes(symptom);
+              return (
+                <TouchableOpacity
+                  key={symptom}
+                  style={[
+                    styles.checklistItem,
+                    { borderBottomColor: colors.border },
+                    isSelected && { backgroundColor: 'rgba(240, 162, 2, 0.12)' },
+                  ]}
+                  onPress={() => toggleSymptom(symptom)}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.symptomIcon, { backgroundColor: isSelected ? colors.primary : colors.bg }]}>
+                    <Ionicons
+                      name={SYMPTOM_ICONS[symptom]}
+                      size={20}
+                      color={isSelected ? '#FFFFFF' : colors.textMuted}
+                    />
+                  </View>
+                  <Text style={[styles.checklistText, { color: colors.text }]}>{symptom}</Text>
+                  <Ionicons
+                    name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={22}
+                    color={isSelected ? colors.primary : '#98A2B3'}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={[styles.label, { color: colors.text }]}>Location and situation</Text>
+          <Text style={[styles.fieldHint, { color: colors.textMuted }]}>Required for emergency dispatch</Text>
         
-        <TouchableOpacity style={[styles.mockInputButton, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setIsEditingNotes(true)} activeOpacity={0.8}>
-          <Text style={[styles.mockInputText, { color: additionalNotes ? colors.text : colors.textMuted }]}>
-            {additionalNotes ? additionalNotes : "Tap here to type your exact location and situation..."}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={[styles.mockInputButton, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setIsEditingNotes(true)} activeOpacity={0.8}>
+            <Ionicons name="location-outline" size={22} color={colors.primary} />
+            <Text style={[styles.mockInputText, { color: additionalNotes ? colors.text : colors.textMuted }]}>
+              {additionalNotes || 'Add your exact location and what you need help with'}
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.confirmButton, isSubmitting && { opacity: 0.7 }]} onPress={handleSubmitEmergency} disabled={isSubmitting}>
-          <Text style={styles.confirmButtonText}>{isSubmitting ? 'Dispatching...' : '🚨 Dispatch Mechanic Now'}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()} disabled={isSubmitting}>
-          <Text style={[styles.cancelButtonText, { color: colors.textMuted }]}>Cancel Emergency</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          <TouchableOpacity style={[styles.confirmButton, { backgroundColor: '#FF4D4F' }, isSubmitting && styles.disabledButton]} onPress={handleSubmitEmergency} disabled={isSubmitting}>
+            <Ionicons name="radio-outline" size={21} color="#FFFFFF" />
+            <Text style={styles.confirmButtonText}>{isSubmitting ? 'Dispatching...' : 'Request emergency assistance'}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <Modal visible={isEditingNotes} animationType="slide" presentationStyle="pageSheet">
         <KeyboardAvoidingView style={[styles.modalContainer, { backgroundColor: colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Your Location & Situation</Text>
             <TouchableOpacity onPress={() => setIsEditingNotes(false)}>
-              <Text style={[styles.modalCloseText, { color: colors.primary }]}>Done</Text>
+              <Text style={[styles.modalCloseText, { color: colors.primary }]}>Save</Text>
             </TouchableOpacity>
           </View>
           
@@ -139,29 +168,34 @@ export default function EmergencyChecklistScreen() {
           </TouchableOpacity>
         </KeyboardAvoidingView>
       </Modal>
-    </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 24, flexGrow: 1, justifyContent: 'center' },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 6, marginTop: 20 },
-  headerSubtitle: { fontSize: 14, marginBottom: 24, lineHeight: 20 },
-  checklistContainer: { marginBottom: 24 },
-  checklistItem: { padding: 16, borderRadius: 12, marginBottom: 10, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 3, elevation: 2 },
-  checklistText: { fontSize: 15, fontWeight: '600' },
-  label: { fontSize: 13, fontWeight: '700', marginBottom: 8 },
-  mockInputButton: { padding: 16, borderRadius: 12, minHeight: 80, marginBottom: 24, borderWidth: 1, justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 3, elevation: 2 },
-  mockInputText: { fontSize: 16, lineHeight: 22 },
-  confirmButton: { backgroundColor: '#FF3800', paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: 12, elevation: 5, shadowColor: '#FF3800', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5 },
-  confirmButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 16, letterSpacing: 0.5 },
-  cancelButton: { paddingVertical: 12, alignItems: 'center' },
-  cancelButtonText: { fontWeight: 'bold', fontSize: 15 },
-  modalContainer: { flex: 1, padding: 24, paddingTop: Platform.OS === 'ios' ? 60 : 40 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold' },
-  modalCloseText: { fontSize: 18, fontWeight: 'bold' },
-  fullScreenInput: { flex: 1, padding: 20, borderRadius: 16, fontSize: 18, lineHeight: 28, textAlignVertical: 'top', borderWidth: 1, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 5, elevation: 2 },
-  modalSaveButton: { paddingVertical: 18, borderRadius: 12, alignItems: 'center', marginBottom: Platform.OS === 'ios' ? 20 : 0 },
-  modalSaveButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 18 },
+  screen: { flex: 1 },
+  keyboard: { flex: 1 },
+  header: { minHeight: 58, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
+  backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerSpacer: { width: 40 },
+  headerTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '800' },
+  container: { padding: 20, paddingBottom: 32 },
+  checklistContainer: { marginBottom: 26, borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  checklistItem: { minHeight: 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
+  symptomIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  checklistText: { flex: 1, fontSize: 14, fontWeight: '700' },
+  label: { fontSize: 15, fontWeight: '800', marginBottom: 4 },
+  fieldHint: { fontSize: 12, marginBottom: 10 },
+  mockInputButton: { minHeight: 76, flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 14, borderWidth: 1, gap: 12 },
+  mockInputText: { flex: 1, fontSize: 14, lineHeight: 20 },
+  confirmButton: { minHeight: 54, flexDirection: 'row', gap: 10, paddingHorizontal: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  disabledButton: { opacity: 0.65 },
+  confirmButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
+  modalContainer: { flex: 1, padding: 20, paddingTop: Platform.OS === 'ios' ? 24 : 20 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 16, marginBottom: 16, borderBottomWidth: 1 },
+  modalTitle: { fontSize: 19, fontWeight: '800' },
+  modalCloseText: { fontSize: 15, fontWeight: '800' },
+  fullScreenInput: { flex: 1, padding: 16, borderRadius: 12, fontSize: 16, lineHeight: 24, textAlignVertical: 'top', borderWidth: 1, marginBottom: 16 },
+  modalSaveButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: Platform.OS === 'ios' ? 20 : 0 },
+  modalSaveButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
 });

@@ -63,7 +63,7 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
   const [rating, setRating] = useState(5);
   const [earnings, setEarnings] = useState({ today: 0, weekly: 0, completedToday: 0, wallet: 0 });
   const [payouts, setPayouts] = useState<PayoutRow[]>([]);
-  const [online, setOnline] = useState(true);
+  const [online, setOnlineState] = useState(true);
   const [sosOffer, setSosOffer] = useState<SosOffer | null>(initialSosOffer);
   const [acceptedSos, setAcceptedSos] = useState<SosOffer | null>(null);
   const [sosExpired, setSosExpired] = useState(false);
@@ -82,7 +82,7 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
       setAvatarLoading(true);
       const { data } = await supabase
         .from('profiles')
-        .select('avatar_path,average_rating')
+        .select('avatar_path,average_rating,is_online')
         .eq('id', session.user.id)
         .maybeSingle();
       if (active && data?.avatar_path) {
@@ -92,11 +92,30 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
       if (active && typeof data?.average_rating === 'number') {
         setRating(Math.min(5, Math.max(1, data.average_rating)));
       }
+      if (active && typeof data?.is_online === 'boolean') {
+        setOnlineState(data.is_online);
+      }
       if (active) setAvatarLoading(false);
     }
     void loadProfileData();
     return () => { active = false; };
   }, [session?.user.id]);
+
+  const setOnline = useCallback(
+    (value: boolean) => {
+      setOnlineState(value);
+      if (session?.user.id) {
+        void supabase
+          .from('profiles')
+          .update({ is_online: value })
+          .eq('id', session.user.id)
+          .then(({ error }) => {
+            if (error) console.warn('Mechanic availability update failed:', error.message);
+          });
+      }
+    },
+    [session],
+  );
 
   useEffect(() => {
     let active = true;
@@ -204,6 +223,7 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
     }),
     [
       online,
+      setOnline,
       sosOffer,
       acceptedSos,
       sosExpired,

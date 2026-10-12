@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
@@ -25,6 +26,7 @@ import { colors, radii, spacing } from "@/lib/theme";
 type AvailableJob = {
   id: string;
   motorist_id: string;
+  mechanic_id: string | null;
   vehicle_type: string | null;
   vehicle_issue: string | null;
   request_type: string | null;
@@ -180,8 +182,8 @@ export default function MechanicHomeScreen() {
 
       const { data, error } = await supabase
         .from("service_requests")
-        .select("id,motorist_id,vehicle_type,vehicle_issue,request_type,created_at,scheduled_at,latitude,longitude")
-        .is("mechanic_id", null)
+        .select("id,motorist_id,mechanic_id,vehicle_type,vehicle_issue,request_type,created_at,scheduled_at,latitude,longitude")
+        .or(`mechanic_id.is.null,mechanic_id.eq.${session.user.id}`)
         .in("status", ["pending", "scheduled"])
         .order("created_at", { ascending: false });
 
@@ -206,7 +208,7 @@ export default function MechanicHomeScreen() {
           profile.id,
           {
             name: profile.full_name || "Customer",
-            contact: profile.mobile_number || profile.email || "Not provided",
+            contact: profile.mobile_number || "Not provided",
           },
         ]),
       );
@@ -236,7 +238,7 @@ export default function MechanicHomeScreen() {
       .from("service_requests")
       .update({ mechanic_id: session.user.id, status: "accepted" })
       .eq("id", id)
-      .is("mechanic_id", null);
+      .or(`mechanic_id.is.null,mechanic_id.eq.${session.user.id}`);
 
     if (error) {
       setJobsError(error.message);
@@ -251,6 +253,21 @@ export default function MechanicHomeScreen() {
   function openDeclineDialog(id: string) {
     setDeclineReason("");
     setDeclineJobId(id);
+  }
+
+  async function callMotorist(job: AvailableJob) {
+    const phoneNumber = job.customer_contact?.replace(/[^\d+]/g, "");
+    if (!phoneNumber || job.customer_contact === "Not provided") {
+      setJobsError("Motorist phone number is not available.");
+      return;
+    }
+
+    const url = `tel:${phoneNumber}`;
+    if (await Linking.canOpenURL(url)) {
+      await Linking.openURL(url);
+    } else {
+      setJobsError("Unable to open the phone app.");
+    }
   }
 
   async function declineJob() {
@@ -572,10 +589,19 @@ export default function MechanicHomeScreen() {
                     ? new Date(selectedJob.scheduled_at).toLocaleString()
                     : "As soon as possible"}
                 </Text>
-                <Text style={styles.fullDetailLabel}>CONTACT NO.</Text>
-                <Text style={styles.fullDetailValue}>
-                  {selectedJob.customer_contact}
-                </Text>
+                <Text style={styles.fullDetailLabel}>MOBILE NUMBER</Text>
+                <View style={styles.contactDetailRow}>
+                  <Text style={styles.fullDetailValue}>
+                    {selectedJob.customer_contact || "Not provided"}
+                  </Text>
+                  <Pressable
+                    style={styles.callMotoristButton}
+                    onPress={() => void callMotorist(selectedJob)}
+                    accessibilityLabel="Call motorist"
+                  >
+                    <Ionicons name="call" size={18} color={colors.white} />
+                  </Pressable>
+                </View>
                 <Text style={styles.fullDetailLabel}>VEHICLE</Text>
                 <Text style={styles.fullDetailValue}>
                   {selectedJob.vehicle_type || "Not provided"}
@@ -1217,6 +1243,20 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.8,
     marginTop: spacing.md,
+  },
+  contactDetailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  callMotoristButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.success,
+    marginLeft: spacing.md,
   },
   distanceLabel: {
     color: colors.textDim,
