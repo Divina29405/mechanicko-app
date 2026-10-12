@@ -60,6 +60,7 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarLoading, setAvatarLoading] = useState(true);
+  const [rating, setRating] = useState(5);
   const [earnings, setEarnings] = useState({ today: 0, weekly: 0, completedToday: 0, wallet: 0 });
   const [payouts, setPayouts] = useState<PayoutRow[]>([]);
   const [online, setOnline] = useState(true);
@@ -79,10 +80,17 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
         return;
       }
       setAvatarLoading(true);
-      const { data } = await supabase.from('profiles').select('avatar_path').eq('id', session.user.id).maybeSingle();
+      const { data } = await supabase
+        .from('profiles')
+        .select('avatar_path,average_rating')
+        .eq('id', session.user.id)
+        .maybeSingle();
       if (active && data?.avatar_path) {
         const url = supabase.storage.from('mechanic-avatars').getPublicUrl(data.avatar_path).data.publicUrl;
         setAvatarUrl(`${url}?v=${Date.now()}`);
+      }
+      if (active && typeof data?.average_rating === 'number') {
+        setRating(Math.min(5, Math.max(1, data.average_rating)));
       }
       if (active) setAvatarLoading(false);
     }
@@ -170,7 +178,7 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
     () => ({
       online,
       setOnline,
-      rating: 4.9,
+      rating,
       todayEarnings: earnings.today,
       weeklyEarnings: earnings.weekly,
       completedToday: earnings.completedToday,
@@ -208,6 +216,7 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
       markNotificationsRead,
       avatarUrl,
       avatarLoading,
+      rating,
       earnings,
       payouts,
     ],

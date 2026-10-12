@@ -18,17 +18,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
 
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371; 
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return (R * c).toFixed(1);
-};
-
 const CANCELLATION_REASONS = [
   "Mechanic is taking too long",
   "Mechanic is unresponsive",
@@ -63,6 +52,7 @@ export default function MotoristMap() {
   const [completedJob, setCompletedJob] = useState<any>(null);
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
+  const [submittingRating, setSubmittingRating] = useState(false);
 
   // Cancellation States
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
@@ -70,15 +60,30 @@ export default function MotoristMap() {
   const [isCancelling, setIsCancelling] = useState(false);
 
   const fetchLiveMechanics = async (userLat: number, userLng: number) => {
-    const { data, error } = await supabase.from('profiles').select('*').eq('role', 'mechanic').eq('status', 'available');
-    if (!error && data) {
-      const formattedMechanics = data.map(mech => ({
-        id: mech.id, name: mech.full_name || 'Unnamed Mechanic', rating: mech.average_rating || 0,
-        price: mech.base_price || 500, latitude: mech.latitude, longitude: mech.longitude,
-        distance: `${calculateDistance(userLat, userLng, mech.latitude, mech.longitude)} km`
-      }));
-      setLiveMechanics(formattedMechanics);
+    const { data, error } = await supabase.rpc('get_nearby_mechanics', {
+      p_latitude: userLat,
+      p_longitude: userLng,
+      p_radius_km: 10,
+    });
+    if (error) {
+      console.warn('Nearby mechanics unavailable:', error.message);
+      setLiveMechanics([]);
+      return;
     }
+    const formattedMechanics = (data ?? []).map((mech: any) => ({
+      id: mech.id,
+      name: mech.full_name || 'Unnamed Mechanic',
+      rating: Number(mech.average_rating) || 5,
+      price: Number(mech.base_price) || 500,
+      latitude: mech.home_latitude,
+      longitude: mech.home_longitude,
+      avatarUrl: mech.avatar_path
+        ? supabase.storage.from('mechanic-avatars').getPublicUrl(mech.avatar_path).data.publicUrl
+        : null,
+      skills: mech.skills || 'General motorcycle service',
+      distance: `${Number(mech.distance_km).toFixed(1)} km`,
+    }));
+    setLiveMechanics(formattedMechanics);
   };
 
   useEffect(() => {
@@ -165,7 +170,31 @@ export default function MotoristMap() {
   }, [activeRequest]);
 
   const handleCompleteJob = async () => {
-    await supabase.from('service_requests').update({ status: 'closed' }).eq('id', completedJob.id);
+    if (!completedJob?.id || !completedJob?.mechanic_id || !session?.user.id || submittingRating) {
+      return;
+    }
+    setSubmittingRating(true);
+    const { error: ratingError } = await supabase.rpc('submit_mechanic_rating', {
+      p_service_request_id: completedJob.id,
+      p_mechanic_id: completedJob.mechanic_id,
+      p_rating: rating,
+      p_review: review.trim() || null,
+    });
+    if (ratingError) {
+      setSubmittingRating(false);
+      Alert.alert("Rating Failed", ratingError.message);
+      return;
+    }
+    const { error: closeError } = await supabase
+      .from('service_requests')
+      .update({ status: 'closed' })
+      .eq('id', completedJob.id)
+      .eq('motorist_id', session.user.id);
+    setSubmittingRating(false);
+    if (closeError) {
+      Alert.alert("Payment Failed", closeError.message);
+      return;
+    }
     Alert.alert("Transaction Closed", "Payment confirmed and review submitted!");
     setCompletedJob(null);
     setRating(5);
@@ -188,7 +217,7 @@ export default function MotoristMap() {
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-        <style>body { padding: 0; margin: 0; background-color: ${colors.bg}; } #map { height: 100vh; width: 100vw; }</style>
+        <style>body { padding: 0; margin: 0; background-color: ${colors.bg}; } #map { height: 100vh; width: 100vw; } .mechanic-marker { width: 42px; height: 42px; border: 3px solid #F0A202; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.3); overflow: hidden; display: flex; align-items: center; justify-content: center; } .mechanic-marker img { width: 100%; height: 100%; object-fit: cover; } .mechanic-fallback { width: 18px; height: 18px; position: relative; display: block; } .mechanic-fallback:before { content: ''; position: absolute; width: 8px; height: 8px; left: 5px; top: 0; border-radius: 50%; background: #F0A202; } .mechanic-fallback:after { content: ''; position: absolute; width: 18px; height: 9px; left: 0; bottom: 0; border-radius: 10px 10px 4px 4px; background: #F0A202; }</style>
       </head>
       <body>
         <div id="map"></div>
@@ -199,10 +228,13 @@ export default function MotoristMap() {
           var userIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-black.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], shadowSize: [41, 41] });
           L.marker([${location.coords.latitude}, ${location.coords.longitude}], {icon: userIcon}).addTo(map).bindPopup("<b>You are here</b>");
 
-          var mechIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], shadowSize: [41, 41] });
           var mechanics = ${JSON.stringify(liveMechanics)};
           mechanics.forEach(function(mech) {
             if (mech.latitude && mech.longitude) {
+              var markerHtml = mech.avatarUrl
+                ? '<div class="mechanic-marker"><img src="' + mech.avatarUrl + '" onerror="this.parentElement.innerHTML=\\'<span class=&quot;mechanic-fallback&quot;></span>\\'"></div>'
+                : '<div class="mechanic-marker"><span class="mechanic-fallback"></span></div>';
+              var mechIcon = L.divIcon({ html: markerHtml, className: '', iconSize: [42, 42], iconAnchor: [21, 21] });
               var marker = L.marker([mech.latitude, mech.longitude], {icon: mechIcon}).addTo(map);
               marker.on('click', function() { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'MECHANIC_SELECTED', mechanic: mech })); });
             }
@@ -218,17 +250,37 @@ export default function MotoristMap() {
           try {
             const data = JSON.parse(event.nativeEvent.data);
             if (data.type === 'MECHANIC_SELECTED' && !activeRequest) setSelectedMechanic(data.mechanic);
-          } catch (e) {}
+          } catch {}
         }}
       />
       
-      <View style={styles.topOverlay}>
-        <TouchableOpacity style={[styles.iconCircle, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push('/motorist-profile')}>
-          <Ionicons name="person" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.iconCircle, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push('/motorist-activity')}>
-          <Ionicons name="receipt" size={24} color={colors.text} />
-        </TouchableOpacity>
+      <View
+        style={[
+          styles.topContainer,
+          {
+            top: 0,
+            paddingTop: Platform.OS === 'ios' ? 58 : 44,
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <View style={styles.topActions}>
+          <TouchableOpacity
+            style={[styles.iconCircle, { backgroundColor: colors.bg, borderColor: colors.border }]}
+            onPress={() => router.push('/motorist-profile')}
+            accessibilityLabel="Open profile"
+          >
+            <Ionicons name="person" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.iconCircle, { backgroundColor: colors.bg, borderColor: colors.border }]}
+            onPress={() => router.push('/motorist-activity')}
+            accessibilityLabel="Open activity"
+          >
+            <Ionicons name="receipt-outline" size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.overlay}>
@@ -272,7 +324,9 @@ export default function MotoristMap() {
               </View>
               <Text style={[styles.price, { color: colors.text }]}>₱{selectedMechanic.price}</Text>
             </View>
-            <Text style={[styles.subtitle, { color: colors.textMuted }]}>Estimated base price for standard service.</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+              {selectedMechanic.skills}
+            </Text>
             <TouchableOpacity style={styles.bookButton} onPress={handleBookNow}>
               <Text style={styles.bookButtonText}>⚡ Book Now</Text>
             </TouchableOpacity>
@@ -281,14 +335,9 @@ export default function MotoristMap() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={{ width: '100%', alignItems: 'center' }}>
-            <TouchableOpacity style={styles.sosButton} onPress={handleEmergencySOS}>
-              <Text style={styles.sosText}>🚨 EMERGENCY SOS</Text>
-            </TouchableOpacity>
-            <View style={[styles.defaultBanner, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[styles.bannerText, { color: colors.text }]}>Tap a marker to view profiles and book services.</Text>
-            </View>
-          </View>
+          <TouchableOpacity style={styles.sosButton} onPress={handleEmergencySOS}>
+            <Text style={styles.sosText}>🚨 EMERGENCY SOS</Text>
+          </TouchableOpacity>
         )}
       </View>
 
@@ -310,8 +359,14 @@ export default function MotoristMap() {
               </View>
             </View>
             <TextInput style={[styles.reviewInput, { backgroundColor: colors.bg, color: colors.text, borderColor: colors.border }]} placeholder="Leave a review..." placeholderTextColor={colors.textMuted} multiline value={review} onChangeText={setReview} />
-            <TouchableOpacity style={styles.submitReviewBtn} onPress={handleCompleteJob}>
-              <Text style={styles.submitReviewText}>Confirm Payment & Submit</Text>
+            <TouchableOpacity
+              style={[styles.submitReviewBtn, submittingRating && { opacity: 0.6 }]}
+              onPress={handleCompleteJob}
+              disabled={submittingRating}
+            >
+              <Text style={styles.submitReviewText}>
+                {submittingRating ? "Submitting..." : "Confirm Payment & Submit"}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -363,25 +418,24 @@ const styles = StyleSheet.create({
   map: { width: '100%', height: '100%' },
   fallbackContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   fallbackText: { fontSize: 16, textAlign: 'center', marginBottom: 24, lineHeight: 24 },
-  overlay: { position: 'absolute', bottom: 30, width: '100%', alignItems: 'center', paddingHorizontal: 16 },
+  overlay: { position: 'absolute', bottom: 0, width: '100%', alignItems: 'center', paddingBottom: Platform.OS === 'ios' ? 52 : 44, paddingTop: 12, backgroundColor: '#FFFFFF', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.14, shadowRadius: 7 },
   
-  card: { width: '100%', padding: 24, borderRadius: 20, elevation: 8, borderWidth: 1 },
+  card: { width: '100%', padding: 18, borderRadius: 16, elevation: 8, borderWidth: 1 },
   profileHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   title: { fontSize: 20, fontWeight: 'bold' },
   rating: { color: '#FF6B00', fontSize: 14, marginTop: 4, fontWeight: '700' },
   price: { fontSize: 24, fontWeight: '900' },
   subtitle: { fontSize: 14, marginBottom: 20 },
   
-  sosButton: { backgroundColor: '#FF3800', paddingVertical: 16, width: '100%', borderRadius: 25, alignItems: 'center', marginBottom: 16, elevation: 8 },
+  sosButton: { backgroundColor: '#FF3800', paddingVertical: 13, width: '94%', borderRadius: 0, alignItems: 'center' },
   sosText: { color: '#FFFFFF', fontWeight: '900', fontSize: 16, letterSpacing: 1.5 },
-  bookButton: { backgroundColor: '#FF6B00', paddingVertical: 14, width: '100%', borderRadius: 12, alignItems: 'center', marginBottom: 10 },
+  bookButton: { backgroundColor: '#FF6B00', paddingVertical: 14, width: '100%', borderRadius: 5, alignItems: 'center', marginBottom: 10 },
   bookButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 },
   cancelButton: { paddingVertical: 12, alignItems: 'center' },
   cancelButtonText: { color: '#EF4444', fontWeight: 'bold', fontSize: 14 },
 
-  defaultBanner: { padding: 16, borderRadius: 12, width: '100%', alignItems: 'center', borderWidth: 1, elevation: 3 },
-  bannerText: { fontSize: 14, textAlign: 'center', fontWeight: '600' },
-  topOverlay: { position: 'absolute', top: 50, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', zIndex: 10 },
+  topContainer: { position: 'absolute', left: 0, right: 0, paddingHorizontal: 10, paddingBottom: 10, borderRadius: 0, borderWidth: 1, zIndex: 10, elevation: 7, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.14, shadowRadius: 7 },
+  topActions: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   iconCircle: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', elevation: 5, borderWidth: 1 },
 
   trackingCard: { width: '100%', padding: 20, borderRadius: 20, elevation: 10, borderWidth: 1 },

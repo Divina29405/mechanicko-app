@@ -7,11 +7,15 @@ create table if not exists public.profiles (
   role text not null default 'customer' check (role in ('mechanic', 'customer', 'admin')),
   mobile_number text,
   home_address text,
+  home_latitude double precision,
+  home_longitude double precision,
   skills text,
   certifications text,
   experience text,
   license_front_path text,
   license_back_path text,
+  average_rating numeric(2,1) not null default 5.0,
+  rating_count integer not null default 0,
   application_status text not null default 'approved'
     check (application_status in ('pending', 'approved', 'rejected')),
   application_submitted_at timestamptz,
@@ -109,7 +113,6 @@ using (
       select 1
       from public.profiles
       where id = auth.uid()
-        and role = 'mechanic'
         and application_status = 'approved'
     )
   )
@@ -129,7 +132,6 @@ using (
       select 1
       from public.profiles
       where id = auth.uid()
-        and role = 'mechanic'
         and application_status = 'approved'
     )
   )
@@ -142,6 +144,8 @@ alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles add constraint profiles_role_check
   check (role in ('mechanic', 'customer', 'admin'));
 alter table public.profiles add column if not exists home_address text;
+alter table public.profiles add column if not exists home_latitude double precision;
+alter table public.profiles add column if not exists home_longitude double precision;
 alter table public.profiles add column if not exists skills text;
 alter table public.profiles add column if not exists certifications text;
 alter table public.profiles add column if not exists experience text;
@@ -150,6 +154,86 @@ alter table public.profiles add column if not exists license_back_path text;
 alter table public.profiles add column if not exists avatar_path text;
 alter table public.profiles add column if not exists application_status text not null default 'approved';
 alter table public.profiles add column if not exists application_submitted_at timestamptz;
+
+create or replace function public.save_mechanic_home_location(
+  p_home_address text,
+  p_home_latitude double precision,
+  p_home_longitude double precision
+)
+returns table (
+  home_address text,
+  home_latitude double precision,
+  home_longitude double precision
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'You must be signed in to save a home location';
+  end if;
+
+  return query
+  update public.profiles
+  set home_address = nullif(trim(p_home_address), ''),
+      home_latitude = p_home_latitude,
+      home_longitude = p_home_longitude,
+      updated_at = now()
+  where id = auth.uid()
+    and role = 'mechanic'
+  returning profiles.home_address, profiles.home_latitude, profiles.home_longitude;
+
+  if not found then
+    raise exception 'Mechanic profile not found';
+  end if;
+end;
+$$;
+
+revoke all on function public.save_mechanic_home_location(text, double precision, double precision) from public;
+grant execute on function public.save_mechanic_home_location(text, double precision, double precision) to authenticated;
+
+create or replace function public.get_nearby_mechanics(
+  p_latitude double precision,
+  p_longitude double precision,
+  p_radius_km double precision default 10
+)
+returns table (
+  id uuid,
+  full_name text,
+  skills text,
+  avatar_path text,
+  average_rating numeric,
+  home_latitude double precision,
+  home_longitude double precision,
+  distance_km double precision
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select mechanic.id, mechanic.full_name, mechanic.skills, mechanic.avatar_path, mechanic.average_rating,
+    mechanic.home_latitude, mechanic.home_longitude,
+    6371 * 2 * asin(sqrt(
+      power(sin(radians(mechanic.home_latitude - p_latitude) / 2), 2) +
+      cos(radians(p_latitude)) * cos(radians(mechanic.home_latitude)) *
+      power(sin(radians(mechanic.home_longitude - p_longitude) / 2), 2)
+    )) as distance_km
+  from public.profiles mechanic
+  where mechanic.role = 'mechanic'
+    and mechanic.application_status = 'approved'
+    and mechanic.home_latitude is not null
+    and mechanic.home_longitude is not null
+    and 6371 * 2 * asin(sqrt(
+      power(sin(radians(mechanic.home_latitude - p_latitude) / 2), 2) +
+      cos(radians(p_latitude)) * cos(radians(mechanic.home_latitude)) *
+      power(sin(radians(mechanic.home_longitude - p_longitude) / 2), 2)
+    )) <= greatest(p_radius_km, 0)
+  order by distance_km asc;
+$$;
+
+revoke all on function public.get_nearby_mechanics(double precision, double precision, double precision) from public;
+grant execute on function public.get_nearby_mechanics(double precision, double precision, double precision) to anon, authenticated;
 
 create or replace function public.handle_new_user()
 returns trigger

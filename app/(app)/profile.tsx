@@ -99,6 +99,22 @@ export default function ProfileScreen() {
       .maybeSingle()
       .then(({ data, error }) => {
         if (error) {
+          const metadata = session.user.user_metadata ?? {};
+          setProfile({
+            mobile_number: null,
+            home_address:
+              typeof metadata.home_address === 'string' ? metadata.home_address : null,
+            home_latitude:
+              typeof metadata.home_latitude === 'number' ? metadata.home_latitude : null,
+            home_longitude:
+              typeof metadata.home_longitude === 'number' ? metadata.home_longitude : null,
+            skills: null,
+            certifications: null,
+            maintenance_pricing: null,
+            experience: null,
+            license_front_path: null,
+            license_back_path: null,
+          });
           Alert.alert('Profile unavailable', error.message);
           return;
         }
@@ -277,28 +293,61 @@ export default function ProfileScreen() {
     }
 
     setSavingAddress(true);
+    const locationPayload = {
+      home_address: selectedAddress.address.trim(),
+      home_latitude: selectedAddress.latitude,
+      home_longitude: selectedAddress.longitude,
+    };
     const { data, error } = await supabase.rpc('save_mechanic_home_location', {
       p_home_address: selectedAddress.address,
       p_home_latitude: selectedAddress.latitude,
       p_home_longitude: selectedAddress.longitude,
     });
-    setSavingAddress(false);
+    let saved = Array.isArray(data) ? data[0] : data;
 
-    if (error) {
-      Alert.alert('Unable to save address', error.message);
-      return;
+    if (error || !saved?.home_address) {
+      const fallback = await supabase
+        .from('profiles')
+        .update(locationPayload)
+        .eq('id', session.user.id)
+        .select('home_address,home_latitude,home_longitude')
+        .maybeSingle();
+      if (fallback.error || !fallback.data?.home_address) {
+        setSavingAddress(false);
+        Alert.alert(
+          'Unable to save address',
+          fallback.error?.message || error?.message || 'No mechanic profile was updated.',
+        );
+        return;
+      }
+      saved = fallback.data;
     }
-    const saved = Array.isArray(data) ? data[0] : data;
-    if (!saved?.home_address) {
-      Alert.alert('Unable to save address', 'No mechanic profile was updated.');
-      return;
+    setSavingAddress(false);
+    const savedAddress = {
+      home_address: saved.home_address || locationPayload.home_address,
+      home_latitude: saved.home_latitude ?? locationPayload.home_latitude,
+      home_longitude: saved.home_longitude ?? locationPayload.home_longitude,
+    };
+    const { error: metadataError } = await supabase.auth.updateUser({
+      data: {
+        home_address: savedAddress.home_address,
+        home_latitude: savedAddress.home_latitude,
+        home_longitude: savedAddress.home_longitude,
+      },
+    });
+    if (metadataError) {
+      console.warn('Home address metadata sync failed:', metadataError.message);
     }
-    setProfile((current) => (current ? {
-      ...current,
-      home_address: saved.home_address,
-      home_latitude: saved.home_latitude,
-      home_longitude: saved.home_longitude,
-    } : current));
+    setProfile((current) => ({
+      mobile_number: current?.mobile_number ?? null,
+      ...savedAddress,
+      skills: current?.skills ?? null,
+      certifications: current?.certifications ?? null,
+      maintenance_pricing: current?.maintenance_pricing ?? null,
+      experience: current?.experience ?? null,
+      license_front_path: current?.license_front_path ?? null,
+      license_back_path: current?.license_back_path ?? null,
+    }));
     setAddressPickerVisible(false);
     setSelectedAddress(null);
   }

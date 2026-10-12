@@ -1,0 +1,12 @@
+    This study has the following objectives:
+
+1. Design a mobile-based application with the following features:
+   • A GPS-enabled interface that displays nearby mechanics based on the user's real-time location;
+   • A mechanic profile system containing ratings, service offerings, availability status, and contact information;
+   • A booking and transaction module for scheduled and emergency repair requests;
+   • An in-app review and rating system to ensure service credibility;
+   • A price comparison feature that allows users to compare service rates among mechanics and repair shops; and
+   • An emergency assessment and checklist feature that enables users to identify possible vehicle issues and communicate relevant information to mechanics before service dispatch.
+2. Develop the system using React Native, Supabase, and Google Maps API integration.
+3. Test and improve the application in terms of usability, performance efficiency, functionality, and system responsiveness.
+4. Evaluate the functionality, reliability, usability, performance efficiency, security, maintainability, and portability of the developed system using the ISO/IEC 25010 software quality standards.

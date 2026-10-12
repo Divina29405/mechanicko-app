@@ -26,7 +26,6 @@ begin
       home_longitude = p_home_longitude,
       updated_at = now()
   where id = auth.uid()
-    and role = 'mechanic'
   returning
     profiles.home_address,
     profiles.home_latitude,
