@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { useSegments } from "expo-router";
 import { useEffect, useState, type ReactNode } from "react";
 import {
     ActivityIndicator,
@@ -52,6 +53,11 @@ async function openLocationSettings() {
 
 export function LocationGate({ children }: { children: ReactNode }) {
   const { loading } = useAuth();
+  const segments = useSegments();
+  const locationNotRequired = segments.some(
+    (segment) =>
+      segment === "admin-login" || segment === "(admin)" || segment === "admin",
+  );
   const [locationStatus, setLocationStatus] = useState<
     "checking" | "granted" | "blocked"
   >("checking");
@@ -60,7 +66,7 @@ export function LocationGate({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (loading) {
+    if (loading || locationNotRequired) {
       return;
     }
 
@@ -131,9 +137,9 @@ export function LocationGate({ children }: { children: ReactNode }) {
       subscription.remove();
       clearInterval(monitor);
     };
-  }, [loading]);
+  }, [loading, locationNotRequired]);
 
-  if (loading) {
+  if (loading || locationNotRequired) {
     return <>{children}</>;
   }
 

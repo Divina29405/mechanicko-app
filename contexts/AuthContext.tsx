@@ -38,6 +38,7 @@ type AuthContextValue = {
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<AuthResult>;
+  signInAsAdmin: (email: string, password: string) => Promise<AuthResult>;
   signInWithGoogle: () => Promise<AuthResult>;
   signUp: (
     email: string,
@@ -49,29 +50,6 @@ type AuthContextValue = {
   ) => Promise<AuthResult>;
   signOut: () => Promise<void>;
 };
-
-function normalizeRole(role?: string | null): AuthRole {
-  if (role?.toLowerCase() === "admin") return "admin";
-  return role?.toLowerCase() === "mechanic" ? "mechanic" : "customer";
-}
-
-async function loadProfileRole(userId: string): Promise<AuthRole | null> {
-  if (!isSupabaseConfigured) {
-    return null;
-  }
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error || !data) {
-    return null;
-  }
-
-  return normalizeRole((data as ProfileRecord).role as string | null);
-}
 
 async function getAccountStatus(userId: string) {
   if (!isSupabaseConfigured) return null;
@@ -278,6 +256,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         return completeSignIn(data.user);
+      },
+      async signInAsAdmin(email, password) {
+        setSession(null);
+        if (!isSupabaseConfigured) {
+          return {
+            error: "Supabase is not configured. Check your environment settings.",
+          };
+        }
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+
+        if (error) {
+          return { error: error.message };
+        }
+
+        const account = await getAccountStatus(data.user.id);
+        if (account?.role !== "admin") {
+          await supabase.auth.signOut();
+          setSession(null);
+          return { error: "Only admin accounts can access the admin login." };
+        }
+
+        return { error: null };
       },
       async signInWithGoogle() {
         if (!isSupabaseConfigured) {

@@ -9,6 +9,7 @@ import { AuthLogo } from "@/components/auth/AuthLogo";
 import { AuthScreenShell } from "@/components/auth/AuthScreenShell";
 import { ErrorBanner } from "@/components/auth/ErrorBanner";
 import { PrimaryButton } from "@/components/auth/PrimaryButton";
+import { ComingSoonModal } from "@/components/ComingSoonModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors, radii, spacing } from "@/lib/theme";
 import { validateEmail, validatePassword } from "@/lib/validation";
@@ -66,14 +67,14 @@ async function clearRememberedLogin() {
 }
 
 export default function LoginScreen() {
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
+  const [comingSoonVisible, setComingSoonVisible] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(false);
 
   useEffect(() => {
@@ -114,12 +115,8 @@ export default function LoginScreen() {
     if (error) setFormError(error);
   }
 
-  async function onGoogleSignIn() {
-    setFormError(null);
-    setGoogleLoading(true);
-    const { error } = await signInWithGoogle();
-    setGoogleLoading(false);
-    if (error) setFormError(error);
+  function onGoogleSignIn() {
+    setComingSoonVisible(true);
   }
 
   return (
@@ -168,7 +165,7 @@ export default function LoginScreen() {
         <Pressable
           style={styles.rememberRow}
           onPress={() => setRememberPassword((current) => !current)}
-          disabled={loading || googleLoading}
+          disabled={loading}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: rememberPassword }}
         >
@@ -196,11 +193,11 @@ export default function LoginScreen() {
         <Pressable
           style={styles.googleButton}
           onPress={onGoogleSignIn}
-          disabled={loading || googleLoading}
+          disabled={loading}
         >
           <Ionicons name="logo-google" size={19} color={colors.text} />
           <Text style={styles.googleButtonText}>
-            {googleLoading ? "Connecting..." : "Continue with Google"}
+            Continue with Google
           </Text>
         </Pressable>
       </View>
@@ -213,6 +210,15 @@ export default function LoginScreen() {
           </Pressable>
         </Link>
       </View>
+      <Link href="/(auth)/admin-login" asChild>
+        <Pressable style={styles.adminLink}>
+          <Text style={styles.adminLinkText}>Admin login</Text>
+        </Pressable>
+      </Link>
+      <ComingSoonModal
+        visible={comingSoonVisible}
+        onClose={() => setComingSoonVisible(false)}
+      />
     </AuthScreenShell>
   );
 }
@@ -312,6 +318,15 @@ const styles = StyleSheet.create({
   footerLink: {
     color: colors.amber,
     fontSize: 14,
+    fontWeight: "700",
+  },
+  adminLink: {
+    alignSelf: "center",
+    marginTop: spacing.md,
+  },
+  adminLinkText: {
+    color: colors.textMuted,
+    fontSize: 12,
     fontWeight: "700",
   },
 });

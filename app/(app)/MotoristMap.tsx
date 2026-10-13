@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Linking from 'expo-linking';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
@@ -95,6 +95,8 @@ export default function MotoristMap() {
   const [selectedMechanic, setSelectedMechanic] = useState<any>(null);
   const [displayedMechanic, setDisplayedMechanic] = useState<any>(null);
   const [showServices, setShowServices] = useState(false);
+  const [priceComparisonVisible, setPriceComparisonVisible] = useState(false);
+  const [priceSearch, setPriceSearch] = useState('');
   const [mechanicProfileVisible, setMechanicProfileVisible] = useState(false);
   const [mechanicReviews, setMechanicReviews] = useState<any[]>([]);
   const [loadingMechanicReviews, setLoadingMechanicReviews] = useState(false);
@@ -225,6 +227,35 @@ export default function MotoristMap() {
       distance: `${Number(mech.distance_km).toFixed(1)} km`,
     }));
     setLiveMechanics(formattedMechanics);
+  };
+
+  const comparisonResults = useMemo(() => {
+    const query = priceSearch.trim().toLowerCase();
+    return liveMechanics
+      .flatMap((mechanic: any) =>
+        (mechanic.services ?? [])
+          .filter((service: any) => {
+            const name = String(service.service ?? '').toLowerCase();
+            return !query || name.includes(query);
+          })
+          .map((service: any) => ({
+            mechanic,
+            service,
+            numericPrice: Number(String(service.price ?? '').replace(/[^\d.]/g, '')) || 0,
+          })),
+      )
+      .filter((result) => result.numericPrice > 0)
+      .sort(
+        (first, second) =>
+          first.numericPrice - second.numericPrice ||
+          second.mechanic.rating - first.mechanic.rating ||
+          first.mechanic.distanceKm - second.mechanic.distanceKm,
+      );
+  }, [liveMechanics, priceSearch]);
+
+  const openPriceComparison = () => {
+    setPriceSearch('');
+    setPriceComparisonVisible(true);
   };
 
   const callMechanic = async (phoneNumber: string | null) => {
@@ -675,6 +706,15 @@ export default function MotoristMap() {
               </View>
               <Ionicons name={showServices ? 'chevron-up' : 'chevron-forward'} size={19} color={colors.textMuted} />
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.compareButton, { borderColor: colors.primary }]}
+              onPress={openPriceComparison}
+            >
+              <Ionicons name="swap-vertical-outline" size={18} color={colors.primary} />
+              <Text style={[styles.compareButtonText, { color: colors.primary }]}>
+                Compare prices
+              </Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.bookButton} onPress={openBooking}>
               <Text style={styles.bookButtonText}>⚡ Book Now</Text>
             </TouchableOpacity>
@@ -714,6 +754,94 @@ export default function MotoristMap() {
             )) : (
               <Text style={[styles.noServices, { color: colors.textMuted }]}>No service offerings listed.</Text>
             )}
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      <Modal
+        visible={priceComparisonVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setPriceComparisonVisible(false)}
+      >
+        <SafeAreaView style={[styles.comparisonScreen, { backgroundColor: colors.bg }]} edges={['top', 'bottom']}>
+          <View style={[styles.servicesHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+            <TouchableOpacity
+              style={styles.servicesBackButton}
+              onPress={() => setPriceComparisonVisible(false)}
+              accessibilityLabel="Close price comparison"
+            >
+              <Ionicons name="arrow-back" size={23} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.servicesTitle, { color: colors.text }]}>Compare prices</Text>
+            <View style={styles.servicesHeaderSpacer} />
+          </View>
+          <View style={styles.comparisonContent}>
+            <Text style={[styles.comparisonIntro, { color: colors.textMuted }]}>
+              Search a service to compare registered mechanics by price, rating, and distance.
+            </Text>
+            <View style={[styles.comparisonSearch, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Ionicons name="search-outline" size={19} color={colors.textMuted} />
+              <TextInput
+                value={priceSearch}
+                onChangeText={setPriceSearch}
+                placeholder="e.g. Oil change"
+                placeholderTextColor={colors.textMuted}
+                style={[styles.comparisonInput, { color: colors.text }]}
+                autoCapitalize="none"
+              />
+              {priceSearch ? (
+                <TouchableOpacity onPress={() => setPriceSearch('')} accessibilityLabel="Clear service search">
+                  <Ionicons name="close-circle" size={19} color={colors.textMuted} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.comparisonList}>
+              {comparisonResults.length ? comparisonResults.map((result: any, index: number) => (
+                <TouchableOpacity
+                  key={`${result.mechanic.id}-${result.service.service}-${index}`}
+                  style={[styles.comparisonCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  onPress={() => {
+                    setSelectedMechanic(result.mechanic);
+                    setDisplayedMechanic(result.mechanic);
+                    setPriceComparisonVisible(false);
+                  }}
+                >
+                  <View style={styles.comparisonCardTop}>
+                    <View style={styles.comparisonMechanicInfo}>
+                      <Text style={[styles.comparisonMechanicName, { color: colors.text }]} numberOfLines={1}>
+                        {result.mechanic.name}
+                      </Text>
+                      <Text style={[styles.comparisonServiceName, { color: colors.textMuted }]} numberOfLines={1}>
+                        {result.service.service}
+                      </Text>
+                    </View>
+                    <Text style={[styles.comparisonPrice, { color: colors.primary }]}>
+                      {result.service.price}
+                    </Text>
+                  </View>
+                  <View style={styles.comparisonMeta}>
+                    <Text style={[styles.comparisonMetaText, { color: colors.textMuted }]}>
+                      ★ {result.mechanic.rating.toFixed(1)}
+                    </Text>
+                    <Text style={[styles.comparisonMetaText, { color: colors.textMuted }]}>
+                      {result.mechanic.distance}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                  </View>
+                </TouchableOpacity>
+              )) : (
+                <View style={styles.comparisonEmpty}>
+                  <Ionicons name="search-outline" size={30} color={colors.textMuted} />
+                  <Text style={[styles.comparisonEmptyTitle, { color: colors.text }]}>
+                    No matching service prices
+                  </Text>
+                  <Text style={[styles.comparisonEmptyText, { color: colors.textMuted }]}>
+                    Try another service name or check again when mechanics add their rates.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
           </View>
         </SafeAreaView>
       </Modal>
@@ -1095,6 +1223,8 @@ const styles = StyleSheet.create({
   detailRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderBottomWidth: 1, marginTop: 8, marginBottom: 18 },
   detailRowLabel: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   detailRowText: { fontSize: 14, fontWeight: '800' },
+  compareButton: { minHeight: 44, borderWidth: 1, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 },
+  compareButtonText: { fontSize: 14, fontWeight: '800' },
   servicesList: { paddingHorizontal: 12, paddingVertical: 5 },
   serviceItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
   serviceName: { flex: 1, fontSize: 14, fontWeight: '600' },
@@ -1108,6 +1238,23 @@ const styles = StyleSheet.create({
   servicesMechanic: { paddingHorizontal: 20, paddingVertical: 18, borderBottomWidth: 1 },
   servicesMechanicName: { fontSize: 18, fontWeight: '800' },
   servicesMechanicMeta: { fontSize: 13, marginTop: 4 },
+  comparisonScreen: { flex: 1 },
+  comparisonContent: { flex: 1, padding: 16 },
+  comparisonIntro: { fontSize: 13, lineHeight: 19, marginBottom: 12 },
+  comparisonSearch: { minHeight: 48, borderWidth: 1, borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 8 },
+  comparisonInput: { flex: 1, fontSize: 14, paddingVertical: 10 },
+  comparisonList: { paddingTop: 14, paddingBottom: 30, gap: 10 },
+  comparisonCard: { borderWidth: 1, borderRadius: 12, padding: 14 },
+  comparisonCardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  comparisonMechanicInfo: { flex: 1 },
+  comparisonMechanicName: { fontSize: 15, fontWeight: '800' },
+  comparisonServiceName: { fontSize: 13, marginTop: 4 },
+  comparisonPrice: { fontSize: 18, fontWeight: '900' },
+  comparisonMeta: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 12 },
+  comparisonMetaText: { fontSize: 12, fontWeight: '700' },
+  comparisonEmpty: { alignItems: 'center', paddingHorizontal: 20, paddingTop: 70 },
+  comparisonEmptyTitle: { fontSize: 16, fontWeight: '800', marginTop: 12, textAlign: 'center' },
+  comparisonEmptyText: { fontSize: 13, lineHeight: 19, marginTop: 6, textAlign: 'center' },
   fullServicesList: { marginTop: 16 },
   fullServiceItem: { minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, borderBottomWidth: 1 },
   fullServiceName: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
