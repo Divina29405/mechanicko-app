@@ -38,7 +38,7 @@ export default function AdminLoginScreen() {
       setError(result.error);
       return;
     }
-    router.replace("/admin");
+    router.replace("/(app)");
   }
 
   return (
