@@ -1,17 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { listVehicles } from '@/services/vehicleService';
+import type { Vehicle } from '@/types/vehicle';
 
 export default function MyVehiclesScreen() {
   const router = useRouter();
   const { session } = useAuth();
   const { colors } = useAppTheme();
   
-  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Modal States
@@ -23,21 +25,22 @@ export default function MyVehiclesScreen() {
   const [plate, setPlate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchVehicles = async () => {
-    if (!session?.user.id) return;
-    const { data, error } = await supabase
-      .from('vehicles')
-      .select('*')
-      .eq('motorist_id', session.user.id)
-      .order('created_at', { ascending: false });
+  const fetchVehicles = useCallback(async () => {
+    if (!session?.user.id) {
+      setLoading(false);
+      return;
+    }
+    const { data, error } = await listVehicles(session.user.id);
 
-    if (!error && data) setVehicles(data);
+    if (!error) setVehicles(data);
     setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchVehicles();
   }, [session]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchVehicles();
+    }, [fetchVehicles]),
+  );
 
   const handleAddVehicle = async () => {
     if (!make.trim() || !model.trim() || !year.trim() || !plate.trim()) {

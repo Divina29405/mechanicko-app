@@ -1,16 +1,16 @@
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { Session } from "@supabase/supabase-js";
 import * as ExpoLinking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import {
-    createContext,
-    useContext,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    type ReactNode,
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
 } from "react";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 export type AuthRole = "mechanic" | "customer" | "admin";
 
@@ -38,7 +38,7 @@ type AuthContextValue = {
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<AuthResult>;
-  signInAsAdmin: (email: string, password: string) => Promise<AuthResult>;
+  signInAsMechanic: (email: string, password: string) => Promise<AuthResult>;
   signInWithGoogle: () => Promise<AuthResult>;
   signUp: (
     email: string,
@@ -72,7 +72,8 @@ async function getAccountStatus(userId: string) {
   if (application.data) {
     return {
       role: "mechanic",
-      application_status: application.data.status as ProfileRecord["application_status"],
+      application_status: application.data
+        .status as ProfileRecord["application_status"],
     };
   }
   return null;
@@ -169,8 +170,21 @@ async function uploadLicensePhoto(
   return path;
 }
 
-async function completeSignIn(user: Session["user"]) {
+async function completeSignIn(
+  user: Session["user"],
+  expectedRole?: "customer" | "mechanic",
+) {
   const profile = await getAccountStatus(user.id);
+  if (expectedRole && profile?.role !== expectedRole) {
+    await supabase.auth.signOut();
+    return {
+      error:
+        expectedRole === "customer"
+          ? "Only customer accounts can access the customer login."
+          : "Only mechanic accounts can access the mechanic login.",
+    };
+  }
+
   if (
     profile?.role === "mechanic" &&
     profile.application_status !== "approved"
@@ -242,7 +256,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null);
         if (!isSupabaseConfigured) {
           return {
-            error: "Supabase is not configured. Check your environment settings.",
+            error:
+              "Supabase is not configured. Check your environment settings.",
           };
         }
 
@@ -255,13 +270,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { error: error.message };
         }
 
-        return completeSignIn(data.user);
+        return completeSignIn(data.user, "customer");
       },
-      async signInAsAdmin(email, password) {
+      async signInAsMechanic(email, password) {
         setSession(null);
         if (!isSupabaseConfigured) {
           return {
-            error: "Supabase is not configured. Check your environment settings.",
+            error:
+              "Supabase is not configured. Check your environment settings.",
           };
         }
 
@@ -274,14 +290,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { error: error.message };
         }
 
-        const account = await getAccountStatus(data.user.id);
-        if (account?.role !== "admin") {
-          await supabase.auth.signOut();
+        const result = await completeSignIn(data.user, "mechanic");
+        if (result.error) {
           setSession(null);
-          return { error: "Only admin accounts can access the admin login." };
         }
-
-        return { error: null };
+        return result;
       },
       async signInWithGoogle() {
         if (!isSupabaseConfigured) {
@@ -358,7 +371,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!isSupabaseConfigured) {
           signupInProgress.current = false;
           return {
-            error: "Supabase is not configured. Check your environment settings.",
+            error:
+              "Supabase is not configured. Check your environment settings.",
           };
         }
 
@@ -393,8 +407,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (userId && application && data.session) {
           try {
             const [licenseFrontPath, licenseBackPath] = await Promise.all([
-              uploadLicensePhoto(userId, application.licenseFrontUri, "front"),
-              uploadLicensePhoto(userId, application.licenseBackUri, "back"),
+              application.licenseFrontUri
+                ? uploadLicensePhoto(
+                    userId,
+                    application.licenseFrontUri,
+                    "front",
+                  )
+                : Promise.resolve(undefined),
+              application.licenseBackUri
+                ? uploadLicensePhoto(userId, application.licenseBackUri, "back")
+                : Promise.resolve(undefined),
             ]);
 
             const applicationError = await upsertMechanicApplication(
@@ -421,21 +443,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             };
           }
         } else if (userId && application) {
-          // The database trigger creates this pending application when email
-          // confirmation is enabled and no authenticated session is returned.
-          if (data.session) {
-            const applicationError = await upsertMechanicApplication(
-              userId,
-              email.trim(),
-              fullName.trim() || "Mechanic",
-              application,
-            );
-            if (applicationError) {
-              signupInProgress.current = false;
-              await supabase.auth.signOut();
-              return { error: applicationError };
-            }
-          }
+          // When email confirmation is enabled, the database trigger persists
+          // the complete text application from the signup metadata.
+          // Document uploads require an authenticated session and are handled
+          // above when one is returned by signUp.
         } else if (userId) {
           const profileError = await upsertProfile(
             userId,

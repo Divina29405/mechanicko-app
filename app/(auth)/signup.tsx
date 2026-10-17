@@ -1,27 +1,28 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
-import { Link, router } from "expo-router";
-import { useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { Link, router, Stack } from "expo-router";
 import {
-  Alert,
   Image,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import { useEffect } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from "react-native-reanimated";
 
 import { AuthInput } from "@/components/auth/AuthInput";
+import { MechanicRegistrationSteps } from "@/components/auth/MechanicRegistrationSteps";
 import { AuthScreenShell } from "@/components/auth/AuthScreenShell";
 import { ErrorBanner } from "@/components/auth/ErrorBanner";
-import { PrimaryButton } from "@/components/auth/PrimaryButton";
-import {
-  type AuthRole,
-  type MechanicApplication,
-  useAuth,
-} from "@/contexts/AuthContext";
+import { useSignupForm } from "@/hooks/useSignupForm";
 import { colors, radii, spacing } from "@/lib/theme";
 import {
   validateConfirmPassword,
@@ -29,185 +30,159 @@ import {
   validatePassword,
 } from "@/lib/validation";
 
+
 export default function SignupScreen() {
-  const { signUp } = useAuth();
-  const [fullName, setFullName] = useState("");
-  const [mobileNumber, setMobileNumber] = useState("");
-  const [homeAddress, setHomeAddress] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [role, setRole] = useState<AuthRole | null>(null);
-  const [rolePickerVisible, setRolePickerVisible] = useState(true);
-  const [emailError, setEmailError] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [confirmError, setConfirmError] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [step, setStep] = useState(1);
-  const [licenseFront, setLicenseFront] = useState<string | null>(null);
-  const [licenseBack, setLicenseBack] = useState<string | null>(null);
-  const [skills, setSkills] = useState("");
-  const [certifications, setCertifications] = useState("");
-  const [experience, setExperience] = useState("");
+  const almostDoneTitleProgress = useSharedValue(0);
+  const almostDoneTextProgress = useSharedValue(0);
+  const {
+    fullName, setFullName, mobileNumber, setMobileNumber, homeAddress, setHomeAddress,
+    email, setEmail, password, setPassword, confirm, setConfirm, role, setRole,
+    isMechanic, rolePickerVisible, rolePickerLeaving, setRolePickerVisible, emailError, setEmailError,
+    passwordError, setPasswordError, confirmError, setConfirmError, formError, info,
+    loading, success, showAlmostDone, setShowAlmostDone, step, setStep, licenseFront,
+    licenseBack, skills, setSkills, certifications, setCertifications, experience,
+    setExperience, continueRoleSelection, pickLicensePhoto, nextStep, saveAndContinue,
+    onSubmit,
+  } = useSignupForm();
 
-  async function pickLicensePhoto(side: "front" | "back") {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: false,
-      quality: 0.8,
+  useEffect(() => {
+    if (!showAlmostDone) {
+      almostDoneTitleProgress.value = 0;
+      almostDoneTextProgress.value = 0;
+      return;
+    }
+
+    almostDoneTitleProgress.value = withTiming(1, {
+      duration: 900,
+      easing: Easing.out(Easing.cubic),
     });
-
-    if (result.canceled || !result.assets[0]?.uri) return;
-
-    if (side === "front") {
-      setLicenseFront(result.assets[0].uri);
-    } else {
-      setLicenseBack(result.assets[0].uri);
-    }
-  }
-
-  function nextStep() {
-    setFormError(null);
-
-    if (step === 1) {
-      if (!fullName.trim() || !mobileNumber.trim() || !homeAddress.trim()) {
-        setFormError("Kumpletuhin ang personal information bago magpatuloy.");
-        return;
-      }
-
-      const nextEmailError = validateEmail(email);
-      const nextPasswordError = validatePassword(password);
-      const nextConfirmError = validateConfirmPassword(password, confirm);
-      setEmailError(nextEmailError);
-      setPasswordError(nextPasswordError);
-      setConfirmError(nextConfirmError);
-
-      if (nextEmailError || nextPasswordError || nextConfirmError) return;
-    }
-
-    if (step === 2 && (!licenseFront || !licenseBack)) {
-      setFormError(
-        "Kailangan ang front at back na larawan ng driver's license.",
-      );
-      return;
-    }
-
-    if (step === 3 && !skills.trim()) {
-      setFormError("Ilagay ang skills at specialization mo.");
-      return;
-    }
-
-    setStep((currentStep) => Math.min(currentStep + 1, 4));
-  }
-
-  async function submitMechanicApplication() {
-    if (!certifications.trim() || !experience.trim()) {
-      setFormError(
-        "Kumpletuhin ang certifications at experience bago isumite.",
-      );
-      return;
-    }
-
-    setLoading(true);
-    const application: MechanicApplication = {
-      mobileNumber,
-      homeAddress,
-      skills,
-      certifications,
-      experience,
-      licenseFrontUri: licenseFront ?? "",
-      licenseBackUri: licenseBack ?? "",
-    };
-    const { error } = await signUp(
-      email,
-      password,
-      fullName,
-      "mechanic",
-      application,
+    almostDoneTextProgress.value = withDelay(
+      260,
+      withTiming(1, {
+        duration: 850,
+        easing: Easing.out(Easing.cubic),
+      }),
     );
-    setLoading(false);
+  }, [almostDoneTextProgress, almostDoneTitleProgress, showAlmostDone]);
 
-    if (error) {
-      setFormError(error);
-      return;
-    }
-
-    setSuccess(true);
-    setInfo("Application submitted for review.");
-  }
-
-  async function onSubmit() {
-    if (!role) {
-      setRolePickerVisible(true);
-      return;
-    }
-
-    if (role === "mechanic") {
-      await submitMechanicApplication();
-      return;
-    }
-
-    const nextEmailError = validateEmail(email);
-    const nextPasswordError = validatePassword(password);
-    const nextConfirmError = validateConfirmPassword(password, confirm);
-    setEmailError(nextEmailError);
-    setPasswordError(nextPasswordError);
-    setConfirmError(nextConfirmError);
-    setFormError(null);
-    setInfo(null);
-    if (!mobileNumber.trim()) {
-      setFormError("Ilagay ang mobile number.");
-    }
-    if (
-      nextEmailError ||
-      nextPasswordError ||
-      nextConfirmError ||
-      !mobileNumber.trim()
-    )
-      return;
-
-    setLoading(true);
-    const { error } = await signUp(
-      email,
-      password,
-      fullName,
-      role,
-      undefined,
-      mobileNumber,
-    );
-    setLoading(false);
-    if (error) {
-      setFormError(error);
-      setSuccess(false);
-      return;
-    }
-    setSuccess(true);
-    setInfo("May verification link na ipinadala sa email address mo.");
-    setFormError(null);
-    Alert.alert(
-      "Verify your email",
-      "Na-create ang account. Buksan ang verification link sa email bago mag-login.",
-      [{ text: "Back to Login", onPress: () => router.push("/(auth)/login") }],
-    );
-  }
+  const almostDoneTitleAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: almostDoneTitleProgress.value,
+    transform: [{ translateY: 28 * (1 - almostDoneTitleProgress.value) }],
+  }));
+  const almostDoneTextAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: almostDoneTextProgress.value,
+    transform: [{ translateY: 22 * (1 - almostDoneTextProgress.value) }],
+  }));
 
   return (
-    <AuthScreenShell>
-      <View style={styles.card}>
-        <Text style={styles.heading}>Gumawa ng account</Text>
-        <Text style={styles.sub}>
-          {role === "mechanic"
-            ? "Mag-register bilang mechanic para tumanggap ng jobs."
-            : "Mag-register bilang user para gumawa ng service requests."}
-        </Text>
+    <>
+      <Stack.Screen
+        options={{
+          animation: "slide_from_right",
+        }}
+      />
+      <AuthScreenShell>
+      {isMechanic || role === "customer" ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to account type selection"
+          hitSlop={12}
+          onPress={() => {
+            if (role === "customer") {
+              setRole(null);
+              setRolePickerVisible(true);
+            } else {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/(auth)/signup");
+              }
+            }
+          }}
+          style={styles.mechanicBackButton}
+        >
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        </Pressable>
+      ) : null}
+
+      <View
+        style={[
+          styles.card,
+          isMechanic && styles.mechanicCard,
+          role === "customer" && styles.customerCard,
+          (rolePickerVisible || rolePickerLeaving) && styles.hiddenUnderlyingCard,
+        ]}
+      >
+        {!showAlmostDone ? (
+          <>
+            <Text
+              style={[
+                styles.heading,
+                isMechanic && styles.mechanicHeading,
+                role === "customer" && styles.customerHeading,
+                isMechanic && step === 3 && styles.mechanicStep3Heading,
+                isMechanic && step === 4 && styles.mechanicFinalHeading,
+              ]}
+            >
+              {isMechanic || role === "customer"
+                ? "Create an account"
+                : "Gumawa ng account"}
+            </Text>
+            <Text
+              style={[
+                styles.sub,
+                isMechanic && styles.mechanicSub,
+                role === "customer" && styles.customerSub,
+                isMechanic && step === 3 && styles.mechanicStep3Sub,
+                isMechanic && step === 4 && styles.mechanicFinalSub,
+              ]}
+            >
+              {isMechanic
+                ? "Register as a mechanic to accept services."
+                : role === "customer"
+                  ? "Register as a customer to book a service request."
+                  : "Mag-register bilang user para gumawa ng service requests."}
+            </Text>
+          </>
+        ) : null}
 
         <ErrorBanner message={formError} />
         {info ? <Text style={styles.info}>{info}</Text> : null}
 
-        {success ? (
+        {showAlmostDone ? (
+          <View style={styles.almostDone}>
+            <Animated.Text
+              style={[styles.almostDoneTitle, almostDoneTitleAnimatedStyle]}
+            >
+              You&apos;re almost done!
+            </Animated.Text>
+            <Animated.Text
+              style={[styles.almostDoneText, almostDoneTextAnimatedStyle]}
+            >
+              You can now proceed to the next step.
+            </Animated.Text>
+            <View style={styles.almostDoneActions}>
+              <Pressable
+                style={styles.almostDoneBack}
+                onPress={() => setShowAlmostDone(false)}
+              >
+                <Text style={styles.almostDoneBackText}>Back</Text>
+              </Pressable>
+              <Pressable
+                style={styles.almostDoneProceed}
+                onPress={() =>
+                  router.push({
+                    pathname: "/quick-account-setup",
+                    params: { role: "mechanic", completed: "1" },
+                  })
+                }
+              >
+                <Text style={styles.almostDoneProceedText}>Proceed</Text>
+                <Text style={styles.almostDoneArrow}>→</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : success ? (
           <View>
             {role === "mechanic" ? (
               <>
@@ -234,8 +209,12 @@ export default function SignupScreen() {
           </View>
         ) : role === "customer" ? (
           <>
+            <Text style={styles.customerSectionTitle}>Personal information</Text>
+            <Text style={styles.customerRequiredHelper}>
+              Please fill out all the (*) required information.
+            </Text>
             <AuthInput
-              label="Pangalan (optional)"
+              label="Full name"
               icon="person-outline"
               value={fullName}
               onChangeText={setFullName}
@@ -243,6 +222,7 @@ export default function SignupScreen() {
               autoComplete="name"
               textContentType="name"
               returnKeyType="next"
+              variant="customer"
             />
             <AuthInput
               label="Mobile number"
@@ -251,9 +231,10 @@ export default function SignupScreen() {
               onChangeText={setMobileNumber}
               keyboardType="phone-pad"
               returnKeyType="next"
+              variant="customer"
             />
             <AuthInput
-              label="Email"
+              label="Email address"
               icon="mail-outline"
               value={email}
               onChangeText={(v) => {
@@ -266,6 +247,7 @@ export default function SignupScreen() {
               autoComplete="email"
               textContentType="emailAddress"
               returnKeyType="next"
+              variant="customer"
             />
             <AuthInput
               label="Password"
@@ -281,9 +263,10 @@ export default function SignupScreen() {
               autoComplete="new-password"
               textContentType="newPassword"
               returnKeyType="next"
+              variant="customer"
             />
             <AuthInput
-              label="Ulitin ang password"
+              label="Confirm password"
               icon="shield-checkmark-outline"
               value={confirm}
               onChangeText={(v) => {
@@ -298,286 +281,202 @@ export default function SignupScreen() {
               textContentType="newPassword"
               returnKeyType="go"
               onSubmitEditing={onSubmit}
+              variant="customer"
             />
-            <PrimaryButton
-              label="Gumawa ng account"
-              onPress={onSubmit}
-              loading={loading}
-            />
+            <View style={styles.customerActions}>
+              <Pressable style={styles.customerBackButton} onPress={() => router.back()}>
+                <Text style={styles.customerBackText}>Back</Text>
+              </Pressable>
+              <Pressable
+                style={styles.customerNextButton}
+                onPress={onSubmit}
+                disabled={loading}
+              >
+                <Text style={styles.customerNextText}>
+                  {loading ? "Saving..." : "Next"}
+                </Text>
+                <Ionicons
+                  name="arrow-forward-circle-outline"
+                  size={16}
+                  color="#FFFFFF"
+                />
+              </Pressable>
+            </View>
           </>
         ) : (
-          <>
-            <View style={styles.stepHeader}>
-              <Text style={styles.stepLabel}>Step {step} of 4</Text>
-              <Text style={styles.stepTitle}>
-                {step === 1
-                  ? "Personal information"
-                  : step === 2
-                    ? "Documents"
-                    : step === 3
-                      ? "Skills and Specialization"
-                      : "Certifications and Experience"}
-              </Text>
-            </View>
-
-            {step === 1 ? (
-              <>
-                <AuthInput
-                  label="Full name"
-                  icon="person-outline"
-                  value={fullName}
-                  onChangeText={setFullName}
-                  autoCapitalize="words"
-                  autoComplete="name"
-                  textContentType="name"
-                />
-                <AuthInput
-                  label="Mobile number"
-                  icon="call-outline"
-                  value={mobileNumber}
-                  onChangeText={setMobileNumber}
-                  keyboardType="phone-pad"
-                />
-                <AuthInput
-                  label="Email address"
-                  icon="mail-outline"
-                  value={email}
-                  onChangeText={(v) => {
-                    setEmail(v);
-                    if (emailError) setEmailError(validateEmail(v));
-                  }}
-                  error={emailError}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  textContentType="emailAddress"
-                />
-                <AuthInput
-                  label="Home address"
-                  icon="location-outline"
-                  value={homeAddress}
-                  onChangeText={setHomeAddress}
-                  autoCapitalize="words"
-                />
-                <AuthInput
-                  label="Password"
-                  icon="lock-closed-outline"
-                  value={password}
-                  onChangeText={(v) => {
-                    setPassword(v);
-                    if (passwordError) setPasswordError(validatePassword(v));
-                  }}
-                  error={passwordError}
-                  isPassword
-                  autoCapitalize="none"
-                />
-                <AuthInput
-                  label="Ulitin ang password"
-                  icon="shield-checkmark-outline"
-                  value={confirm}
-                  onChangeText={(v) => {
-                    setConfirm(v);
-                    if (confirmError)
-                      setConfirmError(validateConfirmPassword(password, v));
-                  }}
-                  error={confirmError}
-                  isPassword
-                  autoCapitalize="none"
-                />
-              </>
-            ) : null}
-
-            {step === 2 ? (
-              <>
-                <Text style={styles.helperText}>
-                  Mag-upload ng malinaw na larawan ng iyong driver&apos;s
-                  license.
-                </Text>
-                <LicensePhoto
-                  label="Driver's license - front"
-                  uri={licenseFront}
-                  onPress={() => void pickLicensePhoto("front")}
-                />
-                <LicensePhoto
-                  label="Driver's license - back"
-                  uri={licenseBack}
-                  onPress={() => void pickLicensePhoto("back")}
-                />
-              </>
-            ) : null}
-
-            {step === 3 ? (
-              <TextInput
-                style={styles.textArea}
-                placeholder="Hal. engine repair, brake system, electrical diagnostics"
-                placeholderTextColor={colors.textDim}
-                value={skills}
-                onChangeText={setSkills}
-                multiline
-                textAlignVertical="top"
-              />
-            ) : null}
-
-            {step === 4 ? (
-              <>
-                <TextInput
-                  style={styles.textArea}
-                  placeholder="Certifications at training"
-                  placeholderTextColor={colors.textDim}
-                  value={certifications}
-                  onChangeText={setCertifications}
-                  multiline
-                  textAlignVertical="top"
-                />
-                <TextInput
-                  style={styles.textArea}
-                  placeholder="Ilang taon na ang experience mo at saan ka nagtrabaho?"
-                  placeholderTextColor={colors.textDim}
-                  value={experience}
-                  onChangeText={setExperience}
-                  multiline
-                  textAlignVertical="top"
-                />
-              </>
-            ) : null}
-
-            <View style={styles.stepActions}>
-              {step > 1 ? (
-                <Pressable
-                  style={styles.backStepButton}
-                  onPress={() => setStep((currentStep) => currentStep - 1)}
-                >
-                  <Text style={styles.backStepText}>Back</Text>
-                </Pressable>
-              ) : null}
-              {step < 4 ? (
-                <PrimaryButton
-                  label="Next"
-                  onPress={nextStep}
-                  icon={require("../../assets/images/next.png")}
-                />
-              ) : (
-                <PrimaryButton
-                  label="Submit application"
-                  onPress={onSubmit}
-                  loading={loading}
-                />
-              )}
-            </View>
-          </>
+          <MechanicRegistrationSteps
+            styles={styles}
+            step={step}
+            isMechanic={isMechanic}
+            fullName={fullName}
+            setFullName={setFullName}
+            mobileNumber={mobileNumber}
+            setMobileNumber={setMobileNumber}
+            homeAddress={homeAddress}
+            setHomeAddress={setHomeAddress}
+            email={email}
+            setEmail={setEmail}
+            password={password}
+            setPassword={setPassword}
+            confirm={confirm}
+            setConfirm={setConfirm}
+            emailError={emailError}
+            setEmailError={setEmailError}
+            passwordError={passwordError}
+            setPasswordError={setPasswordError}
+            confirmError={confirmError}
+            setConfirmError={setConfirmError}
+            licenseFront={licenseFront}
+            licenseBack={licenseBack}
+            pickLicensePhoto={(side) => void pickLicensePhoto(side)}
+            skills={skills}
+            setSkills={setSkills}
+            certifications={certifications}
+            setCertifications={setCertifications}
+            experience={experience}
+            setExperience={setExperience}
+            setStep={setStep}
+            setRolePickerVisible={setRolePickerVisible}
+            nextStep={nextStep}
+            saveAndContinue={saveAndContinue}
+            onSubmit={onSubmit}
+            loading={loading}
+          />
         )}
       </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>May account na?</Text>
-        <Link href="/(auth)/login" asChild>
-          <Pressable>
-            <Text style={styles.footerLink}>Mag-login</Text>
-          </Pressable>
-        </Link>
-      </View>
-
-      <Modal
-        visible={rolePickerVisible}
-        transparent={false}
-        animationType="fade"
-        onRequestClose={() => router.back()}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.roleModal}>
-            <Text style={styles.modalKicker}>WELCOME TO MECHANIKO</Text>
-            <Text style={styles.modalTitle}>Anong account ang gagawin?</Text>
-            <Text style={styles.modalText}>
-              Piliin muna ang role mo bago magpatuloy sa registration.
-            </Text>
-
+      </AuthScreenShell>
+      {rolePickerVisible ? (
+        <View style={styles.rolePickerOverlay}>
+        <LinearGradient
+          colors={[
+            "#373327",
+            "#686150",
+            "#9E9786",
+            "#DCDCDB",
+            "#F3F3F5",
+            "#F8F8FA",
+          ]}
+          locations={[0, 0.2, 0.38, 0.56, 0.72, 1]}
+          style={styles.modalBackdrop}
+        >
+          <SafeAreaView style={styles.roleScreen}>
             <Pressable
-              style={styles.roleOption}
+              accessibilityRole="button"
+              accessibilityLabel="Back to login"
+              hitSlop={12}
               onPress={() => {
-                setRole("mechanic");
-                setRolePickerVisible(false);
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace("/setup-complete");
+                }
               }}
+              style={styles.roleBackButton}
             >
-              <View style={styles.roleIcon}>
-                <Ionicons name="build-outline" size={23} color={colors.amber} />
-              </View>
-              <View style={styles.roleCopy}>
-                <Text style={styles.roleTitle}>Mechanic</Text>
-                <Text style={styles.roleDescription}>
-                  Tumanggap at mag-manage ng service jobs.
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={colors.textDim}
-              />
+              <Ionicons name="arrow-back" size={25} color="#FFFFFF" />
             </Pressable>
 
-            <Pressable
-              style={styles.roleOption}
-              onPress={() => {
-                setRole("customer");
-                setRolePickerVisible(false);
-              }}
-            >
-              <View style={styles.roleIcon}>
-                <Ionicons
-                  name="person-outline"
-                  size={23}
-                  color={colors.amber}
-                />
-              </View>
-              <View style={styles.roleCopy}>
-                <Text style={styles.roleTitle}>User</Text>
-                <Text style={styles.roleDescription}>
-                  Humingi ng mechanic at service assistance.
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={colors.textDim}
-              />
-            </Pressable>
+            <View style={styles.roleModal}>
+              <Text style={styles.modalTitle}>Choose an account</Text>
+              <Text style={styles.modalText}>
+                What type of account you&apos;re registering as?
+              </Text>
 
-            <Pressable
-              style={styles.modalBackButton}
-              onPress={() => router.back()}
-            >
-              <Text style={styles.modalBackText}>Back to login</Text>
-            </Pressable>
-          </View>
+              <Pressable
+                style={[
+                  styles.roleOption,
+                  styles.roleOptionMotorist,
+                  role === "customer" && styles.roleOptionSelected,
+                ]}
+                onPress={() => {
+                  setRole("customer");
+                }}
+              >
+                <View style={styles.roleIcon}>
+                  <Image
+                    source={require("../../assets/images/motorist.png")}
+                    style={styles.roleIconImage}
+                  />
+                </View>
+                <View style={styles.roleCopy}>
+                  <Text style={styles.roleTitle}>Motorist</Text>
+                  <Text style={styles.roleDescription}>
+                    Book for a services
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.checkbox,
+                    role === "customer" && styles.checkboxSelected,
+                  ]}
+                >
+                  {role === "customer" ? (
+                    <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                  ) : null}
+                </View>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.roleOption,
+                  styles.roleOptionMechanic,
+                  styles.roleOptionLast,
+                  role === "mechanic" && styles.roleOptionSelected,
+                ]}
+                onPress={() => {
+                  setRole("mechanic");
+                }}
+              >
+                <View style={styles.roleIcon}>
+                  <Image
+                    source={require("../../assets/images/mechanic.png")}
+                    style={styles.roleIconImage}
+                  />
+                </View>
+                <View style={styles.roleCopy}>
+                  <Text style={[styles.roleTitle, styles.roleTitleMechanic]}>
+                    Mechanic
+                  </Text>
+                  <Text style={styles.roleDescription}>Offering services</Text>
+                </View>
+                <View
+                  style={[
+                    styles.checkbox,
+                    role === "mechanic" && styles.checkboxSelected,
+                  ]}
+                >
+                  {role === "mechanic" ? (
+                    <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                  ) : null}
+                </View>
+              </Pressable>
+            </View>
+
+            <View style={styles.roleBottom}>
+              <Text style={styles.rolePrompt}>
+                Please tap the checkbox to proceed.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Proceed with account registration"
+                onPress={continueRoleSelection}
+                style={({ pressed }) => [
+                  styles.roleProceedButton,
+                  role && styles.roleProceedButtonSelected,
+                  !role && styles.roleProceedButtonDisabled,
+                  pressed && styles.roleProceedPressed,
+                ]}
+              >
+                <Text style={styles.roleProceedText}>Proceed</Text>
+                <Text style={styles.roleProceedArrow}>→</Text>
+              </Pressable>
+            </View>
+          </SafeAreaView>
+        </LinearGradient>
         </View>
-      </Modal>
-    </AuthScreenShell>
-  );
-}
-
-function LicensePhoto({
-  label,
-  uri,
-  onPress,
-}: {
-  label: string;
-  uri: string | null;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable style={styles.photoButton} onPress={onPress}>
-      {uri ? (
-        <Image source={{ uri }} style={styles.photoPreview} />
-      ) : (
-        <Ionicons name="camera-outline" size={28} color={colors.amber} />
-      )}
-      <View style={styles.photoCopy}>
-        <Text style={styles.photoLabel}>{label}</Text>
-        <Text style={styles.photoHint}>
-          {uri ? "Photo selected" : "Choose photo"}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={colors.textDim} />
-    </Pressable>
+      ) : null}
+    </>
   );
 }
 
@@ -589,6 +488,110 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  hiddenUnderlyingCard: {
+    display: "none",
+  },
+  customerCard: {
+    marginHorizontal: -24,
+    marginTop: 54,
+    minHeight: 680,
+    borderRadius: 24,
+    borderWidth: 0,
+    paddingHorizontal: 19,
+    paddingTop: 22,
+    paddingBottom: 24,
+  },
+  customerSectionTitle: {
+    color: "#2C2F35",
+    fontSize: 15,
+    lineHeight: 28,
+    fontWeight: "700",
+    letterSpacing: -0.45,
+    marginTop: 2,
+    marginBottom: 0,
+  },
+  customerHeading: {
+    color: "#2C2F35",
+    width: 342,
+    fontSize: 24,
+    lineHeight: 33,
+    fontWeight: "700",
+    letterSpacing: -0.6,
+    marginBottom: 2,
+  },
+  customerSub: {
+    width: 342,
+    color: "#2C2F35",
+    fontSize: 12,
+    lineHeight: 19.5,
+    fontWeight: "500",
+    marginBottom: 20,
+  },
+  customerRequiredHelper: {
+    color: "#2C2F35",
+    fontSize: 10,
+    lineHeight: 28,
+    fontWeight: "700",
+    letterSpacing: -0.45,
+    marginTop: -9,
+    marginBottom: 8,
+  },
+  customerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 20,
+    marginTop: 10,
+  },
+  customerBackButton: {
+    width: 76,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E0E5F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  customerBackText: {
+    color: "#334155",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  customerNextButton: {
+    width: 96,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#3D3D4D",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+    shadowColor: "#D97706",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.25,
+    shadowRadius: 7,
+    elevation: 4,
+  },
+  customerNextText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  mechanicBackButton: {
+    position: "absolute",
+    top: 24,
+    left: 20,
+    zIndex: 2,
+  },
+  mechanicCard: {
+    marginHorizontal: -24,
+    marginTop: 54,
+    minHeight: 680,
+    borderRadius: 24,
+    borderWidth: 0,
+    paddingHorizontal: 19,
+    paddingTop: 22,
+    paddingBottom: 24,
+  },
   heading: {
     color: colors.text,
     fontSize: 22,
@@ -599,6 +602,52 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 14,
     marginBottom: spacing.lg,
+  },
+  mechanicHeading: {
+    color: "#2C2F35",
+    width: 342,
+    fontSize: 24,
+    lineHeight: 27.5,
+    letterSpacing: -0.55,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  mechanicStep3Heading: {
+    width: 342,
+    fontSize: 24,
+    lineHeight: 27.5,
+    letterSpacing: -0.55,
+  },
+  mechanicFinalHeading: {
+    width: 340,
+    fontSize: 24,
+    lineHeight: 32.5,
+    letterSpacing: -0.65,
+    fontWeight: "800",
+  },
+  mechanicSub: {
+    width: 342,
+    color: "#2C2F35",
+    fontSize: 13,
+    lineHeight: 19.5,
+    fontWeight: "500",
+    marginBottom: 20,
+  },
+  mechanicStep3Sub: {
+    width: 342,
+    lineHeight: 19.5,
+  },
+  mechanicFinalSub: {
+    width: 340,
+    lineHeight: 17.88,
+  },
+  requiredHelper: {
+    color: "#2C2F35",
+    fontSize: 9,
+    lineHeight: 13,
+    fontWeight: "600",
+    marginTop: -9,
+    marginBottom: 14,
   },
   info: {
     color: colors.success,
@@ -629,20 +678,76 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
   },
-  footer: {
-    marginTop: spacing.lg,
-    flexDirection: "row",
+  almostDone: {
+    flex: 1,
+    minHeight: 430,
     justifyContent: "center",
-    gap: 6,
+    alignItems: "center",
   },
-  footerText: {
-    color: colors.textMuted,
-    fontSize: 14,
+  almostDoneTitle: {
+    width: 289,
+    color: "#1E3A8A",
+    fontSize: 24,
+    lineHeight: 32.5,
+    letterSpacing: -0.65,
+    fontWeight: "800",
+    textAlign: "center",
   },
-  footerLink: {
-    color: colors.amber,
-    fontSize: 14,
+  almostDoneText: {
+    color: "#2C2F35",
+    width: 291,
+    fontSize: 13,
+    lineHeight: 17.88,
+    fontWeight: "500",
+    textAlign: "center",
+    marginTop: 3,
+  },
+  almostDoneActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginTop: 44,
+  },
+  almostDoneBack: {
+    minHeight: 36,
+    minWidth: 86,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E0E5F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  almostDoneBackText: {
+    color: "#4B5568",
+    fontSize: 12,
     fontWeight: "700",
+  },
+  almostDoneProceed: {
+    width: 145,
+    minHeight: 36,
+    borderRadius: 10,
+    backgroundColor: "#24439A",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    shadowColor: "#132D73",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  almostDoneProceedText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: "700",
+  },
+  almostDoneArrow: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    marginLeft: 6,
   },
   stepHeader: {
     marginBottom: spacing.md,
@@ -655,10 +760,41 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: spacing.xs,
   },
+  mechanicStepLabel: {
+    color: "#D97706",
+    width: 342,
+    fontSize: 11,
+    lineHeight: 16.5,
+    letterSpacing: 0.55,
+    marginBottom: 4,
+  },
+  mechanicStep3Label: {
+    width: 342,
+  },
   stepTitle: {
     color: colors.text,
     fontSize: 19,
     fontWeight: "800",
+  },
+  mechanicStepTitle: {
+    color: "#2C2F35",
+    width: 342,
+    fontSize: 15,
+    lineHeight: 23.38,
+    fontWeight: "700",
+    marginBottom: 0,
+  },
+  mechanicStep3Title: {
+    width: 342,
+    fontSize: 15,
+    lineHeight: 23.38,
+    fontWeight: "700",
+  },
+  mechanicFinalStepTitle: {
+    width: 340,
+    fontSize: 19,
+    lineHeight: 28.5,
+    fontWeight: "700",
   },
   helperText: {
     color: colors.textMuted,
@@ -681,10 +817,16 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: radii.md,
-    marginRight: spacing.sm,
+  },
+  photoIconSlot: {
+    width: 58,
+    height: 58,
+    alignItems: "center",
+    justifyContent: "center",
   },
   photoCopy: {
     flex: 1,
+    marginLeft: 16,
   },
   photoLabel: {
     color: colors.text,
@@ -714,89 +856,190 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.sm,
   },
+  mechanicStepActions: {
+    marginTop: 2,
+    justifyContent: "flex-start",
+    gap: 16,
+  },
   backStepButton: {
-    minHeight: 52,
-    minWidth: 112,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.md,
+    minHeight: 36,
+    minWidth: 64,
+    paddingHorizontal: 14,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: "auto",
+    marginRight: 0,
   },
   backStepText: {
     color: colors.textMuted,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "700",
+  },
+  rolePickerOverlay: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 10,
+    elevation: 10,
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: colors.bg,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.lg,
+    paddingHorizontal: 16,
+  },
+  roleScreen: {
+    flex: 1,
   },
   roleModal: {
     width: "100%",
-    maxWidth: 430,
-    backgroundColor: colors.bgElevated,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
+    maxWidth: 358,
+    minHeight: 262,
+    alignSelf: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 24,
+    marginTop: 70,
   },
-  modalKicker: {
-    color: colors.amber,
-    fontSize: 11,
-    letterSpacing: 1.8,
-    fontWeight: "800",
-    marginBottom: spacing.sm,
+  roleBackButton: {
+    position: "absolute",
+    top: 24,
+    left: 4,
+    zIndex: 2,
   },
   modalTitle: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: "800",
-    marginBottom: spacing.sm,
+    color: "#2C2F35",
+    fontSize: 18,
+    fontWeight: "600",
+    lineHeight: 24,
   },
   modalText: {
-    color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 21,
-    marginBottom: spacing.lg,
+    color: "#2C2F35",
+    fontSize: 12,
+    fontWeight: "500",
+    lineHeight: 16,
+    marginBottom: 8,
   },
   roleOption: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bg,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+    minHeight: 58,
+    borderRadius: 12,
+    backgroundColor: "#F1F2FF",
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  roleOptionSelected: {
+    backgroundColor: "#F1F2FF",
+  },
+  roleOptionLast: {
+    marginBottom: 0,
+  },
+  roleOptionMotorist: {
+    marginTop: 10,
+  },
+  roleOptionMechanic: {
+    minHeight: 82,
+    marginTop: -6,
   },
   roleIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.md,
-    backgroundColor: colors.amber + "20",
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: spacing.md,
+    marginRight: 16,
+  },
+  roleIconImage: {
+    width: 32,
+    height: 32,
+    resizeMode: "contain",
   },
   roleCopy: {
     flex: 1,
   },
   roleTitle: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 3,
+    color: "#1E3A8A",
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 20,
+    letterSpacing: 0.14,
+  },
+  roleTitleMechanic: {
+    color: "#D97706",
   },
   roleDescription: {
-    color: colors.textMuted,
+    color: "#2C2F35",
+    fontSize: 10,
+    fontWeight: "500",
+    lineHeight: 16,
+  },
+  checkbox: {
+    width: 14,
+    height: 14,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: "#1E3A8A",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 16,
+    marginRight: 25,
+  },
+  checkboxSelected: {
+    backgroundColor: "#1E3A8A",
+  },
+  roleBottom: {
+    marginTop: "auto",
+    paddingHorizontal: 5,
+    paddingBottom: 140,
+    alignItems: "center",
+  },
+  rolePrompt: {
+    color: "#2C2F35",
     fontSize: 13,
-    lineHeight: 18,
+    fontWeight: "500",
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  roleProceedButton: {
+    alignSelf: "stretch",
+    minHeight: 52,
+    borderRadius: 11,
+    backgroundColor: "#24439A",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    shadowColor: "#132D73",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  roleProceedButtonDisabled: {
+    backgroundColor: "#3D3D4D",
+   },
+   roleProceedButtonSelected: {
+    backgroundColor: "#24439A",
+  },
+  roleProceedPressed: {
+    opacity: 0.8,
+  },
+  roleProceedText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  roleProceedArrow: {
+    color: "#FFFFFF",
+    fontSize: 23,
+    lineHeight: 23,
+    marginLeft: 9,
+    marginTop: -2,
   },
   modalBackButton: {
     alignItems: "center",

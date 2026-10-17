@@ -19,7 +19,7 @@ function MechanicTabs() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        animation: "fade",
+        animation: "shift",
         tabBarActiveTintColor: colors.amber,
         tabBarInactiveTintColor: colors.textDim,
         tabBarStyle: {
@@ -192,7 +192,7 @@ export default function AppLayout() {
           initialRouteName="MotoristMap"
           screenOptions={{
             headerShown: false,
-            animation: "fade",
+            animation: "slide_from_right",
             contentStyle: { backgroundColor: colors.bg },
           }}
         >

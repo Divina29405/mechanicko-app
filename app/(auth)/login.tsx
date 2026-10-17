@@ -1,8 +1,7 @@
-import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
+import { Link, Stack } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AuthInput } from "@/components/auth/AuthInput";
 import { AuthLogo } from "@/components/auth/AuthLogo";
@@ -11,7 +10,7 @@ import { ErrorBanner } from "@/components/auth/ErrorBanner";
 import { PrimaryButton } from "@/components/auth/PrimaryButton";
 import { ComingSoonModal } from "@/components/ComingSoonModal";
 import { useAuth } from "@/contexts/AuthContext";
-import { colors, radii, spacing } from "@/lib/theme";
+import { colors, spacing } from "@/lib/theme";
 import { validateEmail, validatePassword } from "@/lib/validation";
 
 const REMEMBERED_LOGIN_KEY = "mechaniko-remembered-login";
@@ -120,166 +119,244 @@ export default function LoginScreen() {
   }
 
   return (
-    <AuthScreenShell>
-      <Text style={styles.kicker}>ROADSIDE · SHOP · SERVICE</Text>
-      <AuthLogo />
+    <>
+      <Stack.Screen options={{ animation: "slide_from_right" }} />
+      <AuthScreenShell>
+      <View style={styles.loginContent}>
+        <Text style={styles.kicker}>CUSTOMER</Text>
+        <AuthLogo variant="blue" />
 
-      <View style={styles.card}>
-        <Text style={styles.heading}>Log in</Text>
-        <Text style={styles.sub}>Enter your account details to continue.</Text>
+        <View style={styles.card}>
+          <Text style={styles.heading}>Log in</Text>
+          <Text style={styles.sub}>
+            Enter your account details to continue.
+          </Text>
 
-        <ErrorBanner message={formError} />
+          <ErrorBanner message={formError} />
 
-        <AuthInput
-          label="Email"
-          icon="mail-outline"
-          value={email}
-          onChangeText={(v) => {
-            setEmail(v);
-            if (emailError) setEmailError(validateEmail(v));
-          }}
-          error={emailError}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoComplete="email"
-          textContentType="emailAddress"
-          returnKeyType="next"
-        />
-        <AuthInput
-          label="Password"
-          icon="lock-closed-outline"
-          value={password}
-          onChangeText={(v) => {
-            setPassword(v);
-            if (passwordError) setPasswordError(validatePassword(v));
-          }}
-          error={passwordError}
-          isPassword
-          autoCapitalize="none"
-          autoComplete="password"
-          textContentType="password"
-          returnKeyType="go"
-          onSubmitEditing={onSubmit}
-        />
-
-        <Pressable
-          style={styles.rememberRow}
-          onPress={() => setRememberPassword((current) => !current)}
-          disabled={loading}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: rememberPassword }}
-        >
-          <View
-            style={[
-              styles.checkbox,
-              rememberPassword && styles.checkboxChecked,
-            ]}
-          >
-            {rememberPassword ? (
-              <Ionicons name="checkmark" size={16} color={colors.bg} />
-            ) : null}
+          <View style={styles.loginInput}>
+            <AuthInput
+              label="Email"
+              icon="mail-outline"
+              value={email}
+              onChangeText={(v) => {
+                setEmail(v);
+                if (emailError) setEmailError(validateEmail(v));
+              }}
+              error={emailError}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              textContentType="emailAddress"
+              returnKeyType="next"
+              variant="customer"
+              fieldStyle={styles.emailField}
+              iconImage={require("../../assets/images/email.jpg")}
+              iconImageStyle={styles.loginImageIcon}
+              inputStyle={styles.loginFieldInput}
+            />
           </View>
-          <Text style={styles.rememberText}>Remember me</Text>
-        </Pressable>
+          <View style={styles.loginInput}>
+            <AuthInput
+              label="Password"
+              icon="lock-closed-outline"
+              value={password}
+              onChangeText={(v) => {
+                setPassword(v);
+                if (passwordError) setPasswordError(validatePassword(v));
+              }}
+              error={passwordError}
+              isPassword
+              autoCapitalize="none"
+              autoComplete="password"
+              textContentType="password"
+              returnKeyType="go"
+              onSubmitEditing={onSubmit}
+              variant="customer"
+              fieldStyle={styles.passwordField}
+              iconImage={require("../../assets/images/password.jpg")}
+              iconImageStyle={styles.loginImageIcon}
+              inputStyle={styles.loginFieldInput}
+            />
+          </View>
 
-        <PrimaryButton label="Log in" onPress={onSubmit} loading={loading} />
+          <Pressable
+            style={styles.rememberRow}
+            onPress={() => setRememberPassword((current) => !current)}
+            disabled={loading}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: rememberPassword }}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                rememberPassword && styles.checkboxChecked,
+              ]}
+            >
+              {rememberPassword ? (
+                <Text style={styles.checkmark}>✓</Text>
+              ) : null}
+            </View>
+            <Text style={styles.rememberText}>Remember me</Text>
+          </Pressable>
 
-        <View style={styles.dividerRow}>
-          <View style={styles.divider} />
-          <Text style={styles.dividerText}>o</Text>
-          <View style={styles.divider} />
+          <View style={styles.loginButtonOffset}>
+            <PrimaryButton
+              label="Log in"
+              onPress={onSubmit}
+              loading={loading}
+              variant="login"
+            />
+          </View>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.divider} />
+            <Text style={styles.dividerText}>o</Text>
+            <View style={styles.divider} />
+          </View>
+
+          <Pressable
+            style={styles.googleButton}
+            onPress={onGoogleSignIn}
+            disabled={loading}
+          >
+            <Image
+              source={require("../../assets/images/google.png")}
+              resizeMode="contain"
+              style={styles.googleIcon}
+            />
+            <Text style={styles.googleButtonText}>Continue with Google</Text>
+          </Pressable>
+
+          <Link href="/(auth)/admin-login" asChild>
+            <Pressable style={styles.adminLink}>
+              <Text style={styles.adminLinkText}>Log in as Mechanic</Text>
+              <Text style={styles.adminArrow}>→</Text>
+            </Pressable>
+          </Link>
         </View>
 
-        <Pressable
-          style={styles.googleButton}
-          onPress={onGoogleSignIn}
-          disabled={loading}
-        >
-          <Ionicons name="logo-google" size={19} color={colors.text} />
-          <Text style={styles.googleButtonText}>
-            Continue with Google
-          </Text>
-        </Pressable>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Don&apos;t have an account?</Text>
+          <Link href="/(auth)/signup" asChild>
+            <Pressable>
+              <Text style={styles.footerLink}>Create an account</Text>
+            </Pressable>
+          </Link>
+        </View>
       </View>
-
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Don&apos;t have an account?</Text>
-        <Link href="/(auth)/signup" asChild>
-          <Pressable>
-            <Text style={styles.footerLink}>Create an account</Text>
-          </Pressable>
-        </Link>
-      </View>
-      <Link href="/(auth)/admin-login" asChild>
-        <Pressable style={styles.adminLink}>
-          <Text style={styles.adminLinkText}>Admin login</Text>
-        </Pressable>
-      </Link>
       <ComingSoonModal
         visible={comingSoonVisible}
         onClose={() => setComingSoonVisible(false)}
       />
-    </AuthScreenShell>
+      </AuthScreenShell>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
+  loginContent: {
+    transform: [{ translateY: 35 }],
+  },
   kicker: {
     alignSelf: "center",
-    color: colors.amber,
-    fontSize: 11,
-    letterSpacing: 2.4,
-    fontWeight: "700",
-    marginBottom: spacing.md,
+    color: "#000000",
+    fontFamily: "sans-serif",
+    fontSize: 15,
+    lineHeight: 15,
+    letterSpacing: 2.2,
+    fontWeight: "800",
+    marginBottom: 16,
+    transform: [{ translateY: -55 }],
   },
   card: {
     backgroundColor: colors.bgElevated,
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 30,
+    paddingHorizontal: 22,
+    paddingTop: 36,
+    paddingBottom: 45,
+    borderWidth: 0,
+    marginHorizontal: 0,
+    marginTop: -33,
   },
   heading: {
-    color: colors.text,
+    color: "#2C2F35",
+    fontFamily: "sans-serif",
     fontSize: 22,
+    lineHeight: 27.5,
+    letterSpacing: -0.55,
     fontWeight: "700",
-    marginBottom: 4,
+    marginBottom: 3,
+    transform: [{ translateY: -10 }],
   },
   sub: {
-    color: colors.textMuted,
-    fontSize: 14,
-    marginBottom: spacing.md,
+    color: "#5F6877",
+    fontFamily: "sans-serif",
+    fontSize: 13,
+    lineHeight: 19.5,
+    marginBottom: 14,
+    transform: [{ translateY: -10 }],
+  },
+  loginInput: {
+    marginBottom: 4,
+  },
+  emailField: {
+    transform: [{ translateY: 5 }],
+  },
+  passwordField: {
+    transform: [{ translateY: 5 }],
+  },
+  loginImageIcon: {
+    width: 20,
+    height: 20,
+    transform: [{ translateX: 14 }],
+  },
+  loginFieldInput: {
+    paddingLeft: 25,
+  },
+  loginButtonOffset: {
+    transform: [{ translateY: 8 }],
   },
   rememberRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    marginBottom: spacing.md,
-    minHeight: 30,
+    marginBottom: 12,
+    minHeight: 22,
+    transform: [{ translateY: 5 }],
   },
   checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
+    width: 13,
+    height: 13,
+    borderRadius: 3,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
+    transform: [{ translateY: 1 }],
   },
   checkboxChecked: {
-    backgroundColor: colors.amber,
-    borderColor: colors.amber,
+    backgroundColor: "#24439A",
+    borderColor: "#24439A",
+  },
+  checkmark: {
+    color: colors.bg,
+    fontSize: 11,
+    lineHeight: 12,
   },
   rememberText: {
-    color: colors.textMuted,
+    color: "#475569",
+    fontFamily: "sans-serif",
     fontSize: 14,
-    fontWeight: "600",
+    lineHeight: 18,
+    fontWeight: "500",
   },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    marginVertical: spacing.md,
+    marginTop: 20,
+    marginBottom: 12,
   },
   divider: {
     flex: 1,
@@ -287,46 +364,64 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   dividerText: {
-    color: colors.textDim,
-    fontSize: 13,
+    color: "#B7BFCC",
+    fontSize: 10,
   },
   googleButton: {
-    minHeight: 48,
-    borderRadius: radii.md,
+    minHeight: 40,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.sm,
+    gap: 6,
+  },
+  googleIcon: {
+    width: 19,
+    height: 19,
   },
   googleButtonText: {
-    color: colors.text,
-    fontSize: 15,
+    color: "#2C2F35",
+    fontSize: 12,
     fontWeight: "700",
   },
   footer: {
-    marginTop: spacing.md,
+    marginTop: 17,
     flexDirection: "row",
     justifyContent: "center",
     gap: 6,
   },
   footerText: {
-    color: colors.textMuted,
-    fontSize: 14,
+    color: "#727B8A",
+    fontFamily: "sans-serif",
+    fontSize: 12,
+    lineHeight: 16,
   },
   footerLink: {
-    color: colors.amber,
-    fontSize: 14,
+    color: "#24439A",
+    fontFamily: "sans-serif",
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: "700",
   },
   adminLink: {
     alignSelf: "center",
-    marginTop: spacing.md,
+    marginTop: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
   },
   adminLinkText: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: "700",
+    color: "#000000",
+    fontFamily: "sans-serif",
+    fontSize: 13,
+    lineHeight: 19.5,
+    fontWeight: "500",
+  },
+  adminArrow: {
+    color: "#2C2F35",
+    fontSize: 13,
+    lineHeight: 13,
   },
 });

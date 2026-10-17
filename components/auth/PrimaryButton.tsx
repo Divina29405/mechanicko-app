@@ -15,6 +15,7 @@ type Props = {
   loading?: boolean;
   disabled?: boolean;
   icon?: ImageSourcePropType;
+  variant?: "amber" | "blue" | "login";
 };
 
 export function PrimaryButton({
@@ -23,6 +24,7 @@ export function PrimaryButton({
   loading,
   disabled,
   icon,
+  variant = "amber",
 }: Props) {
   const isDisabled = disabled || loading;
 
@@ -32,6 +34,8 @@ export function PrimaryButton({
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.button,
+        variant === "blue" && styles.blueButton,
+        variant === "login" && styles.loginButton,
         pressed && !isDisabled ? styles.pressed : null,
         isDisabled ? styles.disabled : null,
       ]}
@@ -40,8 +44,21 @@ export function PrimaryButton({
         <ActivityIndicator color={colors.bg} />
       ) : (
         <>
-          <Text style={styles.label}>{label}</Text>
-          {icon ? <Image source={icon} style={styles.icon} /> : null}
+          <Text
+            style={[
+              styles.label,
+              variant === "blue" && styles.blueLabel,
+              variant === "login" && styles.loginLabel,
+            ]}
+          >
+            {label}
+          </Text>
+          {icon ? (
+            <Image
+              source={icon}
+              style={[styles.icon, variant === "blue" && styles.blueIcon]}
+            />
+          ) : null}
         </>
       )}
     </Pressable>
@@ -56,6 +73,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+  },
+  blueButton: {
+    backgroundColor: "#24439A",
+    minHeight: 36,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    shadowColor: "#132D73",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  blueLabel: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  loginButton: {
+    backgroundColor: "#24439A",
+    minHeight: 40,
+    borderRadius: 8,
+  },
+  loginLabel: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
   },
   pressed: {
     backgroundColor: colors.amberMuted,
@@ -74,5 +118,8 @@ const styles = StyleSheet.create({
     height: 18,
     marginLeft: 8,
     resizeMode: "contain",
+  },
+  blueIcon: {
+    tintColor: "#FFFFFF",
   },
 });
