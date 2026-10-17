@@ -9,21 +9,22 @@ import {
 
 import { useAuth } from "@/contexts/AuthContext";
 import { MechanicProvider, useMechanic } from "@/contexts/MechanicContext";
-import { colors } from "@/lib/theme";
+import { useAppTheme } from "@/contexts/ThemeContext";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 function MechanicTabs() {
   const { unreadMessages } = useMechanic();
+  const { colors } = useAppTheme(); 
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         animation: "fade",
-        tabBarActiveTintColor: colors.amber,
-        tabBarInactiveTintColor: colors.textDim,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: colors.bgElevated,
+          backgroundColor: colors.card,
           borderTopColor: colors.border,
           borderTopWidth: 1,
         },
@@ -67,8 +68,8 @@ function MechanicTabs() {
           title: "Chat",
           tabBarBadge: unreadMessages > 0 ? unreadMessages : undefined,
           tabBarBadgeStyle: {
-            backgroundColor: colors.sos,
-            color: colors.white,
+            backgroundColor: '#EF4444',
+            color: '#FFFFFF',
           },
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubbles" size={size} color={color} />
@@ -92,6 +93,7 @@ function MechanicTabs() {
       <Tabs.Screen name="motorist-profile" options={{ href: null }} />
       <Tabs.Screen name="motorist-activity" options={{ href: null }} />
       <Tabs.Screen name="my-vehicles" options={{ href: null }} />
+      <Tabs.Screen name="payment-methods" options={{ href: null }} />
       <Tabs.Screen name="emergency-checklist" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />
     </Tabs>
@@ -101,14 +103,13 @@ function MechanicTabs() {
 export default function AppLayout() {
   const { session, loading } = useAuth();
   const segments = useSegments();
+  const { colors } = useAppTheme();
 
   const [role, setRole] = useState<string | null>(null);
   const [fetchingRole, setFetchingRole] = useState(true);
 
   useEffect(() => {
     let active = true;
-    // Reset the navigator while the new account's role is being resolved.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRole(null);
     setFetchingRole(true);
 
@@ -157,8 +158,8 @@ export default function AppLayout() {
 
   if (loading || fetchingRole) {
     return (
-      <View style={styles.boot}>
-        <ActivityIndicator color={colors.amber} />
+      <View style={[styles.boot, { backgroundColor: colors.bg }]}>
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -200,6 +201,7 @@ export default function AppLayout() {
           <Stack.Screen name="motorist-profile" />
           <Stack.Screen name="motorist-activity" />
           <Stack.Screen name="my-vehicles" />
+          <Stack.Screen name="payment-methods" />
           <Stack.Screen
             name="emergency-checklist"
             options={{ presentation: "modal" }}
@@ -214,7 +216,6 @@ export default function AppLayout() {
 const styles = StyleSheet.create({
   boot: {
     flex: 1,
-    backgroundColor: colors.bg,
     alignItems: "center",
     justifyContent: "center",
   },
