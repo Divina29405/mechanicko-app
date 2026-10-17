@@ -68,7 +68,7 @@ function RootLayoutNav() {
             screenOptions={{
               headerShown: false,
               contentStyle: { backgroundColor: colors.bg },
-              animation: "fade",
+              animation: "slide_from_right",
             }}
           >
             <Stack.Screen name="index" />
@@ -105,28 +105,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AuthProvider>
-<<<<<<< HEAD
-        <StatusBar style="auto" />
-        <LocationGate>
-          <NetworkGate>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: colors.bg },
-                animation: "slide_from_right",
-              }}
-            >
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(app)" />
-              <Stack.Screen name="(admin)" />
-              <Stack.Screen name="admin" />
-            </Stack>
-          </NetworkGate>
-        </LocationGate>
-=======
         <RootLayoutNav />
->>>>>>> f238d7c77b686fad362aecc28e73dfb349a04671
       </AuthProvider>
     </ThemeProvider>
   );

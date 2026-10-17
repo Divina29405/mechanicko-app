@@ -35,19 +35,17 @@ export default function MyVehiclesScreen() {
     setLoading(false);
   }, [session]);
 
-<<<<<<< HEAD
   useFocusEffect(
     useCallback(() => {
       void fetchVehicles();
     }, [fetchVehicles]),
   );
-=======
+
   const handlePlateFormat = (text: string) => {
     let formatted = text.toUpperCase().replace(/[^A-Z0-9\s-]/g, '');
     formatted = formatted.replace(/^([A-Z]{2,3})([0-9]{3,5})$/, '$1 $2');
     setPlate(formatted);
   };
->>>>>>> f238d7c77b686fad362aecc28e73dfb349a04671
 
   const handleAddVehicle = async () => {
     if (!make.trim() || !model.trim() || !year.trim() || !plate.trim()) {

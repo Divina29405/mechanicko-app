@@ -76,6 +76,7 @@ export default function AdminLoginScreen() {
               fieldStyle={styles.emailField}
               iconImage={require("../../assets/images/email.jpg")}
               iconImageStyle={styles.loginImageIcon}
+              labelStyle={styles.loginLabel}
               inputStyle={styles.loginFieldInput}
             />
           </View>
@@ -99,6 +100,7 @@ export default function AdminLoginScreen() {
               fieldStyle={styles.passwordField}
               iconImage={require("../../assets/images/password.jpg")}
               iconImageStyle={styles.loginImageIcon}
+              labelStyle={styles.loginLabel}
               inputStyle={styles.loginFieldInput}
             />
           </View>
@@ -196,9 +198,9 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.bgElevated,
     borderRadius: 30,
-    paddingHorizontal: 22,
-    paddingTop: 36,
-    paddingBottom: 45,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 50,
     borderWidth: 0,
     marginHorizontal: 0,
     marginTop: -33,
@@ -206,8 +208,8 @@ const styles = StyleSheet.create({
   heading: {
     color: "#2C2F35",
     fontFamily: "sans-serif",
-    fontSize: 22,
-    lineHeight: 27.5,
+    fontSize: 26,
+    lineHeight: 32,
     letterSpacing: -0.55,
     fontWeight: "700",
     marginBottom: 3,
@@ -216,13 +218,18 @@ const styles = StyleSheet.create({
   sub: {
     color: "#5F6877",
     fontFamily: "sans-serif",
-    fontSize: 13,
-    lineHeight: 19.5,
-    marginBottom: 14,
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 18,
     transform: [{ translateY: -10 }],
   },
   loginInput: {
-    marginBottom: 4,
+    marginBottom: 7,
+  },
+  loginLabel: {
+    fontSize: 14,
+    lineHeight: 19,
+    marginBottom: 5,
   },
   emailField: {
     transform: [{ translateY: 5 }],
@@ -231,12 +238,14 @@ const styles = StyleSheet.create({
     transform: [{ translateY: 5 }],
   },
   loginImageIcon: {
-    width: 20,
-    height: 20,
+    width: 22,
+    height: 22,
     transform: [{ translateX: 14 }],
   },
   loginFieldInput: {
-    paddingLeft: 25,
+    paddingLeft: 27,
+    fontSize: 17,
+    paddingVertical: 11,
   },
   loginButtonOffset: {
     transform: [{ translateY: 8 }],
@@ -250,9 +259,9 @@ const styles = StyleSheet.create({
     transform: [{ translateY: 5 }],
   },
   checkbox: {
-    width: 13,
-    height: 13,
-    borderRadius: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: "center",
@@ -265,14 +274,14 @@ const styles = StyleSheet.create({
   },
   checkmark: {
     color: colors.bg,
-    fontSize: 11,
-    lineHeight: 12,
+    fontSize: 13,
+    lineHeight: 14,
   },
   rememberText: {
     color: "#475569",
     fontFamily: "sans-serif",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: "500",
   },
   dividerRow: {
@@ -292,8 +301,8 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
   googleButton: {
-    minHeight: 40,
-    borderRadius: 8,
+    minHeight: 48,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     flexDirection: "row",
@@ -302,12 +311,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   googleIcon: {
-    width: 19,
-    height: 19,
+    width: 22,
+    height: 22,
   },
   googleButtonText: {
     color: "#2C2F35",
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "700",
   },
   footer: {
@@ -319,14 +328,14 @@ const styles = StyleSheet.create({
   footerText: {
     color: "#727B8A",
     fontFamily: "sans-serif",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
   },
   footerLink: {
     color: "#24439A",
     fontFamily: "sans-serif",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: "700",
   },
   adminLink: {
@@ -339,8 +348,8 @@ const styles = StyleSheet.create({
   adminLinkText: {
     color: "#000000",
     fontFamily: "sans-serif",
-    fontSize: 13,
-    lineHeight: 19.5,
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: "500",
   },
   adminArrow: {

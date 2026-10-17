@@ -67,8 +67,11 @@ export function useSignupForm() {
       return;
     }
     if (role === "customer") {
-      setRolePickerVisible(false);
       setFormError(null);
+      router.push({
+        pathname: "/(auth)/signup",
+        params: { role: "customer", setup: "complete" },
+      });
       return;
     }
     reopenRolePickerOnFocus.current = true;

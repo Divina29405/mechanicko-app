@@ -102,6 +102,7 @@ export function MechanicRegistrationSteps({
                 <AuthInput
                   label="Full name"
                   icon="person-outline"
+                  iconImage={require("../../assets/images/profile1.png")}
                   value={fullName}
                   onChangeText={setFullName}
                   autoCapitalize="words"
@@ -112,6 +113,7 @@ export function MechanicRegistrationSteps({
                 <AuthInput
                   label="Mobile number"
                   icon="call-outline"
+                  iconImage={require("../../assets/images/call.png")}
                   value={mobileNumber}
                   onChangeText={setMobileNumber}
                   keyboardType="phone-pad"
@@ -120,6 +122,7 @@ export function MechanicRegistrationSteps({
                 <AuthInput
                   label="Email address"
                   icon="mail-outline"
+                  iconImage={require("../../assets/images/email1.jpg")}
                   value={email}
                   onChangeText={(v) => {
                     setEmail(v);
@@ -135,6 +138,7 @@ export function MechanicRegistrationSteps({
                 <AuthInput
                   label="Home address"
                   icon="location-outline"
+                  iconImage={require("../../assets/images/location1.png")}
                   value={homeAddress}
                   onChangeText={setHomeAddress}
                   autoCapitalize="words"
@@ -143,6 +147,7 @@ export function MechanicRegistrationSteps({
                 <AuthInput
                   label="Password"
                   icon="lock-closed-outline"
+                  iconImage={require("../../assets/images/password1.jpg")}
                   value={password}
                   onChangeText={(v) => {
                     setPassword(v);
@@ -156,6 +161,7 @@ export function MechanicRegistrationSteps({
                 <AuthInput
                   label="Ulitin ang password"
                   icon="shield-checkmark-outline"
+                  iconImage={require("../../assets/images/password1.jpg")}
                   value={confirm}
                   onChangeText={(v) => {
                     setConfirm(v);

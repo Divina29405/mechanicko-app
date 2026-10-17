@@ -1,15 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link, router, Stack } from "expo-router";
-import {
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
 import { useEffect } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -17,11 +10,12 @@ import Animated, {
   withDelay,
   withTiming,
 } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AuthInput } from "@/components/auth/AuthInput";
-import { MechanicRegistrationSteps } from "@/components/auth/MechanicRegistrationSteps";
 import { AuthScreenShell } from "@/components/auth/AuthScreenShell";
 import { ErrorBanner } from "@/components/auth/ErrorBanner";
+import { MechanicRegistrationSteps } from "@/components/auth/MechanicRegistrationSteps";
 import { useSignupForm } from "@/hooks/useSignupForm";
 import { colors, radii, spacing } from "@/lib/theme";
 import {
@@ -30,18 +24,54 @@ import {
   validatePassword,
 } from "@/lib/validation";
 
-
 export default function SignupScreen() {
   const almostDoneTitleProgress = useSharedValue(0);
   const almostDoneTextProgress = useSharedValue(0);
   const {
-    fullName, setFullName, mobileNumber, setMobileNumber, homeAddress, setHomeAddress,
-    email, setEmail, password, setPassword, confirm, setConfirm, role, setRole,
-    isMechanic, rolePickerVisible, rolePickerLeaving, setRolePickerVisible, emailError, setEmailError,
-    passwordError, setPasswordError, confirmError, setConfirmError, formError, info,
-    loading, success, showAlmostDone, setShowAlmostDone, step, setStep, licenseFront,
-    licenseBack, skills, setSkills, certifications, setCertifications, experience,
-    setExperience, continueRoleSelection, pickLicensePhoto, nextStep, saveAndContinue,
+    fullName,
+    setFullName,
+    mobileNumber,
+    setMobileNumber,
+    homeAddress,
+    setHomeAddress,
+    email,
+    setEmail,
+    password,
+    setPassword,
+    confirm,
+    setConfirm,
+    role,
+    setRole,
+    isMechanic,
+    rolePickerVisible,
+    rolePickerLeaving,
+    setRolePickerVisible,
+    emailError,
+    setEmailError,
+    passwordError,
+    setPasswordError,
+    confirmError,
+    setConfirmError,
+    formError,
+    info,
+    loading,
+    success,
+    showAlmostDone,
+    setShowAlmostDone,
+    step,
+    setStep,
+    licenseFront,
+    licenseBack,
+    skills,
+    setSkills,
+    certifications,
+    setCertifications,
+    experience,
+    setExperience,
+    continueRoleSelection,
+    pickLicensePhoto,
+    nextStep,
+    saveAndContinue,
     onSubmit,
   } = useSignupForm();
 
@@ -82,398 +112,414 @@ export default function SignupScreen() {
         }}
       />
       <AuthScreenShell>
-      {isMechanic || role === "customer" ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back to account type selection"
-          hitSlop={12}
-          onPress={() => {
-            if (role === "customer") {
-              setRole(null);
-              setRolePickerVisible(true);
-            } else {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace("/(auth)/signup");
-              }
-            }
-          }}
-          style={styles.mechanicBackButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </Pressable>
-      ) : null}
-
-      <View
-        style={[
-          styles.card,
-          isMechanic && styles.mechanicCard,
-          role === "customer" && styles.customerCard,
-          (rolePickerVisible || rolePickerLeaving) && styles.hiddenUnderlyingCard,
-        ]}
-      >
-        {!showAlmostDone ? (
-          <>
-            <Text
-              style={[
-                styles.heading,
-                isMechanic && styles.mechanicHeading,
-                role === "customer" && styles.customerHeading,
-                isMechanic && step === 3 && styles.mechanicStep3Heading,
-                isMechanic && step === 4 && styles.mechanicFinalHeading,
-              ]}
-            >
-              {isMechanic || role === "customer"
-                ? "Create an account"
-                : "Gumawa ng account"}
-            </Text>
-            <Text
-              style={[
-                styles.sub,
-                isMechanic && styles.mechanicSub,
-                role === "customer" && styles.customerSub,
-                isMechanic && step === 3 && styles.mechanicStep3Sub,
-                isMechanic && step === 4 && styles.mechanicFinalSub,
-              ]}
-            >
-              {isMechanic
-                ? "Register as a mechanic to accept services."
-                : role === "customer"
-                  ? "Register as a customer to book a service request."
-                  : "Mag-register bilang user para gumawa ng service requests."}
-            </Text>
-          </>
-        ) : null}
-
-        <ErrorBanner message={formError} />
-        {info ? <Text style={styles.info}>{info}</Text> : null}
-
-        {showAlmostDone ? (
-          <View style={styles.almostDone}>
-            <Animated.Text
-              style={[styles.almostDoneTitle, almostDoneTitleAnimatedStyle]}
-            >
-              You&apos;re almost done!
-            </Animated.Text>
-            <Animated.Text
-              style={[styles.almostDoneText, almostDoneTextAnimatedStyle]}
-            >
-              You can now proceed to the next step.
-            </Animated.Text>
-            <View style={styles.almostDoneActions}>
-              <Pressable
-                style={styles.almostDoneBack}
-                onPress={() => setShowAlmostDone(false)}
-              >
-                <Text style={styles.almostDoneBackText}>Back</Text>
-              </Pressable>
-              <Pressable
-                style={styles.almostDoneProceed}
-                onPress={() =>
-                  router.push({
-                    pathname: "/quick-account-setup",
-                    params: { role: "mechanic", completed: "1" },
-                  })
-                }
-              >
-                <Text style={styles.almostDoneProceedText}>Proceed</Text>
-                <Text style={styles.almostDoneArrow}>→</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : success ? (
-          <View>
-            {role === "mechanic" ? (
-              <>
-                <Text style={styles.reviewTitle}>Application submitted</Text>
-                <Text style={styles.reviewText}>
-                  Na-submit na ang mechanic application mo. Kailangan mo lamang
-                  maghintay ng 7-10 working days para sa review.
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.reviewTitle}>Check your email</Text>
-                <Text style={styles.reviewText}>
-                  May verification link na ipinadala sa email mo. I-verify muna
-                  ang account bago mag-login.
-                </Text>
-              </>
-            )}
-            <Link href="/(auth)/login" asChild>
-              <Pressable style={styles.successButton}>
-                <Text style={styles.successButtonText}>Back to Login</Text>
-              </Pressable>
-            </Link>
-          </View>
-        ) : role === "customer" ? (
-          <>
-            <Text style={styles.customerSectionTitle}>Personal information</Text>
-            <Text style={styles.customerRequiredHelper}>
-              Please fill out all the (*) required information.
-            </Text>
-            <AuthInput
-              label="Full name"
-              icon="person-outline"
-              value={fullName}
-              onChangeText={setFullName}
-              autoCapitalize="words"
-              autoComplete="name"
-              textContentType="name"
-              returnKeyType="next"
-              variant="customer"
-            />
-            <AuthInput
-              label="Mobile number"
-              icon="call-outline"
-              value={mobileNumber}
-              onChangeText={setMobileNumber}
-              keyboardType="phone-pad"
-              returnKeyType="next"
-              variant="customer"
-            />
-            <AuthInput
-              label="Email address"
-              icon="mail-outline"
-              value={email}
-              onChangeText={(v) => {
-                setEmail(v);
-                if (emailError) setEmailError(validateEmail(v));
-              }}
-              error={emailError}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              textContentType="emailAddress"
-              returnKeyType="next"
-              variant="customer"
-            />
-            <AuthInput
-              label="Password"
-              icon="lock-closed-outline"
-              value={password}
-              onChangeText={(v) => {
-                setPassword(v);
-                if (passwordError) setPasswordError(validatePassword(v));
-              }}
-              error={passwordError}
-              isPassword
-              autoCapitalize="none"
-              autoComplete="new-password"
-              textContentType="newPassword"
-              returnKeyType="next"
-              variant="customer"
-            />
-            <AuthInput
-              label="Confirm password"
-              icon="shield-checkmark-outline"
-              value={confirm}
-              onChangeText={(v) => {
-                setConfirm(v);
-                if (confirmError)
-                  setConfirmError(validateConfirmPassword(password, v));
-              }}
-              error={confirmError}
-              isPassword
-              autoCapitalize="none"
-              autoComplete="new-password"
-              textContentType="newPassword"
-              returnKeyType="go"
-              onSubmitEditing={onSubmit}
-              variant="customer"
-            />
-            <View style={styles.customerActions}>
-              <Pressable style={styles.customerBackButton} onPress={() => router.back()}>
-                <Text style={styles.customerBackText}>Back</Text>
-              </Pressable>
-              <Pressable
-                style={styles.customerNextButton}
-                onPress={onSubmit}
-                disabled={loading}
-              >
-                <Text style={styles.customerNextText}>
-                  {loading ? "Saving..." : "Next"}
-                </Text>
-                <Ionicons
-                  name="arrow-forward-circle-outline"
-                  size={16}
-                  color="#FFFFFF"
-                />
-              </Pressable>
-            </View>
-          </>
-        ) : (
-          <MechanicRegistrationSteps
-            styles={styles}
-            step={step}
-            isMechanic={isMechanic}
-            fullName={fullName}
-            setFullName={setFullName}
-            mobileNumber={mobileNumber}
-            setMobileNumber={setMobileNumber}
-            homeAddress={homeAddress}
-            setHomeAddress={setHomeAddress}
-            email={email}
-            setEmail={setEmail}
-            password={password}
-            setPassword={setPassword}
-            confirm={confirm}
-            setConfirm={setConfirm}
-            emailError={emailError}
-            setEmailError={setEmailError}
-            passwordError={passwordError}
-            setPasswordError={setPasswordError}
-            confirmError={confirmError}
-            setConfirmError={setConfirmError}
-            licenseFront={licenseFront}
-            licenseBack={licenseBack}
-            pickLicensePhoto={(side) => void pickLicensePhoto(side)}
-            skills={skills}
-            setSkills={setSkills}
-            certifications={certifications}
-            setCertifications={setCertifications}
-            experience={experience}
-            setExperience={setExperience}
-            setStep={setStep}
-            setRolePickerVisible={setRolePickerVisible}
-            nextStep={nextStep}
-            saveAndContinue={saveAndContinue}
-            onSubmit={onSubmit}
-            loading={loading}
-          />
-        )}
-      </View>
-
-      </AuthScreenShell>
-      {rolePickerVisible ? (
-        <View style={styles.rolePickerOverlay}>
-        <LinearGradient
-          colors={[
-            "#373327",
-            "#686150",
-            "#9E9786",
-            "#DCDCDB",
-            "#F3F3F5",
-            "#F8F8FA",
-          ]}
-          locations={[0, 0.2, 0.38, 0.56, 0.72, 1]}
-          style={styles.modalBackdrop}
-        >
-          <SafeAreaView style={styles.roleScreen}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Back to login"
-              hitSlop={12}
-              onPress={() => {
+        {isMechanic || role === "customer" ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back to account type selection"
+            hitSlop={12}
+            onPress={() => {
+              if (role === "customer") {
                 if (router.canGoBack()) {
                   router.back();
                 } else {
-                  router.replace("/setup-complete");
+                  setRole(null);
+                  setRolePickerVisible(true);
                 }
-              }}
-              style={styles.roleBackButton}
-            >
-              <Ionicons name="arrow-back" size={25} color="#FFFFFF" />
-            </Pressable>
+              } else {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace("/(auth)/signup");
+                }
+              }
+            }}
+            style={styles.mechanicBackButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </Pressable>
+        ) : null}
 
-            <View style={styles.roleModal}>
-              <Text style={styles.modalTitle}>Choose an account</Text>
-              <Text style={styles.modalText}>
-                What type of account you&apos;re registering as?
+        <View
+          style={[
+            styles.card,
+            isMechanic && styles.mechanicCard,
+            role === "customer" && styles.customerCard,
+            (rolePickerVisible || rolePickerLeaving) &&
+              styles.hiddenUnderlyingCard,
+          ]}
+        >
+          {!showAlmostDone ? (
+            <>
+              <Text
+                style={[
+                  styles.heading,
+                  isMechanic && styles.mechanicHeading,
+                  role === "customer" && styles.customerHeading,
+                  isMechanic && step === 3 && styles.mechanicStep3Heading,
+                  isMechanic && step === 4 && styles.mechanicFinalHeading,
+                ]}
+              >
+                {isMechanic || role === "customer"
+                  ? "Create an account"
+                  : "Gumawa ng account"}
               </Text>
-
-              <Pressable
+              <Text
                 style={[
-                  styles.roleOption,
-                  styles.roleOptionMotorist,
-                  role === "customer" && styles.roleOptionSelected,
+                  styles.sub,
+                  isMechanic && styles.mechanicSub,
+                  role === "customer" && styles.customerSub,
+                  isMechanic && step === 3 && styles.mechanicStep3Sub,
+                  isMechanic && step === 4 && styles.mechanicFinalSub,
                 ]}
-                onPress={() => {
-                  setRole("customer");
-                }}
               >
-                <View style={styles.roleIcon}>
-                  <Image
-                    source={require("../../assets/images/motorist.png")}
-                    style={styles.roleIconImage}
-                  />
-                </View>
-                <View style={styles.roleCopy}>
-                  <Text style={styles.roleTitle}>Motorist</Text>
-                  <Text style={styles.roleDescription}>
-                    Book for a services
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.checkbox,
-                    role === "customer" && styles.checkboxSelected,
-                  ]}
-                >
-                  {role === "customer" ? (
-                    <Ionicons name="checkmark" size={10} color="#FFFFFF" />
-                  ) : null}
-                </View>
-              </Pressable>
+                {isMechanic
+                  ? "Register as a mechanic to accept services."
+                  : role === "customer"
+                    ? "Register as a customer to book a service request."
+                    : "Mag-register bilang user para gumawa ng service requests."}
+              </Text>
+            </>
+          ) : null}
 
-              <Pressable
-                style={[
-                  styles.roleOption,
-                  styles.roleOptionMechanic,
-                  styles.roleOptionLast,
-                  role === "mechanic" && styles.roleOptionSelected,
-                ]}
-                onPress={() => {
-                  setRole("mechanic");
-                }}
+          <ErrorBanner message={formError} />
+          {info ? <Text style={styles.info}>{info}</Text> : null}
+
+          {showAlmostDone ? (
+            <View style={styles.almostDone}>
+              <Animated.Text
+                style={[styles.almostDoneTitle, almostDoneTitleAnimatedStyle]}
               >
-                <View style={styles.roleIcon}>
-                  <Image
-                    source={require("../../assets/images/mechanic.png")}
-                    style={styles.roleIconImage}
-                  />
-                </View>
-                <View style={styles.roleCopy}>
-                  <Text style={[styles.roleTitle, styles.roleTitleMechanic]}>
-                    Mechanic
-                  </Text>
-                  <Text style={styles.roleDescription}>Offering services</Text>
-                </View>
-                <View
-                  style={[
-                    styles.checkbox,
-                    role === "mechanic" && styles.checkboxSelected,
-                  ]}
+                You&apos;re almost done!
+              </Animated.Text>
+              <Animated.Text
+                style={[styles.almostDoneText, almostDoneTextAnimatedStyle]}
+              >
+                You can now proceed to the next step.
+              </Animated.Text>
+              <View style={styles.almostDoneActions}>
+                <Pressable
+                  style={styles.almostDoneBack}
+                  onPress={() => setShowAlmostDone(false)}
                 >
-                  {role === "mechanic" ? (
-                    <Ionicons name="checkmark" size={10} color="#FFFFFF" />
-                  ) : null}
-                </View>
-              </Pressable>
+                  <Text style={styles.almostDoneBackText}>Back</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.almostDoneProceed}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/quick-account-setup",
+                      params: { role: "mechanic", completed: "1" },
+                    })
+                  }
+                >
+                  <Text style={styles.almostDoneProceedText}>Proceed</Text>
+                  <Text style={styles.almostDoneArrow}>→</Text>
+                </Pressable>
+              </View>
             </View>
-
-            <View style={styles.roleBottom}>
-              <Text style={styles.rolePrompt}>
-                Please tap the checkbox to proceed.
+          ) : success ? (
+            <View>
+              {role === "mechanic" ? (
+                <>
+                  <Text style={styles.reviewTitle}>Application submitted</Text>
+                  <Text style={styles.reviewText}>
+                    Na-submit na ang mechanic application mo. Kailangan mo
+                    lamang maghintay ng 7-10 working days para sa review.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.reviewTitle}>Check your email</Text>
+                  <Text style={styles.reviewText}>
+                    May verification link na ipinadala sa email mo. I-verify
+                    muna ang account bago mag-login.
+                  </Text>
+                </>
+              )}
+              <Link href="/(auth)/login" asChild>
+                <Pressable style={styles.successButton}>
+                  <Text style={styles.successButtonText}>Back to Login</Text>
+                </Pressable>
+              </Link>
+            </View>
+          ) : role === "customer" ? (
+            <>
+              <Text style={styles.customerSectionTitle}>
+                Personal information
               </Text>
+              <Text style={styles.customerRequiredHelper}>
+                Please fill out all the (*) required information.
+              </Text>
+              <AuthInput
+                label="Full name"
+                icon="person-outline"
+                iconImage={require("../../assets/images/profile1.png")}
+                value={fullName}
+                onChangeText={setFullName}
+                autoCapitalize="words"
+                autoComplete="name"
+                textContentType="name"
+                returnKeyType="next"
+                variant="customer"
+              />
+              <AuthInput
+                label="Mobile number"
+                icon="call-outline"
+                iconImage={require("../../assets/images/call.png")}
+                value={mobileNumber}
+                onChangeText={setMobileNumber}
+                keyboardType="phone-pad"
+                returnKeyType="next"
+                variant="customer"
+              />
+              <AuthInput
+                label="Email address"
+                icon="mail-outline"
+                iconImage={require("../../assets/images/email1.jpg")}
+                value={email}
+                onChangeText={(v) => {
+                  setEmail(v);
+                  if (emailError) setEmailError(validateEmail(v));
+                }}
+                error={emailError}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
+                returnKeyType="next"
+                variant="customer"
+              />
+              <AuthInput
+                label="Password"
+                icon="lock-closed-outline"
+                iconImage={require("../../assets/images/password1.jpg")}
+                value={password}
+                onChangeText={(v) => {
+                  setPassword(v);
+                  if (passwordError) setPasswordError(validatePassword(v));
+                }}
+                error={passwordError}
+                isPassword
+                autoCapitalize="none"
+                autoComplete="new-password"
+                textContentType="newPassword"
+                returnKeyType="next"
+                variant="customer"
+              />
+              <AuthInput
+                label="Confirm password"
+                icon="shield-checkmark-outline"
+                iconImage={require("../../assets/images/password1.jpg")}
+                value={confirm}
+                onChangeText={(v) => {
+                  setConfirm(v);
+                  if (confirmError)
+                    setConfirmError(validateConfirmPassword(password, v));
+                }}
+                error={confirmError}
+                isPassword
+                autoCapitalize="none"
+                autoComplete="new-password"
+                textContentType="newPassword"
+                returnKeyType="go"
+                onSubmitEditing={onSubmit}
+                variant="customer"
+              />
+              <View style={styles.customerActions}>
+                <Pressable
+                  style={styles.customerBackButton}
+                  onPress={() => router.back()}
+                >
+                  <Text style={styles.customerBackText}>Back</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.customerNextButton}
+                  onPress={onSubmit}
+                  disabled={loading}
+                >
+                  <Text style={styles.customerNextText}>
+                    {loading ? "Saving..." : "Next"}
+                  </Text>
+                  <Ionicons
+                    name="arrow-forward-circle-outline"
+                    size={16}
+                    color="#FFFFFF"
+                  />
+                </Pressable>
+              </View>
+            </>
+          ) : (
+            <MechanicRegistrationSteps
+              styles={styles}
+              step={step}
+              isMechanic={isMechanic}
+              fullName={fullName}
+              setFullName={setFullName}
+              mobileNumber={mobileNumber}
+              setMobileNumber={setMobileNumber}
+              homeAddress={homeAddress}
+              setHomeAddress={setHomeAddress}
+              email={email}
+              setEmail={setEmail}
+              password={password}
+              setPassword={setPassword}
+              confirm={confirm}
+              setConfirm={setConfirm}
+              emailError={emailError}
+              setEmailError={setEmailError}
+              passwordError={passwordError}
+              setPasswordError={setPasswordError}
+              confirmError={confirmError}
+              setConfirmError={setConfirmError}
+              licenseFront={licenseFront}
+              licenseBack={licenseBack}
+              pickLicensePhoto={(side) => void pickLicensePhoto(side)}
+              skills={skills}
+              setSkills={setSkills}
+              certifications={certifications}
+              setCertifications={setCertifications}
+              experience={experience}
+              setExperience={setExperience}
+              setStep={setStep}
+              setRolePickerVisible={setRolePickerVisible}
+              nextStep={nextStep}
+              saveAndContinue={saveAndContinue}
+              onSubmit={onSubmit}
+              loading={loading}
+            />
+          )}
+        </View>
+      </AuthScreenShell>
+      {rolePickerVisible ? (
+        <View style={styles.rolePickerOverlay}>
+          <LinearGradient
+            colors={[
+              "#373327",
+              "#686150",
+              "#9E9786",
+              "#DCDCDB",
+              "#F3F3F5",
+              "#F8F8FA",
+            ]}
+            locations={[0, 0.2, 0.38, 0.56, 0.72, 1]}
+            style={styles.modalBackdrop}
+          >
+            <SafeAreaView style={styles.roleScreen}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Proceed with account registration"
-                onPress={continueRoleSelection}
-                style={({ pressed }) => [
-                  styles.roleProceedButton,
-                  role && styles.roleProceedButtonSelected,
-                  !role && styles.roleProceedButtonDisabled,
-                  pressed && styles.roleProceedPressed,
-                ]}
+                accessibilityLabel="Back to login"
+                hitSlop={12}
+                onPress={() => {
+                  if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace("/setup-complete");
+                  }
+                }}
+                style={styles.roleBackButton}
               >
-                <Text style={styles.roleProceedText}>Proceed</Text>
-                <Text style={styles.roleProceedArrow}>→</Text>
+                <Ionicons name="arrow-back" size={25} color="#FFFFFF" />
               </Pressable>
-            </View>
-          </SafeAreaView>
-        </LinearGradient>
+
+              <View style={styles.roleModal}>
+                <Text style={styles.modalTitle}>Choose an account</Text>
+                <Text style={styles.modalText}>
+                  What type of account you&apos;re registering as?
+                </Text>
+
+                <Pressable
+                  style={[
+                    styles.roleOption,
+                    styles.roleOptionMotorist,
+                    role === "customer" && styles.roleOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setRole("customer");
+                  }}
+                >
+                  <View style={styles.roleIcon}>
+                    <Image
+                      source={require("../../assets/images/motorist.png")}
+                      style={styles.roleIconImage}
+                    />
+                  </View>
+                  <View style={styles.roleCopy}>
+                    <Text style={styles.roleTitle}>Motorist</Text>
+                    <Text style={styles.roleDescription}>
+                      Book for a services
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.checkbox,
+                      role === "customer" && styles.checkboxSelected,
+                    ]}
+                  >
+                    {role === "customer" ? (
+                      <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                    ) : null}
+                  </View>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.roleOption,
+                    styles.roleOptionMechanic,
+                    styles.roleOptionLast,
+                    role === "mechanic" && styles.roleOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setRole("mechanic");
+                  }}
+                >
+                  <View style={styles.roleIcon}>
+                    <Image
+                      source={require("../../assets/images/mechanic.png")}
+                      style={styles.roleIconImage}
+                    />
+                  </View>
+                  <View style={styles.roleCopy}>
+                    <Text style={[styles.roleTitle, styles.roleTitleMechanic]}>
+                      Mechanic
+                    </Text>
+                    <Text style={styles.roleDescription}>
+                      Offering services
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.checkbox,
+                      role === "mechanic" && styles.checkboxSelected,
+                    ]}
+                  >
+                    {role === "mechanic" ? (
+                      <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                    ) : null}
+                  </View>
+                </Pressable>
+              </View>
+
+              <View style={styles.roleBottom}>
+                <Text style={styles.rolePrompt}>
+                  Please tap the checkbox to proceed.
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Proceed with account registration"
+                  onPress={continueRoleSelection}
+                  style={({ pressed }) => [
+                    styles.roleProceedButton,
+                    role && styles.roleProceedButtonSelected,
+                    !role && styles.roleProceedButtonDisabled,
+                    pressed && styles.roleProceedPressed,
+                  ]}
+                >
+                  <Text style={styles.roleProceedText}>Proceed</Text>
+                  <Text style={styles.roleProceedArrow}>→</Text>
+                </Pressable>
+              </View>
+            </SafeAreaView>
+          </LinearGradient>
         </View>
       ) : null}
     </>
@@ -497,44 +543,44 @@ const styles = StyleSheet.create({
     minHeight: 680,
     borderRadius: 24,
     borderWidth: 0,
-    paddingHorizontal: 19,
-    paddingTop: 22,
-    paddingBottom: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
   },
   customerSectionTitle: {
     color: "#2C2F35",
-    fontSize: 15,
-    lineHeight: 28,
+    fontSize: 17,
+    lineHeight: 22,
     fontWeight: "700",
-    letterSpacing: -0.45,
+    letterSpacing: -0.35,
     marginTop: 2,
     marginBottom: 0,
   },
   customerHeading: {
     color: "#2C2F35",
-    width: 342,
-    fontSize: 24,
-    lineHeight: 33,
+    width: "100%",
+    fontSize: 26,
+    lineHeight: 31,
     fontWeight: "700",
     letterSpacing: -0.6,
     marginBottom: 2,
   },
   customerSub: {
-    width: 342,
+    width: "100%",
     color: "#2C2F35",
-    fontSize: 12,
-    lineHeight: 19.5,
+    fontSize: 14,
+    lineHeight: 19,
     fontWeight: "500",
-    marginBottom: 20,
+    marginBottom: 14,
   },
   customerRequiredHelper: {
     color: "#2C2F35",
-    fontSize: 10,
-    lineHeight: 28,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: "700",
-    letterSpacing: -0.45,
-    marginTop: -9,
-    marginBottom: 8,
+    letterSpacing: -0.35,
+    marginTop: 2,
+    marginBottom: 10,
   },
   customerActions: {
     flexDirection: "row",
@@ -544,8 +590,8 @@ const styles = StyleSheet.create({
   },
   customerBackButton: {
     width: 76,
-    height: 40,
-    borderRadius: 12,
+    height: 42,
+    borderRadius: 11,
     borderWidth: 1,
     borderColor: "#E0E5F0",
     alignItems: "center",
@@ -553,13 +599,13 @@ const styles = StyleSheet.create({
   },
   customerBackText: {
     color: "#334155",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
   },
   customerNextButton: {
-    width: 96,
-    height: 40,
-    borderRadius: 12,
+    width: 108,
+    height: 42,
+    borderRadius: 11,
     backgroundColor: "#3D3D4D",
     alignItems: "center",
     justifyContent: "center",
@@ -573,7 +619,7 @@ const styles = StyleSheet.create({
   },
   customerNextText: {
     color: "#FFFFFF",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
   },
   mechanicBackButton: {
@@ -588,9 +634,9 @@ const styles = StyleSheet.create({
     minHeight: 680,
     borderRadius: 24,
     borderWidth: 0,
-    paddingHorizontal: 19,
-    paddingTop: 22,
-    paddingBottom: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
   },
   heading: {
     color: colors.text,
@@ -605,10 +651,10 @@ const styles = StyleSheet.create({
   },
   mechanicHeading: {
     color: "#2C2F35",
-    width: 342,
-    fontSize: 24,
-    lineHeight: 27.5,
-    letterSpacing: -0.55,
+    width: "100%",
+    fontSize: 26,
+    lineHeight: 31,
+    letterSpacing: -0.6,
     fontWeight: "700",
     marginBottom: 2,
   },
@@ -626,12 +672,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   mechanicSub: {
-    width: 342,
+    width: "100%",
     color: "#2C2F35",
-    fontSize: 13,
-    lineHeight: 19.5,
+    fontSize: 14,
+    lineHeight: 19,
     fontWeight: "500",
-    marginBottom: 20,
+    marginBottom: 14,
   },
   mechanicStep3Sub: {
     width: 342,
@@ -643,11 +689,11 @@ const styles = StyleSheet.create({
   },
   requiredHelper: {
     color: "#2C2F35",
-    fontSize: 9,
-    lineHeight: 13,
+    fontSize: 11,
+    lineHeight: 15,
     fontWeight: "600",
     marginTop: -9,
-    marginBottom: 14,
+    marginBottom: 8,
   },
   info: {
     color: colors.success,
@@ -750,7 +796,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   stepHeader: {
-    marginBottom: spacing.md,
+    marginBottom: 10,
   },
   stepLabel: {
     color: colors.amber,
@@ -762,11 +808,11 @@ const styles = StyleSheet.create({
   },
   mechanicStepLabel: {
     color: "#D97706",
-    width: 342,
-    fontSize: 11,
-    lineHeight: 16.5,
-    letterSpacing: 0.55,
-    marginBottom: 4,
+    width: "100%",
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.6,
+    marginBottom: 3,
   },
   mechanicStep3Label: {
     width: 342,
@@ -778,9 +824,9 @@ const styles = StyleSheet.create({
   },
   mechanicStepTitle: {
     color: "#2C2F35",
-    width: 342,
-    fontSize: 15,
-    lineHeight: 23.38,
+    width: "100%",
+    fontSize: 17,
+    lineHeight: 22,
     fontWeight: "700",
     marginBottom: 0,
   },
@@ -857,15 +903,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   mechanicStepActions: {
-    marginTop: 2,
+    marginTop: 4,
     justifyContent: "flex-start",
-    gap: 16,
+    gap: 14,
   },
   backStepButton: {
-    minHeight: 36,
-    minWidth: 64,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    minHeight: 42,
+    minWidth: 76,
+    paddingHorizontal: 16,
+    borderRadius: 11,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: "center",
@@ -874,7 +920,7 @@ const styles = StyleSheet.create({
   },
   backStepText: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
   },
   rolePickerOverlay: {
@@ -896,40 +942,40 @@ const styles = StyleSheet.create({
   roleModal: {
     width: "100%",
     maxWidth: 358,
-    minHeight: 262,
+    minHeight: 326,
     alignSelf: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 24,
     marginTop: 70,
   },
   roleBackButton: {
     position: "absolute",
-    top: 24,
+    top: 62,
     left: 4,
     zIndex: 2,
   },
   modalTitle: {
     color: "#2C2F35",
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: "600",
-    lineHeight: 24,
+    lineHeight: 29,
   },
   modalText: {
     color: "#2C2F35",
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "500",
-    lineHeight: 16,
-    marginBottom: 8,
+    lineHeight: 20,
+    marginBottom: 12,
   },
   roleOption: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 58,
+    minHeight: 72,
     borderRadius: 12,
     backgroundColor: "#F1F2FF",
     paddingHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   roleOptionSelected: {
     backgroundColor: "#F1F2FF",
@@ -938,24 +984,24 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   roleOptionMotorist: {
-    marginTop: 10,
+    marginTop: 8,
   },
   roleOptionMechanic: {
-    minHeight: 82,
-    marginTop: -6,
+    minHeight: 72,
+    marginTop: 0,
   },
   roleIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
+    width: 48,
+    height: 48,
+    borderRadius: 10,
     backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
+    marginRight: 14,
   },
   roleIconImage: {
-    width: 32,
-    height: 32,
+    width: 38,
+    height: 38,
     resizeMode: "contain",
   },
   roleCopy: {
@@ -963,9 +1009,9 @@ const styles = StyleSheet.create({
   },
   roleTitle: {
     color: "#1E3A8A",
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: "600",
-    lineHeight: 20,
+    lineHeight: 21,
     letterSpacing: 0.14,
   },
   roleTitleMechanic: {
@@ -973,20 +1019,20 @@ const styles = StyleSheet.create({
   },
   roleDescription: {
     color: "#2C2F35",
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "500",
-    lineHeight: 16,
+    lineHeight: 18,
   },
   checkbox: {
-    width: 14,
-    height: 14,
-    borderRadius: 2,
+    width: 19,
+    height: 19,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: "#1E3A8A",
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 16,
-    marginRight: 25,
+    marginLeft: 12,
+    marginRight: 10,
   },
   checkboxSelected: {
     backgroundColor: "#1E3A8A",
@@ -999,16 +1045,16 @@ const styles = StyleSheet.create({
   },
   rolePrompt: {
     color: "#2C2F35",
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "500",
-    lineHeight: 20,
+    lineHeight: 21,
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   roleProceedButton: {
     alignSelf: "stretch",
-    minHeight: 52,
-    borderRadius: 11,
+    minHeight: 56,
+    borderRadius: 12,
     backgroundColor: "#24439A",
     alignItems: "center",
     justifyContent: "center",
@@ -1021,8 +1067,8 @@ const styles = StyleSheet.create({
   },
   roleProceedButtonDisabled: {
     backgroundColor: "#3D3D4D",
-   },
-   roleProceedButtonSelected: {
+  },
+  roleProceedButtonSelected: {
     backgroundColor: "#24439A",
   },
   roleProceedPressed: {
@@ -1030,9 +1076,9 @@ const styles = StyleSheet.create({
   },
   roleProceedText: {
     color: "#FFFFFF",
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "600",
-    lineHeight: 20,
+    lineHeight: 22,
   },
   roleProceedArrow: {
     color: "#FFFFFF",

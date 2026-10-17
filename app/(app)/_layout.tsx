@@ -20,15 +20,9 @@ function MechanicTabs() {
     <Tabs
       screenOptions={{
         headerShown: false,
-<<<<<<< HEAD
-        animation: "shift",
-        tabBarActiveTintColor: colors.amber,
-        tabBarInactiveTintColor: colors.textDim,
-=======
         animation: "fade",
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
->>>>>>> f238d7c77b686fad362aecc28e73dfb349a04671
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.border,

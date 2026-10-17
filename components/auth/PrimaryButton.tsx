@@ -76,9 +76,9 @@ const styles = StyleSheet.create({
   },
   blueButton: {
     backgroundColor: "#24439A",
-    minHeight: 36,
-    paddingHorizontal: 16,
-    borderRadius: 10,
+    minHeight: 42,
+    paddingHorizontal: 18,
+    borderRadius: 11,
     shadowColor: "#132D73",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
@@ -87,18 +87,18 @@ const styles = StyleSheet.create({
   },
   blueLabel: {
     color: "#FFFFFF",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
   },
   loginButton: {
     backgroundColor: "#24439A",
-    minHeight: 40,
-    borderRadius: 8,
+    minHeight: 48,
+    borderRadius: 10,
   },
   loginLabel: {
     color: "#FFFFFF",
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 22,
     fontWeight: "700",
   },
   pressed: {

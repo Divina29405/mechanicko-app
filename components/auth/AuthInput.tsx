@@ -29,6 +29,7 @@ type Props = {
   iconStyle?: StyleProp<TextStyle>;
   iconImage?: ImageSourcePropType;
   iconImageStyle?: StyleProp<ImageStyle>;
+  labelStyle?: StyleProp<TextStyle>;
   inputStyle?: StyleProp<TextStyle>;
 } & Pick<TextInputProps, 'value' | 'onChangeText' | 'autoCapitalize' | 'autoComplete' | 'textContentType' | 'returnKeyType' | 'onSubmitEditing'>;
 
@@ -43,6 +44,7 @@ export function AuthInput({
   iconStyle,
   iconImage,
   iconImageStyle,
+  labelStyle,
   inputStyle,
   ...inputProps
 }: Props) {
@@ -64,6 +66,7 @@ export function AuthInput({
           styles.label,
           isMechanic && styles.mechanicLabel,
           isCustomer && styles.customerLabel,
+          labelStyle,
         ]}
       >
         {label}
@@ -85,7 +88,7 @@ export function AuthInput({
         ) : (
           <Ionicons
             name={icon}
-            size={isMechanic ? 16 : 20}
+            size={isMechanic ? 20 : 20}
             color={focused ? colors.amber : colors.textDim}
             style={iconStyle}
           />
@@ -107,7 +110,7 @@ export function AuthInput({
           <Pressable onPress={() => setHidden((v) => !v)} hitSlop={10}>
             <Ionicons
               name={hidden ? "eye-outline" : "eye-off-outline"}
-              size={isMechanic || isCustomer ? 16 : 20}
+              size={isMechanic || isCustomer ? 20 : 20}
               color={colors.textMuted}
             />
           </Pressable>
@@ -133,7 +136,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   mechanicWrap: {
-    marginBottom: 7,
+    marginBottom: 6,
   },
   customerWrap: {
     marginBottom: 7,
@@ -146,9 +149,9 @@ const styles = StyleSheet.create({
   },
   mechanicLabel: {
     color: "#2C2F35",
-    fontSize: 11,
-    fontWeight: "400",
-    lineHeight: 14,
+    fontSize: 12,
+    fontWeight: "500",
+    lineHeight: 16,
     marginBottom: 3,
   },
   customerLabel: {
@@ -176,11 +179,11 @@ const styles = StyleSheet.create({
     borderColor: colors.error,
   },
   mechanicField: {
-    minHeight: 42,
-    borderWidth: 0,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    gap: 8,
+    minHeight: 46,
+    borderWidth: 1,
+    borderRadius: 11,
+    paddingHorizontal: 12,
+    gap: 9,
   },
   imageIcon: {
     width: 20,
@@ -193,8 +196,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   mechanicInput: {
-    fontSize: 13,
-    paddingVertical: 9,
+    fontSize: 15,
+    paddingVertical: 8,
   },
   error: {
     marginTop: 6,
@@ -202,8 +205,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   mechanicError: {
-    marginTop: 4,
-    fontSize: 10,
+    marginTop: 3,
+    fontSize: 11,
   },
   customerError: {
     marginTop: 4,

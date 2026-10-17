@@ -191,7 +191,7 @@ function SetupItem({
             style={styles.rideIcon}
           />
         ) : (
-          <Ionicons name={icon ?? "person"} size={17} color="#1E3A8A" />
+          <Ionicons name={icon ?? "person"} size={22} color="#1E3A8A" />
         )}
       </View>
       <View style={styles.itemCopy}>
@@ -256,9 +256,9 @@ const styles = StyleSheet.create({
   },
   setupCard: {
     width: "100%",
-    minHeight: 324,
+    minHeight: 360,
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 20,
     marginTop: 70,
   },
@@ -272,26 +272,26 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#18213D",
-    fontSize: 16,
-    fontWeight: "600",
-    lineHeight: 20,
+    fontSize: 21,
+    fontWeight: "700",
+    lineHeight: 26,
   },
   subtitle: {
     color: "#2C2F35",
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 17,
   },
   progressBadge: {
     color: "#D97706",
     backgroundColor: "#E6E8FF",
-    borderRadius: 12,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    fontSize: 10,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    fontSize: 11,
     fontWeight: "700",
   },
   progressTrack: {
-    height: 5,
+    height: 6,
     borderRadius: 3,
     backgroundColor: "#E7E9FA",
     marginTop: 16,
@@ -307,18 +307,18 @@ const styles = StyleSheet.create({
     width: "33%",
   },
   setupItem: {
-    minHeight: 61,
+    minHeight: 64,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F1F2FF",
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 8,
     marginBottom: 8,
   },
   itemIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 7,
+    width: 40,
+    height: 40,
+    borderRadius: 9,
     overflow: "hidden",
     backgroundColor: "#DCE3FF",
     alignItems: "center",
@@ -332,28 +332,28 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8E8E8",
   },
   rideIcon: {
-    width: 24,
-    height: 24,
+    width: 28,
+    height: 28,
   },
   itemCopy: {
     flex: 1,
   },
   itemTitle: {
     color: "#2C2F35",
-    fontSize: 11,
-    fontWeight: "500",
-    lineHeight: 15,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 17,
   },
   itemDescription: {
     color: "#2C2F35",
-    fontSize: 9,
-    lineHeight: 13,
+    fontSize: 11,
+    lineHeight: 15,
   },
   status: {
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 9,
-    paddingVertical: 4,
-    fontSize: 9,
+    paddingVertical: 5,
+    fontSize: 10,
     fontWeight: "700",
   },
   pendingStatus: {
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
   proceedButton: {
     alignSelf: "stretch",
     minHeight: 52,
-    borderRadius: 11,
+    borderRadius: 12,
     backgroundColor: "#24439A",
     alignItems: "center",
     justifyContent: "center",
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
   },
   proceedText: {
     color: "#FFFFFF",
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "600",
     lineHeight: 20,
   },
