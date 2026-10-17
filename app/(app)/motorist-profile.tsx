@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import { MechanicScreen } from '@/components/mechanic/MechanicScreen';
 import { ComingSoonModal } from '@/components/ComingSoonModal';
 
 const vehicleIcon = require('../../assets/images/vehicle.png');
@@ -16,8 +16,9 @@ const darkModeIcon = require('../../assets/images/dark-mode.png');
 const paymentMethodIcon = require('../../assets/images/payment-method.png');
 
 export default function MotoristProfileScreen() {
+  const router = useRouter();
   const { session, signOut } = useAuth();
-  const { colors } = useAppTheme();
+  const { colors, isDarkMode, toggleTheme } = useAppTheme();
 
   const email = session?.user.email ?? 'motorist@example.com';
   const fullName = typeof session?.user.user_metadata?.full_name === 'string'
@@ -163,7 +164,6 @@ export default function MotoristProfileScreen() {
     ]);
   }
 
-  // NEW: Logout Confirmation Dialog
   const handleLogout = () => {
     Alert.alert(
       "Confirm Logout",
@@ -176,7 +176,17 @@ export default function MotoristProfileScreen() {
   };
 
   return (
-    <MechanicScreen back title="My Profile">
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      
+      {/* Dynamic Header Replacing MechanicScreen */}
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>My Profile</Text>
+        <View style={{ width: 24 }} />
+      </View>
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity
@@ -211,22 +221,40 @@ export default function MotoristProfileScreen() {
             title="My Vehicles" 
             subtitle="Manage your registered motorcycles and cars" 
             colors={colors} 
-            onPress={showComingSoon}
+            onPress={() => router.push('/my-vehicles')}
           />
 
-          <SettingRow iconSource={paymentMethodIcon} title="Payment Methods" subtitle="Link GCash or Credit/Debit Cards" colors={colors} onPress={showComingSoon} />
-          <SettingRow iconSource={locationIcon} title="Saved Locations" subtitle="Home, Work, and frequent stops" colors={colors} onPress={showComingSoon} />
+          <SettingRow 
+            iconSource={paymentMethodIcon} 
+            title="Payment Methods" 
+            subtitle="Link GCash or Credit/Debit Cards" 
+            colors={colors} 
+            onPress={() => router.push('/payment-methods')} 
+          />
           
-          <TouchableOpacity style={[styles.row, { borderBottomColor: colors.border }]} onPress={showComingSoon}>
+          <SettingRow 
+          iconSource={locationIcon} 
+          title="Saved Locations" 
+          subtitle="Home, Work, and frequent stops" 
+          colors={colors} 
+          onPress={() => router.push('/saved-locations' as any)} 
+          />
+        
+          <View style={[styles.row, { borderBottomColor: colors.border }]}>
             <View style={styles.iconBox}>
               <Image source={darkModeIcon} style={styles.settingIconImage} />
             </View>
             <View style={styles.rowText}>
               <Text style={[styles.rowTitle, { color: colors.text }]}>Dark Mode</Text>
-              <Text style={[styles.rowSubtitle, { color: colors.textMuted }]}>Coming soon</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.textMuted }]}>Auto-switches at 6:00 PM</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
+            <Switch 
+              value={isDarkMode} 
+              onValueChange={toggleTheme} 
+              trackColor={{ false: '#E5E7EB', true: '#FF6B00' }}
+              thumbColor={'#FFFFFF'}
+            />
+          </View>
         </View>
 
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Account Details</Text>
@@ -319,7 +347,7 @@ export default function MotoristProfileScreen() {
         visible={comingSoonVisible}
         onClose={() => setComingSoonVisible(false)}
       />
-    </MechanicScreen>
+    </View>
   );
 }
 
@@ -356,6 +384,10 @@ function SettingRow({ iconSource, title, subtitle, colors, isLast = false, onPre
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16, borderBottomWidth: 1 },
+  backButton: { padding: 4 },
+  headerTitle: { fontSize: 18, fontWeight: '800' },
   content: { paddingBottom: 32 },
   card: { flexDirection: 'row', alignItems: 'center', padding: 24, borderBottomWidth: 1, marginBottom: 0 },
   profileInfo: { flex: 1 },

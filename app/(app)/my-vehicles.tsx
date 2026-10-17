@@ -16,7 +16,6 @@ export default function MyVehiclesScreen() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Modal States
   const [isAdding, setIsAdding] = useState(false);
   const [type, setType] = useState<'car' | 'motorcycle'>('car');
   const [make, setMake] = useState('');
@@ -36,15 +35,32 @@ export default function MyVehiclesScreen() {
     setLoading(false);
   }, [session]);
 
+<<<<<<< HEAD
   useFocusEffect(
     useCallback(() => {
       void fetchVehicles();
     }, [fetchVehicles]),
   );
+=======
+  const handlePlateFormat = (text: string) => {
+    let formatted = text.toUpperCase().replace(/[^A-Z0-9\s-]/g, '');
+    formatted = formatted.replace(/^([A-Z]{2,3})([0-9]{3,5})$/, '$1 $2');
+    setPlate(formatted);
+  };
+>>>>>>> f238d7c77b686fad362aecc28e73dfb349a04671
 
   const handleAddVehicle = async () => {
     if (!make.trim() || !model.trim() || !year.trim() || !plate.trim()) {
       Alert.alert("Missing Details", "Please fill out all fields.");
+      return;
+    }
+
+    const ltoRegex = /^([A-Z]{2,3}[-\s]?[0-9]{3,5}|[0-9]{4}[-\s]?[0-9]{5,7})$/;
+    if (!ltoRegex.test(plate.trim())) {
+      Alert.alert(
+        "Invalid Plate Number", 
+        "Please enter a valid LTO plate number (e.g., ABC 1234) or your temporary MV File number."
+      );
       return;
     }
 
@@ -61,7 +77,7 @@ export default function MyVehiclesScreen() {
     } else {
       setMake(''); setModel(''); setYear(''); setPlate('');
       setIsAdding(false);
-      fetchVehicles(); // Refresh list
+      fetchVehicles();
     }
   };
 
@@ -119,7 +135,6 @@ export default function MyVehiclesScreen() {
         />
       )}
 
-      {/* ADD VEHICLE MODAL */}
       <Modal visible={isAdding} animationType="slide" presentationStyle="pageSheet">
         <KeyboardAvoidingView style={[styles.modalRoot, { backgroundColor: colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalHeader}>
@@ -149,7 +164,15 @@ export default function MyVehiclesScreen() {
             <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]} placeholder="Model (e.g., Vios, NMAX)" placeholderTextColor={colors.textMuted} value={model} onChangeText={setModel} />
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TextInput style={[styles.input, { flex: 1, backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]} placeholder="Year (e.g., 2021)" placeholderTextColor={colors.textMuted} keyboardType="numeric" value={year} onChangeText={setYear} />
-              <TextInput style={[styles.input, { flex: 1, backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]} placeholder="Plate No." placeholderTextColor={colors.textMuted} autoCapitalize="characters" value={plate} onChangeText={setPlate} />
+              <TextInput 
+                style={[styles.input, { flex: 1, backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]} 
+                placeholder="e.g. ABC 1234" 
+                placeholderTextColor={colors.textMuted} 
+                autoCapitalize="characters" 
+                value={plate} 
+                onChangeText={handlePlateFormat} 
+                maxLength={15}
+              />
             </View>
           </View>
 

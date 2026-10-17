@@ -193,7 +193,6 @@ export default function MotoristMap() {
     }, [motoristAvatarUrl, motoristId, session?.user.user_metadata?.avatar_url]),
   );
 
-  // Cancellation States
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
@@ -333,16 +332,34 @@ export default function MotoristMap() {
     setBookingModalVisible(true);
   };
 
+  const handlePlateFormat = (text: string) => {
+    let formatted = text.toUpperCase().replace(/[^A-Z0-9\s-]/g, '');
+    formatted = formatted.replace(/^([A-Z]{2,3})([0-9]{3,5})$/, '$1 $2');
+    setPlateNumber(formatted);
+  };
+
   const handleBookNow = async () => {
     if (!selectedMechanic || !selectedServices.length || !session?.user?.id || !location || submittingBooking) return;
+    
     if (!vehicleType.trim() || !plateNumber.trim()) {
       Alert.alert('Vehicle details required', 'Please enter your vehicle model and plate number.');
       return;
     }
+
+    const ltoRegex = /^([A-Z]{2,3}[-\s]?[0-9]{3,5}|[0-9]{4}[-\s]?[0-9]{5,7})$/;
+    if (!ltoRegex.test(plateNumber.trim())) {
+      Alert.alert(
+        "Invalid Plate Number", 
+        "Please enter a valid LTO plate number (e.g., ABC 1234) or your temporary MV File number."
+      );
+      return;
+    }
+
     if (bookingDate.getTime() < Date.now()) {
       Alert.alert('Date required', 'Please choose a future date for this scheduled booking.');
       return;
     }
+    
     setSubmittingBooking(true);
     const servicePrice = selectedServices.reduce(
       (total, service) => total + (Number(String(service.price).replace(/[^\d.]/g, '')) || 0),
@@ -436,7 +453,6 @@ export default function MotoristMap() {
         cancellation_reason: cancelReason
       }).eq('id', activeRequest.id);
       
-      // Strike 1 Warning Implementation
       if (cancelReason === "Issue was resolved locally" || cancelReason === "Other") {
         Alert.alert(
           "⚠️ Warning Recorded", 
@@ -934,11 +950,12 @@ export default function MotoristMap() {
               />
               <TextInput
                 style={[styles.bookingVehicleInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
-                placeholder="Plate number"
+                placeholder="e.g. ABC 1234"
                 placeholderTextColor={colors.textMuted}
                 value={plateNumber}
-                onChangeText={setPlateNumber}
+                onChangeText={handlePlateFormat}
                 autoCapitalize="characters"
+                maxLength={15}
               />
             </View>
             <Text style={[styles.bookingSectionTitle, { color: colors.text }]}>Service offerings</Text>
