@@ -199,9 +199,32 @@ export default function JobsScreen() {
       else setChatMessages((data ?? []) as ChatMessage[]);
       setChatLoading(false);
     }
+
+    const channel = supabase
+      .channel(`mechanic_chat_${chatJobId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "chat_messages",
+          filter: `service_request_id=eq.${chatJobId}`,
+        },
+        (payload) => {
+          const incoming = payload.new as ChatMessage;
+          setChatMessages((messages) =>
+            messages.some((message) => message.id === incoming.id)
+              ? messages
+              : [...messages, incoming],
+          );
+        },
+      )
+      .subscribe();
+
     void loadMessages();
     return () => {
       active = false;
+      void supabase.removeChannel(channel);
     };
   }, [chatJob, mechanicId]);
 

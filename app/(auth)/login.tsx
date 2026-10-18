@@ -1,4 +1,4 @@
-import { Link, Stack } from "expo-router";
+import { Link, Stack, useLocalSearchParams } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -66,6 +66,7 @@ async function clearRememberedLogin() {
 }
 
 export default function LoginScreen() {
+  const { back } = useLocalSearchParams<{ back?: string }>();
   const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -120,7 +121,11 @@ export default function LoginScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ animation: "slide_from_right" }} />
+      <Stack.Screen
+        options={{
+          animation: back === "1" ? "slide_from_left" : "slide_from_right",
+        }}
+      />
       <AuthScreenShell>
       <View style={styles.loginContent}>
         <Text style={styles.kicker}>CUSTOMER</Text>

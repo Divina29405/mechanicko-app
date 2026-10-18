@@ -14,9 +14,10 @@ const gradientColors = [
 ] as const;
 
 export default function QuickAccountSetupScreen() {
-  const { role, completed } = useLocalSearchParams<{
+  const { role, completed, back } = useLocalSearchParams<{
     role?: string;
     completed?: string;
+    back?: string;
   }>();
   const isMechanic = role === "mechanic";
   const isCompleted = completed === "1";
@@ -41,7 +42,11 @@ export default function QuickAccountSetupScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ animation: "slide_from_right" }} />
+      <Stack.Screen
+        options={{
+          animation: back === "1" ? "slide_from_left" : "slide_from_right",
+        }}
+      />
     <LinearGradient
       colors={gradientColors}
       locations={[0, 0.2, 0.38, 0.56, 0.72, 1]}
@@ -54,11 +59,10 @@ export default function QuickAccountSetupScreen() {
             accessibilityLabel="Go back"
             hitSlop={12}
             onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace("/(auth)/signup");
-              }
+              router.replace({
+                pathname: "/(auth)/signup",
+                params: { back: "1" },
+              });
             }}
             style={[styles.backButton, isCompleted && styles.completedBackButton]}
           >
