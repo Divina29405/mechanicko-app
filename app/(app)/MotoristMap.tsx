@@ -8,6 +8,7 @@ import {
   Alert,
   Animated,
   Image,
+  PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
@@ -23,8 +24,9 @@ import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { listVehicles } from '@/services/vehicleService';
+import type { Vehicle } from '@/types/vehicle';
 
-const activityIcon = require('../../assets/images/activity.png');
 const bikeIcon = require('../../assets/images/bike.png');
 
 const CANCELLATION_REASONS = [
@@ -115,6 +117,35 @@ export default function MotoristMap() {
   const [submittingBooking, setSubmittingBooking] = useState(false);
   const [mechanicPanelAnimation] = useState(() => new Animated.Value(0));
   const [activeRequest, setActiveRequest] = useState<any>(null);
+  const [bookingTransition] = useState(() => new Animated.Value(1));
+  const [acceptedBookingExpanded, setAcceptedBookingExpanded] = useState(true);
+  const [acceptedBookingAnimation] = useState(() => new Animated.Value(1));
+  const acceptedBookingPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx) && Math.abs(gestureState.dy) > 6,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 16) {
+            setAcceptedBookingExpanded(false);
+            Animated.timing(acceptedBookingAnimation, {
+              toValue: 0,
+              duration: 240,
+              useNativeDriver: false,
+            }).start();
+          } else if (gestureState.dy < -16) {
+            setAcceptedBookingExpanded(true);
+            Animated.timing(acceptedBookingAnimation, {
+              toValue: 1,
+              duration: 240,
+              useNativeDriver: false,
+            }).start();
+          }
+        },
+      }),
+    [acceptedBookingAnimation],
+  );
   const [completedJob, setCompletedJob] = useState<any>(null);
   const [rating, setRating] = useState(5);
   const [review, setReview] = useState('');
@@ -124,6 +155,12 @@ export default function MotoristMap() {
       ? session.user.user_metadata.avatar_url
       : null,
   );
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [vehicleSelectorVisible, setVehicleSelectorVisible] = useState(false);
+  const mapRef = useRef<WebView | null>(null);
+  const previousBookingStatus = useRef<string | null>(null);
+  const [radarRotation] = useState(() => new Animated.Value(0));
   const motoristAvatarPath = useRef<string | null>(null);
   const motoristName =
     typeof session?.user.user_metadata?.full_name === 'string'
@@ -150,6 +187,44 @@ export default function MotoristMap() {
       });
     }
   }, [displayedMechanic, mechanicPanelAnimation, selectedMechanic]);
+
+  useEffect(() => {
+    const radarAnimation = Animated.loop(
+      Animated.timing(radarRotation, {
+        toValue: 1,
+        duration: 1800,
+        useNativeDriver: true,
+      }),
+    );
+    radarAnimation.start();
+    return () => radarAnimation.stop();
+  }, [radarRotation]);
+
+  useEffect(() => {
+    if (!activeRequest?.status) return;
+    const nextStatus = activeRequest.status as string;
+    const previousStatus = previousBookingStatus.current;
+    const wasWaiting = previousStatus === 'scheduled' || previousStatus === 'pending';
+    const isWaiting = nextStatus === 'scheduled' || nextStatus === 'pending';
+    previousBookingStatus.current = nextStatus;
+
+    if (isWaiting) {
+      bookingTransition.setValue(1);
+      return;
+    }
+
+    if (!wasWaiting) {
+      bookingTransition.setValue(1);
+      return;
+    }
+
+    bookingTransition.setValue(0);
+    Animated.timing(bookingTransition, {
+      toValue: 1,
+      duration: 360,
+      useNativeDriver: true,
+    }).start();
+  }, [activeRequest?.status, bookingTransition]);
 
   function motoristInitials(name: string) {
     return name
@@ -191,6 +266,28 @@ export default function MotoristMap() {
         active = false;
       };
     }, [motoristAvatarUrl, motoristId, session?.user.user_metadata?.avatar_url]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      if (!motoristId) return undefined;
+
+      void listVehicles(motoristId).then(({ data }) => {
+        if (!active) return;
+        setVehicles(data);
+        setSelectedVehicle((current) => {
+          if (current && data.some((vehicle) => vehicle.id === current.id)) {
+            return data.find((vehicle) => vehicle.id === current.id) ?? current;
+          }
+          return data.find((vehicle) => vehicle.is_primary) ?? data[0] ?? null;
+        });
+      });
+
+      return () => {
+        active = false;
+      };
+    }, [motoristId]),
   );
 
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
@@ -312,6 +409,42 @@ export default function MotoristMap() {
   const handleEmergencySOS = () => {
     if (!location) return Alert.alert("Location Required", "Please wait while we pinpoint your location.");
     router.push({ pathname: '/emergency-checklist', params: { lat: location.coords.latitude, lng: location.coords.longitude } });
+  };
+
+  const handleRecenterLocation = async () => {
+    if (Platform.OS === 'web') {
+      mapRef.current?.injectJavaScript(
+        `map.setView([${webLocation.coords.latitude}, ${webLocation.coords.longitude}], 15, { animate: true, duration: 0.5 }); true;`,
+      );
+      return;
+    }
+
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Location Required', 'Please allow location access to recenter the map.');
+      return;
+    }
+
+    const recenterMap = (currentLocation: Location.LocationObject) => {
+      mapRef.current?.injectJavaScript(
+        `map.setView([${currentLocation.coords.latitude}, ${currentLocation.coords.longitude}], 15, { animate: true, duration: 0.35 }); true;`,
+      );
+    };
+
+    if (location) {
+      recenterMap(location);
+    }
+
+    try {
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      setLocation(currentLocation);
+      recenterMap(currentLocation);
+      void fetchLiveMechanics(currentLocation.coords.latitude, currentLocation.coords.longitude);
+    } catch {
+      console.warn('Unable to refresh location after recentering the map.');
+    }
   };
 
   const deliveryFeeFor = (distanceKm: number) =>
@@ -485,7 +618,7 @@ export default function MotoristMap() {
           });
         }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [activeRequest]);
+  }, [activeRequest?.id]);
 
   const handleCompleteJob = async () => {
     if (!completedJob?.id || !completedJob?.mechanic_id || !session?.user.id || submittingRating) {
@@ -520,14 +653,11 @@ export default function MotoristMap() {
   };
 
   if (!hasPermission || !location) {
-    return (
-      <View style={[styles.fallbackContainer, { backgroundColor: colors.bg }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.fallbackText, { color: colors.text, marginTop: 16 }]}>Pinpointing your location...</Text>
-      </View>
-    );
+    return <View style={[styles.fallbackContainer, { backgroundColor: colors.bg }]} />;
   }
 
+  const isWaitingForMechanic = !!activeRequest && ['scheduled', 'pending'].includes(activeRequest.status);
+  const isAcceptedBooking = !!activeRequest && ['accepted', 'in_transit', 'arrived', 'in_progress'].includes(activeRequest.status);
   const mapHtml = `
     <!DOCTYPE html>
     <html>
@@ -535,7 +665,7 @@ export default function MotoristMap() {
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-        <style>body { padding: 0; margin: 0; background-color: ${colors.bg}; } #map { height: 100vh; width: 100vw; } .leaflet-tile { filter: ${isDarkMode ? 'brightness(.65) invert(1) hue-rotate(180deg)' : 'none'}; } .mechanic-marker { width: 42px; height: 42px; border: 3px solid #F0A202; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.3); overflow: hidden; display: flex; align-items: center; justify-content: center; } .mechanic-marker img { width: 100%; height: 100%; object-fit: cover; } .mechanic-fallback { width: 18px; height: 18px; position: relative; display: block; } .mechanic-fallback:before { content: ''; position: absolute; width: 8px; height: 8px; left: 5px; top: 0; border-radius: 50%; background: #F0A202; } .mechanic-fallback:after { content: ''; position: absolute; width: 18px; height: 9px; left: 0; bottom: 0; border-radius: 10px 10px 4px 4px; background: #F0A202; }</style>
+        <style>body { padding: 0; margin: 0; background-color: ${colors.bg}; } #map { height: 100vh; width: 100vw; } .leaflet-tile { filter: ${isDarkMode ? 'brightness(.65) invert(1) hue-rotate(180deg)' : 'none'}; } .mechanic-marker { width: 42px; height: 42px; border: 3px solid #F0A202; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.3); overflow: hidden; display: flex; align-items: center; justify-content: center; } .mechanic-marker img { width: 100%; height: 100%; object-fit: cover; } .mechanic-fallback { width: 18px; height: 18px; position: relative; display: block; } .mechanic-fallback:before { content: ''; position: absolute; width: 8px; height: 8px; left: 5px; top: 0; border-radius: 50%; background: #F0A202; } .mechanic-fallback:after { content: ''; position: absolute; width: 18px; height: 9px; left: 0; bottom: 0; border-radius: 10px 10px 4px 4px; background: #F0A202; } </style>
       </head>
       <body>
         <div id="map"></div>
@@ -568,7 +698,7 @@ export default function MotoristMap() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      <WebView source={{ html: mapHtml }} style={styles.map} scrollEnabled={false} onMessage={(event) => {
+      <WebView ref={mapRef} source={{ html: mapHtml }} style={styles.map} scrollEnabled={false} onMessage={(event) => {
           try {
             const data = JSON.parse(event.nativeEvent.data);
             if (data.type === 'MECHANIC_SELECTED' && !activeRequest) {
@@ -583,6 +713,19 @@ export default function MotoristMap() {
           } catch {}
         }}
       />
+
+      {!activeRequest && !displayedMechanic && !selectedMechanic && !mechanicProfileVisible ? (
+        <TouchableOpacity
+          style={styles.recenterButton}
+          onPress={() => void handleRecenterLocation()}
+          accessibilityLabel="Recenter location"
+        >
+          <Text style={styles.recenterButtonText}>Recenter Location</Text>
+          <View style={styles.recenterIcon}>
+            <Ionicons name="locate-outline" size={28} color="#FFFFFF" />
+          </View>
+        </TouchableOpacity>
+      ) : null}
       
       <View
         style={[
@@ -610,17 +753,255 @@ export default function MotoristMap() {
             )}
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.activityButton}
-            onPress={() => router.push('/motorist-activity')}
-            accessibilityLabel="Open activity"
+            style={[
+              styles.vehicleSelector,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+            onPress={() => setVehicleSelectorVisible((visible) => !visible)}
+            accessibilityLabel="Select vehicle"
           >
-            <Image source={activityIcon} style={styles.activityImage} />
+            <Text style={[styles.vehicleSelectorLabel, { color: colors.textMuted }]}>
+              Vehicle Selector
+            </Text>
+            <View style={styles.vehicleSelectorValue}>
+              <Image
+                source={require("../../assets/images/motorcycle.png")}
+                resizeMode="contain"
+                style={styles.vehicleSelectorIcon}
+              />
+              <Text
+                numberOfLines={1}
+                style={[styles.vehicleSelectorText, { color: colors.text }]}
+              >
+                {selectedVehicle
+                  ? `${selectedVehicle.make} ${selectedVehicle.model} - ${selectedVehicle.plate_number}`
+                  : 'Add a vehicle in My Vehicles'}
+              </Text>
+              <Ionicons
+                name={vehicleSelectorVisible ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={colors.textMuted}
+              />
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.activityButton}
+            onPress={() => router.push('/notifications')}
+            accessibilityLabel="Open notifications"
+          >
+            <Ionicons name="notifications-outline" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
+        {vehicleSelectorVisible && vehicles.length > 0 ? (
+          <View style={[styles.vehicleMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {vehicles.map((vehicle) => (
+              <TouchableOpacity
+                key={vehicle.id}
+                style={[
+                  styles.vehicleMenuItem,
+                  { borderBottomColor: colors.border },
+                  { backgroundColor: selectedVehicle?.id === vehicle.id ? colors.btnSecondary : colors.card },
+                ]}
+                onPress={() => {
+                  setSelectedVehicle(vehicle);
+                  setVehicleSelectorVisible(false);
+                }}
+              >
+                <Image
+                  source={require("../../assets/images/motorcycle.png")}
+                  resizeMode="contain"
+                  style={styles.vehicleMenuIcon}
+                />
+                <View style={styles.vehicleMenuCopy}>
+                  <Text style={[styles.vehicleMenuTitle, { color: colors.text }]}>
+                    {vehicle.make} {vehicle.model}
+                  </Text>
+                  <Text style={[styles.vehicleMenuDetails, { color: colors.textMuted }]}>
+                    {vehicle.plate_number}
+                  </Text>
+                </View>
+                {selectedVehicle?.id === vehicle.id ? (
+                  <Ionicons name="checkmark-circle" size={21} color={colors.primary} />
+                ) : null}
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
       </View>
 
-      <View style={[styles.overlay, { backgroundColor: colors.card }]}>
+      {isWaitingForMechanic ? (
+        <View style={[styles.overlay, { backgroundColor: colors.card }]}>
+          <TouchableOpacity style={styles.sosButton} onPress={handleEmergencySOS}>
+            <View style={styles.sosContent}>
+              <Image source={bikeIcon} style={styles.sosImage} />
+              <Text style={styles.sosText}>EMERGENCY SOS</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {activeRequest ? (
+        <Animated.View
+          pointerEvents={isWaitingForMechanic ? 'auto' : 'none'}
+          style={[
+            styles.waitingRequestCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+            {
+              opacity: isWaitingForMechanic
+                ? 1
+                : bookingTransition.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 0],
+                  }),
+              transform: [{
+                translateY: bookingTransition.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, -18],
+                }),
+              }],
+            },
+          ]}
+        >
+          <View style={styles.waitingRadar}>
+            <View style={[styles.waitingRadarCircle, styles.waitingRadarCircleLarge]} />
+            <View style={[styles.waitingRadarCircle, styles.waitingRadarCircleMedium]} />
+            <View style={[styles.waitingRadarCircle, styles.waitingRadarCircleSmall]} />
+            <Animated.View
+              style={[
+                styles.waitingRadarBeam,
+                {
+                  transform: [{
+                    rotate: radarRotation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['-45deg', '315deg'],
+                    }),
+                  }],
+                },
+              ]}
+            />
+            <Ionicons name="locate-outline" size={27} color="#1683D8" />
+            <Text style={styles.waitingRadarTitle}>
+              Waiting for the requested mechanic{'\n'}
+              <Text style={styles.waitingRadarTitleStrong}>to accept your request...</Text>
+            </Text>
+          </View>
+          <View style={[styles.waitingRequestDivider, { backgroundColor: colors.border }]} />
+          <Text style={[styles.waitingRequestStatus, { color: colors.textMuted }]}>
+            Status:{' '}
+            <Text style={[styles.waitingRequestMetaStrong, { color: colors.text }]}>
+              {activeRequest.status === 'pending' ? 'Pending acceptance...' : 'Requesting...'}
+            </Text>
+          </Text>
+        </Animated.View>
+      ) : null}
+
+      {!isWaitingForMechanic ? <View style={[
+        styles.overlay,
+        { backgroundColor: colors.card },
+        displayedMechanic && styles.mechanicOverlay,
+        isAcceptedBooking && styles.acceptedOverlay,
+      ]}>
         {activeRequest ? (
+          isAcceptedBooking ? (
+            <Animated.View
+              {...acceptedBookingPanResponder.panHandlers}
+              style={[
+                styles.acceptedBookingCard,
+                !acceptedBookingExpanded && styles.acceptedBookingCardMinimized,
+                { backgroundColor: colors.card },
+                {
+                  opacity: bookingTransition,
+                  transform: [{
+                    translateY: bookingTransition.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [18, 0],
+                    }),
+                  }],
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.acceptedBookingHandleHitArea}
+                onPress={() => {
+                  const expanded = !acceptedBookingExpanded;
+                  setAcceptedBookingExpanded(expanded);
+                  Animated.timing(acceptedBookingAnimation, {
+                    toValue: expanded ? 1 : 0,
+                    duration: 240,
+                    useNativeDriver: false,
+                  }).start();
+                }}
+                accessibilityLabel={acceptedBookingExpanded ? 'Collapse booking details' : 'Expand booking details'}
+              >
+                <View style={styles.acceptedBookingHandle} />
+              </TouchableOpacity>
+              <View style={[
+                styles.acceptedBookingBanner,
+                !acceptedBookingExpanded && styles.acceptedBookingBannerMinimized,
+              ]}>
+                <Image source={bikeIcon} style={styles.acceptedBookingIcon} />
+                <Text style={styles.acceptedBookingBannerText}>
+                  {activeRequest.status === 'arrived'
+                    ? 'MECHANIC HAS ARRIVED'
+                    : activeRequest.status === 'in_progress'
+                      ? 'SERVICE IN PROGRESS'
+                      : 'ON THE WAY TO CUSTOMER'}
+                </Text>
+              </View>
+
+              <Animated.View
+                style={[
+                  styles.acceptedBookingDetails,
+                  {
+                    height: acceptedBookingAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 190],
+                    }),
+                    opacity: acceptedBookingAnimation,
+                    transform: [{
+                      translateY: acceptedBookingAnimation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-12, 0],
+                      }),
+                    }],
+                  },
+                ]}
+              >
+                      <Text style={[styles.acceptedSectionTitle, { color: colors.text }]}>Vehicle Details</Text>
+                      <View style={styles.acceptedDetailRow}>
+                        <Image source={bikeIcon} style={styles.acceptedDetailIcon} />
+                        <Text style={[styles.acceptedDetailText, { color: colors.text }]}>
+                          {activeRequest.vehicle_type || 'Motorcycle'}{' '}
+                          <Text style={styles.acceptedDetailStrong}>| Plate: {activeRequest.plate_number || 'Not specified'}</Text>
+                        </Text>
+                      </View>
+                      <Text style={[styles.acceptedIssueText, { color: colors.text }]}>
+                        <Text style={styles.acceptedDetailStrong}>Issue:</Text> {activeRequest.vehicle_issue || activeRequest.service_name || 'Roadside assistance'}
+                      </Text>
+
+                      <Text style={[styles.acceptedSectionTitle, { color: colors.text }]}>Mechanic Information</Text>
+                      <Text style={[styles.acceptedInfoText, { color: colors.text }]}>
+                        <Text style={styles.acceptedDetailStrong}>Mechanic:</Text> {activeRequest.mechanic?.name || 'Mechanic'}{' '}
+                        <Text style={styles.acceptedDetailStrong}>({Number(activeRequest.mechanic?.rating || 5).toFixed(1)}★)</Text>
+                      </Text>
+                      <Text style={[styles.acceptedInfoText, { color: colors.text }]}>
+                        <Text style={styles.acceptedDetailStrong}>Phone:</Text> {activeRequest.mechanic?.mobileNumber || 'Not available'}
+                      </Text>
+              </Animated.View>
+
+              <TouchableOpacity
+                style={[
+                  styles.cancelBookingButton,
+                  !acceptedBookingExpanded && styles.cancelBookingButtonMinimized,
+                ]}
+                onPress={() => setCancelModalVisible(true)}
+                accessibilityLabel="Cancel booking"
+              >
+                <Ionicons name="close" size={23} color="#FFFFFF" />
+                <Text style={styles.cancelBookingButtonText}>Cancel Booking</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          ) : (
           <View style={[styles.trackingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.trackingHeader}>
               <Text style={[styles.trackingName, { color: colors.text }]}>
@@ -674,6 +1055,7 @@ export default function MotoristMap() {
               </TouchableOpacity>
             </View>
           </View>
+          )
         ) : displayedMechanic ? (
           <Animated.View
             style={[
@@ -739,11 +1121,11 @@ export default function MotoristMap() {
           <TouchableOpacity style={styles.sosButton} onPress={handleEmergencySOS}>
             <View style={styles.sosContent}>
               <Image source={bikeIcon} style={styles.sosImage} />
-              <Text style={styles.sosText}>Emergency SOS</Text>
+              <Text style={styles.sosText}>EMERGENCY SOS</Text>
             </View>
           </TouchableOpacity>
         )}
-      </View>
+      </View> : null}
 
       <Modal visible={showServices && !!selectedMechanic} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setShowServices(false)}>
         <SafeAreaView style={[styles.servicesScreen, { backgroundColor: colors.bg }]} edges={['top', 'bottom']}>
@@ -1225,6 +1607,42 @@ const styles = StyleSheet.create({
   map: { width: '100%', height: '100%' },
   fallbackContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   fallbackText: { fontSize: 16, textAlign: 'center', marginBottom: 24, lineHeight: 24 },
+  recenterButton: { position: 'absolute', right: 16, bottom: 94, minHeight: 54, flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 4, borderRadius: 29, backgroundColor: '#FFFFFF', elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 6, zIndex: 8 },
+  recenterButtonText: { color: '#1B1B1B', fontSize: 15, fontWeight: '800' },
+  recenterIcon: { width: 48, height: 48, marginLeft: 12, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1479E8', elevation: 3 },
+  waitingRequestCard: { position: 'absolute', top: '27%', left: '12%', right: '12%', borderWidth: 1, borderRadius: 16, padding: 10, elevation: 9, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, zIndex: 7 },
+  waitingRadar: { height: 190, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#EAF6FF' },
+  waitingRadarCircle: { position: 'absolute', borderWidth: 1.5, borderColor: 'rgba(22, 131, 216, 0.32)', borderRadius: 999 },
+  waitingRadarCircleLarge: { width: 168, height: 168 },
+  waitingRadarCircleMedium: { width: 122, height: 122 },
+  waitingRadarCircleSmall: { width: 76, height: 76 },
+  waitingRadarBeam: { position: 'absolute', top: 1, left: '50%', marginLeft: -42, width: 0, height: 0, borderLeftWidth: 42, borderRightWidth: 42, borderTopWidth: 150, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: 'rgba(65, 164, 239, 0.32)' },
+  waitingRadarTitle: { position: 'absolute', bottom: 12, width: '100%', color: '#111111', fontSize: 15, lineHeight: 20, textAlign: 'center' },
+  waitingRadarTitleStrong: { fontWeight: '800' },
+  waitingRequestDivider: { height: 1, marginVertical: 9 },
+  waitingRequestMetaStrong: { fontWeight: '800' },
+  waitingRequestStatus: { fontSize: 13, lineHeight: 19 },
+  acceptedOverlay: { bottom: -8, paddingTop: 0, paddingBottom: 5, backgroundColor: 'transparent', elevation: 0, shadowOpacity: 0 },
+  mechanicOverlay: { bottom: -20, paddingTop: 0, paddingBottom: 0 },
+  acceptedBookingCard: { width: '92%', paddingHorizontal: 16, paddingTop: 0, paddingBottom: 12, borderRadius: 24, borderBottomLeftRadius: 0, borderBottomRightRadius: 0, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.16, shadowRadius: 7 },
+  acceptedBookingCardMinimized: { paddingHorizontal: 16, paddingTop: 0, paddingBottom: 12, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+  acceptedBookingHandleHitArea: { minHeight: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 0 },
+  acceptedBookingHandle: { width: 54, height: 5, borderRadius: 3, backgroundColor: '#D5D9DE' },
+  acceptedBookingBanner: { minHeight: 42, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderRadius: 10, backgroundColor: '#EAF2F8' },
+  acceptedBookingBannerMinimized: { minHeight: 42, paddingHorizontal: 16, borderRadius: 8 },
+  acceptedBookingIcon: { width: 30, height: 30, resizeMode: 'contain', marginRight: 10 },
+  acceptedBookingBannerText: { flex: 1, color: '#1B1B1B', fontSize: 14, fontWeight: '800', letterSpacing: 0.1 },
+  acceptedBookingDetails: { overflow: 'hidden' },
+  acceptedSectionTitle: { marginTop: 12, marginBottom: 5, fontSize: 16, fontWeight: '800', letterSpacing: 0.1 },
+  acceptedDetailRow: { flexDirection: 'row', alignItems: 'center' },
+  acceptedDetailIcon: { width: 28, height: 28, resizeMode: 'contain', marginRight: 8 },
+  acceptedDetailText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  acceptedDetailStrong: { fontWeight: '800' },
+  acceptedIssueText: { marginLeft: 36, fontSize: 13, lineHeight: 18 },
+  acceptedInfoText: { fontSize: 13, lineHeight: 19 },
+  cancelBookingButton: { minHeight: 48, marginTop: 12, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F97316' },
+  cancelBookingButtonMinimized: { minHeight: 48, marginTop: 12, borderRadius: 24 },
+  cancelBookingButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', letterSpacing: 0.1 },
   overlay: { position: 'absolute', bottom: 0, width: '100%', alignItems: 'center', paddingBottom: Platform.OS === 'ios' ? 52 : 44, paddingTop: 12, backgroundColor: '#FFFFFF', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.14, shadowRadius: 7 },
   
   card: { width: '100%', padding: 18 },
@@ -1325,7 +1743,7 @@ const styles = StyleSheet.create({
   disabledButton: { opacity: 0.55 },
   subtitle: { fontSize: 14, marginBottom: 20 },
   
-  sosButton: { backgroundColor: '#FF3800', paddingVertical: 13, width: '94%', borderRadius: 0, alignItems: 'center' },
+  sosButton: { backgroundColor: '#FF3800', paddingVertical: 13, width: '94%', borderRadius: 10, alignItems: 'center', marginBottom: -24, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 },
   sosContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   sosText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15, letterSpacing: 0.2 },
   bookButton: { backgroundColor: '#FF6B00', paddingVertical: 14, width: '100%', borderRadius: 5, alignItems: 'center', marginBottom: 10 },
@@ -1334,12 +1752,23 @@ const styles = StyleSheet.create({
   cancelButtonText: { color: '#EF4444', fontWeight: 'bold', fontSize: 14 },
 
   topContainer: { position: 'absolute', left: 0, right: 0, paddingHorizontal: 10, paddingBottom: 10, borderRadius: 0, borderWidth: 1, zIndex: 10, elevation: 7, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.14, shadowRadius: 7 },
-  topActions: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  topActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   iconCircle: { width: 50, height: 50, borderRadius: 25, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', elevation: 5, borderWidth: 1 },
   iconAvatarImage: { width: '100%', height: '100%', borderRadius: 25 },
   iconInitials: { fontSize: 18, fontWeight: '800' },
-  activityButton: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center' },
-  activityImage: { width: 38, height: 38, resizeMode: 'contain' },
+  activityButton: { width: 34, height: 50, alignItems: 'center', justifyContent: 'center' },
+  vehicleSelector: { flex: 1, minHeight: 44, marginHorizontal: 10, borderWidth: 1, borderColor: '#D7D9DE', borderRadius: 3, paddingHorizontal: 14, paddingVertical: 3, justifyContent: 'center', backgroundColor: '#FFFFFF' },
+  vehicleSelectorLabel: { fontSize: 11, lineHeight: 14 },
+  vehicleSelectorValue: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 2 },
+  vehicleSelectorText: { flex: 1, fontSize: 14, fontWeight: '700' },
+  vehicleSelectorIcon: { width: 26, height: 26 },
+  vehicleMenu: { position: 'absolute', top: 110, left: 70, right: 54, borderWidth: 1, borderRadius: 3, overflow: 'hidden', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.2, shadowRadius: 5, zIndex: 20 },
+  vehicleMenuItem: { minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, borderBottomWidth: 1, backgroundColor: '#FFFFFF' },
+  vehicleMenuItemSelected: { backgroundColor: '#F1F3F5' },
+  vehicleMenuIcon: { width: 28, height: 28 },
+  vehicleMenuCopy: { flex: 1, marginLeft: 10 },
+  vehicleMenuTitle: { fontSize: 14, fontWeight: '700' },
+  vehicleMenuDetails: { fontSize: 12, marginTop: 2 },
   sosImage: { width: 24, height: 24, resizeMode: 'contain' },
 
   trackingCard: { width: '100%', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2 },

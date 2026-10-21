@@ -24,12 +24,7 @@ function NetworkGate({ children }: { children: ReactNode }) {
     networkState.isInternetReachable !== false;
 
   if (isChecking) {
-    return (
-      <View style={[networkStyles.screen, { backgroundColor: colors.bg }]}>
-        <Ionicons name="wifi-outline" size={42} color={colors.primary} />
-        <Text style={[networkStyles.title, { color: colors.text }]}>Checking connection...</Text>
-      </View>
-    );
+    return <>{children}</>;
   }
 
   if (!isOnline) {

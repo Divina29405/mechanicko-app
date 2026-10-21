@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Redirect, Stack, Tabs, useSegments } from "expo-router";
+import { Redirect, Tabs, useSegments } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -100,6 +100,100 @@ function MechanicTabs() {
   );
 }
 
+function CustomerTabs() {
+  const { unreadMessages } = useMechanic();
+  const { colors } = useAppTheme();
+  const segments = useSegments();
+  const isEmergencyChecklist = String(segments[segments.length - 1]) === 'emergency-checklist';
+
+  return (
+    <Tabs
+      initialRouteName="MotoristMap"
+      screenOptions={{
+        headerShown: false,
+        animation: "none",
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: {
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+          display: isEmergencyChecklist ? 'none' : 'flex',
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "700",
+          marginBottom: 6,
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="MotoristMap"
+        options={{
+          title: "Home",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="motorist-activity"
+        options={{
+          title: "Activity",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="pulse" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="help-center"
+        options={{
+          title: "Help Center",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="help-circle" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: "Messages",
+          tabBarBadge: unreadMessages > 0 ? unreadMessages : undefined,
+          tabBarBadgeStyle: {
+            backgroundColor: "#EF4444",
+            color: "#FFFFFF",
+          },
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="motorist-profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="jobs" options={{ href: null }} />
+      <Tabs.Screen name="earnings" options={{ href: null }} />
+      <Tabs.Screen name="inventory" options={{ href: null }} />
+      <Tabs.Screen name="history" options={{ href: null }} />
+      <Tabs.Screen name="notifications" options={{ href: null }} />
+      <Tabs.Screen name="wallet" options={{ href: null }} />
+      <Tabs.Screen name="saved-locations" options={{ href: null }} />
+      <Tabs.Screen name="my-vehicles" options={{ href: null }} />
+      <Tabs.Screen name="payment-methods" options={{ href: null }} />
+      <Tabs.Screen name="emergency-checklist" options={{ href: null }} />
+      <Tabs.Screen name="schedule" options={{ href: null }} />
+    </Tabs>
+  );
+}
+
 export default function AppLayout() {
   const { session, loading } = useAuth();
   const segments = useSegments();
@@ -188,26 +282,7 @@ export default function AppLayout() {
       {role === 'mechanic' ? (
         <MechanicTabs key="mechanic-navigator" />
       ) : (
-        <Stack
-          key="customer-navigator"
-          initialRouteName="MotoristMap"
-          screenOptions={{
-            headerShown: false,
-            animation: "slide_from_right",
-            contentStyle: { backgroundColor: colors.bg },
-          }}
-        >
-          <Stack.Screen name="MotoristMap" />
-          <Stack.Screen name="motorist-profile" />
-          <Stack.Screen name="motorist-activity" />
-          <Stack.Screen name="my-vehicles" />
-          <Stack.Screen name="payment-methods" />
-          <Stack.Screen
-            name="emergency-checklist"
-            options={{ presentation: "modal" }}
-          />
-          <Stack.Screen name="schedule" options={{ presentation: "modal" }} />
-        </Stack>
+        <CustomerTabs key="customer-navigator" />
       )}
     </MechanicProvider>
   );

@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '@/lib/theme';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 type Props = {
   children: ReactNode;
@@ -15,9 +16,11 @@ type Props = {
 };
 
 export function MechanicScreen({ children, title, subtitle, right, back }: Props) {
+  const theme = useAppTheme();
+
   return (
-    <SafeAreaView style={styles.root} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.root, { backgroundColor: theme.colors.bg }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
         {back ? (
           <Pressable
             onPress={() => {
@@ -29,12 +32,12 @@ export function MechanicScreen({ children, title, subtitle, right, back }: Props
             }}
             style={({ pressed }) => [styles.back, pressed && styles.pressed]}
             accessibilityLabel="Go back">
-            <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
           </Pressable>
         ) : null}
         <View style={styles.headerText}>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          <Text style={[styles.title, { color: theme.colors.text }]}>{title}</Text>
+          {subtitle ? <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>{subtitle}</Text> : null}
         </View>
         {right}
       </View>
@@ -79,12 +82,16 @@ const styles = StyleSheet.create({
     marginRight: spacing.xs,
   },
   headerText: {
-    flex: 1,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
   title: {
     color: colors.text,
     fontSize: 18,
     fontWeight: '800',
+    textAlign: 'center',
   },
   subtitle: {
     display: 'none',

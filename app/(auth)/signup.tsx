@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Link, router, Stack } from "expo-router";
+import { Link, router, Stack, useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
@@ -25,6 +25,7 @@ import {
 } from "@/lib/validation";
 
 export default function SignupScreen() {
+  const { back } = useLocalSearchParams<{ back?: string }>();
   const almostDoneTitleProgress = useSharedValue(0);
   const almostDoneTextProgress = useSharedValue(0);
   const {
@@ -108,7 +109,7 @@ export default function SignupScreen() {
     <>
       <Stack.Screen
         options={{
-          animation: "slide_from_right",
+          animation: back === "1" ? "slide_from_left" : "slide_from_right",
         }}
       />
       <AuthScreenShell>
@@ -129,7 +130,10 @@ export default function SignupScreen() {
                 if (router.canGoBack()) {
                   router.back();
                 } else {
-                  router.replace("/(auth)/signup");
+                  router.replace({
+                    pathname: "/quick-account-setup",
+                    params: { role: "mechanic", back: "1" },
+                  });
                 }
               }
             }}
@@ -382,6 +386,12 @@ export default function SignupScreen() {
               setExperience={setExperience}
               setStep={setStep}
               setRolePickerVisible={setRolePickerVisible}
+              backToQuickSetup={() =>
+                router.replace({
+                  pathname: "/quick-account-setup",
+                  params: { role: "mechanic" },
+                })
+              }
               nextStep={nextStep}
               saveAndContinue={saveAndContinue}
               onSubmit={onSubmit}
@@ -409,13 +419,12 @@ export default function SignupScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Back to login"
                 hitSlop={12}
-                onPress={() => {
-                  if (router.canGoBack()) {
-                    router.back();
-                  } else {
-                    router.replace("/setup-complete");
-                  }
-                }}
+                onPress={() =>
+                  router.replace({
+                    pathname: "/(auth)/login",
+                    params: { back: "1" },
+                  })
+                }
                 style={styles.roleBackButton}
               >
                 <Ionicons name="arrow-back" size={25} color="#FFFFFF" />

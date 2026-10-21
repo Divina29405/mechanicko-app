@@ -467,18 +467,14 @@ export default function MechanicHomeScreen() {
                       </Text>
                     </View>
                     <View style={styles.requestValues}>
-                      <Pressable
+                      <View
                         style={styles.requestValueRow}
-                        onPress={() => openCustomerLocation(job)}
-                        disabled={job.latitude === null || job.longitude === null}
-                        accessibilityRole="button"
-                        accessibilityLabel="View customer location on map"
                       >
                         <Ionicons name="location-outline" size={18} color={colors.sos} />
                         <Text style={styles.requestValue} numberOfLines={2}>
                           {formatPickupLocation(job)}
                         </Text>
-                      </Pressable>
+                      </View>
                       <View style={styles.requestValueRow}>
                         <Ionicons name="person-outline" size={18} color={colors.textMuted} />
                         <Text style={styles.requestValue} numberOfLines={1}>

@@ -24,7 +24,8 @@ export function MechanicRegistrationSteps({
   setConfirm, emailError, setEmailError, passwordError, setPasswordError,
   confirmError, setConfirmError, licenseFront, licenseBack, pickLicensePhoto,
   skills, setSkills, certifications, setCertifications, experience, setExperience,
-  setStep, setRolePickerVisible, nextStep, saveAndContinue, onSubmit, loading,
+  setStep, setRolePickerVisible, backToQuickSetup, nextStep, saveAndContinue,
+  onSubmit, loading,
 }: {
   styles: SignupStepStyles;
   step: number;
@@ -45,6 +46,7 @@ export function MechanicRegistrationSteps({
   experience: string; setExperience: (value: string) => void;
   setStep: (value: number | ((current: number) => number)) => void;
   setRolePickerVisible: (value: boolean) => void;
+  backToQuickSetup: () => void;
   nextStep: () => void; saveAndContinue: () => Promise<void>; onSubmit: () => Promise<void>;
   loading: boolean;
 }) {
@@ -244,6 +246,8 @@ export function MechanicRegistrationSteps({
                   onPress={() =>
                     step > 1
                       ? setStep((currentStep) => currentStep - 1)
+                    : isMechanic
+                      ? backToQuickSetup()
                       : setRolePickerVisible(true)
                   }
                 >
