@@ -4,6 +4,10 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://waferzfinixhkyvtubfd.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhZmVyemZpbml4aGt5dnR1YmZkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEwNDEwNDUsImV4cCI6MjEwNjYxNzA0NX0.jAxx1OHEvzymxteYqj7dbxBlHas6XjW9BPD4mFuA9Go"
       }
     },
     "production": {
