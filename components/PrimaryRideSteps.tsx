@@ -38,7 +38,7 @@ export function PrimaryRideSteps({
     <>
       {step === 1 ? (
               <>
-                <Text style={styles.stepLabel}>STEP 1 OF 3</Text>
+                <Text style={styles.stepLabel}>STEP 1 OF 2</Text>
                 <Text style={styles.sectionTitle}>Tell us what you drive</Text>
                 <Text style={styles.sectionCopy}>
                   We match you with mechanics specialized in your exact vehicle

@@ -1,14 +1,15 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { Redirect, router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import {
-  ActivityIndicator,
   Image,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   Easing,
@@ -18,11 +19,61 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { colors } from "@/lib/theme";
+
+const DEVICE_ONBOARDING_KEY = "mechaniko-device-onboarding-complete";
+
+async function readDeviceOnboardingState() {
+  if (Platform.OS === "web") {
+    return typeof localStorage !== "undefined" &&
+      localStorage.getItem(DEVICE_ONBOARDING_KEY) === "true";
+  }
+  return (await SecureStore.getItemAsync(DEVICE_ONBOARDING_KEY)) === "true";
+}
+
+async function markDeviceOnboardingComplete() {
+  if (Platform.OS === "web") {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(DEVICE_ONBOARDING_KEY, "true");
+    }
+    return;
+  }
+  await SecureStore.setItemAsync(DEVICE_ONBOARDING_KEY, "true");
+}
 
 export default function Index() {
   const { session, loading } = useAuth();
+  const [returningDevice, setReturningDevice] = useState<boolean | null>(null);
   const contentProgress = useSharedValue(0);
+  const bootProgress = useSharedValue(0);
+  const [bootPercent, setBootPercent] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    void readDeviceOnboardingState().then((hasCompletedOnboarding) => {
+      if (active) setReturningDevice(hasCompletedOnboarding);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    bootProgress.value = withTiming(1, {
+      duration: 1600,
+      easing: Easing.out(Easing.cubic),
+    });
+    const interval = setInterval(() => {
+      setBootPercent((current) => {
+        if (current >= 100) {
+          clearInterval(interval);
+          return 100;
+        }
+        return Math.min(current + 2, 100);
+      });
+    }, 32);
+
+    return () => clearInterval(interval);
+  }, [bootProgress]);
 
   useEffect(() => {
     contentProgress.value = withTiming(1, {
@@ -35,11 +86,34 @@ export default function Index() {
     opacity: contentProgress.value,
     transform: [{ translateY: 18 * (1 - contentProgress.value) }],
   }));
+  const bootAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: bootProgress.value,
+    transform: [
+      { scale: 0.86 + bootProgress.value * 0.14 },
+      { translateY: 12 * (1 - bootProgress.value) },
+    ],
+  }));
 
-  if (loading) {
+  if (loading || returningDevice === null) {
     return (
       <View style={styles.boot}>
-        <ActivityIndicator color={colors.amber} size="large" />
+        <Animated.View style={[styles.bootBrand, bootAnimatedStyle]}>
+          <Image
+            source={require("../assets/images/logo.png")}
+            resizeMode="contain"
+            style={styles.bootLogo}
+          />
+          <Text style={styles.bootWordmark}>MECHANIC KO</Text>
+          <View style={styles.bootProgressTrack}>
+            <View
+              style={[
+                styles.bootProgressFill,
+                { width: `${bootPercent}%` },
+              ]}
+            />
+          </View>
+          <Text style={styles.bootPercent}>{bootPercent}%</Text>
+        </Animated.View>
       </View>
     );
   }
@@ -48,17 +122,18 @@ export default function Index() {
     return <Redirect href="/(app)" />;
   }
 
+  if (returningDevice) {
+    return <Redirect href="/login" />;
+  }
+
+  const handleGetStarted = async () => {
+    await markDeviceOnboardingComplete();
+    router.push("/welcome");
+  };
+
   return (
     <LinearGradient
-      colors={[
-        "#373327",
-        "#686150",
-        "#9E9786",
-        "#DCDCDB",
-        "#F3F3F5",
-        "#F8F8FA",
-      ]}
-      locations={[0, 0.2, 0.38, 0.56, 0.72, 1]}
+      colors={["#F5F7FA", "#F5F7FA"]}
       style={styles.screen}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -88,7 +163,7 @@ export default function Index() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Let's Get Started"
-            onPress={() => router.push("/welcome")}
+            onPress={() => void handleGetStarted()}
             style={({ pressed }) => [
               styles.button,
               pressed && styles.buttonPressed,
@@ -194,8 +269,42 @@ const styles = StyleSheet.create({
   },
   boot: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: "#F5F7FA",
     alignItems: "center",
     justifyContent: "center",
+  },
+  bootBrand: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bootLogo: {
+    width: 112,
+    height: 112,
+  },
+  bootWordmark: {
+    marginTop: 18,
+    color: "#24439A",
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: 1.8,
+  },
+  bootProgressTrack: {
+    width: 180,
+    height: 5,
+    marginTop: 28,
+    overflow: "hidden",
+    borderRadius: 3,
+    backgroundColor: "#DCE3EF",
+  },
+  bootProgressFill: {
+    height: "100%",
+    borderRadius: 3,
+    backgroundColor: "#24439A",
+  },
+  bootPercent: {
+    marginTop: 10,
+    color: "#667085",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

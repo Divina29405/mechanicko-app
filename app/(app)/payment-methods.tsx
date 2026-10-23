@@ -64,7 +64,7 @@ export default function PaymentMethodsScreen() {
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.replace('/motorist-profile')} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <Ionicons name="arrow-back" size={24} color="#000000" />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Payment Methods</Text>
         <View style={{ width: 24 }} />
@@ -79,11 +79,11 @@ export default function PaymentMethodsScreen() {
         }
         renderItem={({ item }) => (
           <TouchableOpacity 
-            style={[styles.paymentCard, { backgroundColor: colors.card, borderColor: item.isDefault ? colors.primary : colors.border }]}
+            style={[styles.paymentCard, { backgroundColor: colors.card, borderColor: item.isDefault ? '#0037B0' : colors.border }]}
             onPress={() => handleSetDefault(item.id)}
           >
             <View style={[styles.iconBox, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-              <Ionicons name={getIconForType(item.type)} size={24} color={colors.primary} />
+              <Ionicons name={getIconForType(item.type)} size={24} color="#0037B0" />
             </View>
             <View style={styles.paymentInfo}>
               <Text style={[styles.paymentName, { color: colors.text }]}>{item.name}</Text>
@@ -92,7 +92,7 @@ export default function PaymentMethodsScreen() {
             
             {item.isDefault ? (
               <View style={[styles.defaultBadge, { backgroundColor: 'rgba(255, 107, 0, 0.1)' }]}>
-                <Text style={[styles.defaultText, { color: colors.primary }]}>Default</Text>
+                <Text style={[styles.defaultText, { color: '#0037B0' }]}>Default</Text>
               </View>
             ) : item.type !== 'cash' ? (
               <TouchableOpacity onPress={() => handleDelete(item.id, item.name)} style={styles.deleteButton}>
@@ -104,7 +104,7 @@ export default function PaymentMethodsScreen() {
       />
 
       <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
-        <TouchableOpacity style={[styles.addButton, { backgroundColor: colors.primary }]} onPress={() => setIsAdding(true)}>
+        <TouchableOpacity style={[styles.addButton, { backgroundColor: '#0037B0' }]} onPress={() => setIsAdding(true)}>
           <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
           <Text style={styles.addButtonText}>Add Payment Method</Text>
         </TouchableOpacity>
@@ -122,13 +122,13 @@ export default function PaymentMethodsScreen() {
 
           <View style={styles.typeSelector}>
             <TouchableOpacity 
-              style={[styles.typeButton, newType === 'gcash' ? { backgroundColor: colors.primary, borderColor: colors.primary } : { backgroundColor: colors.card, borderColor: colors.border }]} 
+              style={[styles.typeButton, newType === 'gcash' ? { backgroundColor: '#0037B0', borderColor: '#0037B0' } : { backgroundColor: colors.card, borderColor: colors.border }]} 
               onPress={() => setNewType('gcash')}>
               <Ionicons name="phone-portrait-outline" size={20} color={newType === 'gcash' ? '#FFFFFF' : colors.text} />
               <Text style={[styles.typeText, { color: newType === 'gcash' ? '#FFFFFF' : colors.text }]}>GCash</Text>
             </TouchableOpacity>
             <TouchableOpacity 
-              style={[styles.typeButton, newType === 'card' ? { backgroundColor: colors.primary, borderColor: colors.primary } : { backgroundColor: colors.card, borderColor: colors.border }]} 
+              style={[styles.typeButton, newType === 'card' ? { backgroundColor: '#0037B0', borderColor: '#0037B0' } : { backgroundColor: colors.card, borderColor: colors.border }]} 
               onPress={() => setNewType('card')}>
               <Ionicons name="card-outline" size={20} color={newType === 'card' ? '#FFFFFF' : colors.text} />
               <Text style={[styles.typeText, { color: newType === 'card' ? '#FFFFFF' : colors.text }]}>Card</Text>
@@ -150,7 +150,7 @@ export default function PaymentMethodsScreen() {
             />
           </View>
 
-          <TouchableOpacity style={[styles.saveButton, { backgroundColor: colors.primary }]} onPress={handleAddPayment}>
+          <TouchableOpacity style={[styles.saveButton, { backgroundColor: '#0037B0' }]} onPress={handleAddPayment}>
             <Text style={styles.saveButtonText}>Link Account</Text>
           </TouchableOpacity>
         </KeyboardAvoidingView>

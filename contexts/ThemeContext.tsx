@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 export const lightTheme = {
   bg: '#F9FAFB',
@@ -30,13 +30,6 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [isDarkMode, setIsDarkMode] = useState(false);
-
-  useEffect(() => {
-    const hour = new Date().getHours();
-    if (hour >= 18 || hour < 6) {
-      setIsDarkMode(true);
-    }
-  }, []);
 
   const toggleTheme = () => setIsDarkMode((prev) => !prev);
   const colors = isDarkMode ? darkTheme : lightTheme;

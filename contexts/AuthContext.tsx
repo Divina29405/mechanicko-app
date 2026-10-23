@@ -1,6 +1,7 @@
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { Session } from "@supabase/supabase-js";
 import * as ExpoLinking from "expo-linking";
+import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
 import {
   createContext,
@@ -209,6 +210,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const signupInProgress = useRef(false);
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+    let active = true;
+
+    const syncPendingPrimaryRide = async () => {
+      const pending = await SecureStore.getItemAsync("pending_primary_ride");
+      if (!pending || !active) return;
+
+      let vehicle: {
+        type: string;
+        make: string;
+        model: string;
+        year: string;
+        plate_number: string;
+        fuel_type: string;
+        role?: string;
+        skipped?: boolean;
+      };
+      try {
+        vehicle = JSON.parse(pending) as typeof vehicle;
+      } catch {
+        await SecureStore.deleteItemAsync("pending_primary_ride");
+        return;
+      }
+
+      if (vehicle.skipped) {
+        await SecureStore.deleteItemAsync("pending_primary_ride");
+        return;
+      }
+
+      const record = {
+        type: vehicle.type,
+        make: vehicle.make,
+        model: vehicle.model,
+        year: vehicle.year,
+        plate_number: vehicle.plate_number,
+        fuel_type: vehicle.fuel_type,
+        is_primary: true,
+        mechanic_id: vehicle.role === "mechanic" ? session.user.id : null,
+        motorist_id: vehicle.role === "mechanic" ? null : session.user.id,
+      };
+      const { error } = await supabase.from("vehicles").insert(record);
+      if (!active) return;
+      if (!error || error.code === "23505") {
+        await SecureStore.deleteItemAsync("pending_primary_ride");
+      } else {
+        console.warn("Pending primary ride sync failed:", error.message);
+      }
+    };
+
+    void syncPendingPrimaryRide();
+    return () => {
+      active = false;
+    };
+  }, [session]);
 
   useEffect(() => {
     let active = true;
@@ -461,10 +518,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        if (data.session) {
-          await supabase.auth.signOut();
+        if (data.session && application) {
+          setSession(data.session);
+        } else {
+          if (data.session) {
+            await supabase.auth.signOut();
+          }
+          setSession(null);
         }
-        setSession(null);
         signupInProgress.current = false;
 
         return { error: null };

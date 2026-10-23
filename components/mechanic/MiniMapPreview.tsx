@@ -1,10 +1,97 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 
 import { colors } from '@/lib/theme';
 
-export function MiniMapPreview() {
+type Coordinates = {
+  latitude: number;
+  longitude: number;
+};
+
+function buildLeafletHtml(
+  mechanicLocation: Coordinates,
+  customerLocation: Coordinates,
+  distanceLabel: string,
+) {
+  const mechanic = `${mechanicLocation.latitude},${mechanicLocation.longitude}`;
+  const customer = `${customerLocation.latitude},${customerLocation.longitude}`;
+  return `<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <style>
+      html, body, #map { height: 100%; margin: 0; }
+      body { overflow: hidden; font-family: sans-serif; }
+      .distance { position: absolute; z-index: 1000; top: 8px; left: 50%; transform: translateX(-50%); padding: 6px 10px; border-radius: 14px; background: white; color: #172033; font-size: 12px; font-weight: 800; box-shadow: 0 2px 8px rgba(0,0,0,.18); white-space: nowrap; }
+      .marker { width: 26px; height: 26px; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+      .mechanic { background: #F0A202; }
+      .motorist { background: #FF4D4F; }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div class="distance">${distanceLabel} between mechanic and motorist</div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+      const mechanic = [${mechanic}];
+      const customer = [${customer}];
+      const map = L.map('map', { zoomControl: false, attributionControl: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+      const mechanicIcon = L.divIcon({ className: '', html: '<div class="marker mechanic"></div>', iconSize: [32, 32], iconAnchor: [16, 16] });
+      const motoristIcon = L.divIcon({ className: '', html: '<div class="marker motorist"></div>', iconSize: [32, 32], iconAnchor: [16, 16] });
+      L.marker(mechanic, { icon: mechanicIcon }).addTo(map).bindTooltip('Mechanic', { permanent: true, direction: 'bottom', offset: [0, 12] });
+      L.marker(customer, { icon: motoristIcon }).addTo(map).bindTooltip('Motorist', { permanent: true, direction: 'bottom', offset: [0, 12] });
+      L.polyline([mechanic, customer], { color: '#2450D8', weight: 4, dashArray: '8 7' }).addTo(map);
+      map.fitBounds([mechanic, customer], { padding: [35, 35], maxZoom: 15 });
+    </script>
+  </body>
+</html>`;
+}
+
+export function MiniMapPreview({
+  compact = false,
+  mechanicLocation,
+  customerLocation,
+  distanceLabel,
+}: {
+  compact?: boolean;
+  mechanicLocation?: Coordinates | null;
+  customerLocation?: Coordinates | null;
+  distanceLabel?: string;
+}) {
+  const hasLocations = mechanicLocation && customerLocation;
+
   return (
-    <View style={styles.map} accessibilityLabel="Preview ng ruta papunta sa customer">
+    <View
+      style={[styles.map, compact && styles.compactMap]}
+      accessibilityLabel="Preview ng ruta papunta sa customer"
+    >
+      {hasLocations ? (
+        <WebView
+          originWhitelist={["*"]}
+          source={{
+            html: buildLeafletHtml(
+              mechanicLocation,
+              customerLocation,
+              distanceLabel ?? "Distance unavailable",
+            ),
+          }}
+          style={styles.webMap}
+          scrollEnabled={false}
+          javaScriptEnabled
+          domStorageEnabled
+        />
+      ) : (
+        <FallbackMap />
+      )}
+    </View>
+  );
+}
+
+function FallbackMap() {
+  return (
+    <>
       <View style={[styles.road, styles.hRoad]} />
       <View style={[styles.road, styles.vRoad]} />
       <View style={[styles.road, styles.diag]} />
@@ -20,12 +107,13 @@ export function MiniMapPreview() {
       <View style={styles.custLabel}>
         <Text style={styles.label}>SOS</Text>
       </View>
-    </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   map: {
+    width: '100%',
     height: 148,
     borderRadius: 14,
     backgroundColor: colors.mapBg,
@@ -33,6 +121,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: 'hidden',
     marginTop: 12,
+  },
+  compactMap: {
+    height: 210,
+    marginTop: 6,
+  },
+  webMap: {
+    flex: 1,
   },
   road: {
     position: 'absolute',

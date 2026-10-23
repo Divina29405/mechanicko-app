@@ -1,4 +1,4 @@
-import { Link, Stack, useLocalSearchParams } from "expo-router";
+import { Link, Stack } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -66,7 +66,6 @@ async function clearRememberedLogin() {
 }
 
 export default function LoginScreen() {
-  const { back } = useLocalSearchParams<{ back?: string }>();
   const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -123,12 +122,12 @@ export default function LoginScreen() {
     <>
       <Stack.Screen
         options={{
-          animation: back === "1" ? "slide_from_left" : "slide_from_right",
+          animation: "slide_from_left",
         }}
       />
       <AuthScreenShell>
       <View style={styles.loginContent}>
-        <Text style={styles.kicker}>CUSTOMER</Text>
+        <Text style={styles.kicker}>MOTORIST</Text>
         <AuthLogo variant="blue" />
 
         <View style={styles.card}>
@@ -277,12 +276,18 @@ const styles = StyleSheet.create({
     transform: [{ translateY: -55 }],
   },
   card: {
-    backgroundColor: colors.bgElevated,
+    backgroundColor: "#FFFFFF",
     borderRadius: 30,
     paddingHorizontal: 24,
     paddingTop: 40,
     paddingBottom: 50,
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: "#DCE3EF",
+    shadowColor: "#17213D",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
     marginHorizontal: 0,
     marginTop: -33,
   },

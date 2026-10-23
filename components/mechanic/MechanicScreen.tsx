@@ -4,6 +4,9 @@ import { type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ProfileAvatar } from '@/components/ProfileAvatar';
+import { useAuth } from '@/contexts/AuthContext';
+import { useMechanic } from '@/contexts/MechanicContext';
 import { colors, spacing } from '@/lib/theme';
 import { useAppTheme } from '@/contexts/ThemeContext';
 
@@ -13,34 +16,115 @@ type Props = {
   subtitle?: string;
   right?: ReactNode;
   back?: boolean;
+  profileHeader?: boolean;
+  hideHeader?: boolean;
+  safeAreaTop?: boolean;
 };
 
-export function MechanicScreen({ children, title, subtitle, right, back }: Props) {
+function displayName(fullName: string | undefined, email: string | undefined) {
+  if (fullName?.trim()) return fullName.trim();
+  const local = email?.split('@')[0];
+  return local ? local.replace(/[._]/g, ' ') : 'Mekaniko';
+}
+
+export function MechanicScreen({
+  children,
+  title,
+  subtitle,
+  right,
+  back,
+  profileHeader = false,
+  hideHeader = false,
+  safeAreaTop = true,
+}: Props) {
   const theme = useAppTheme();
+  const { session } = useAuth();
+  const { online, rating, avatarUrl } = useMechanic();
+  const name = displayName(
+    typeof session?.user.user_metadata?.full_name === 'string'
+      ? session.user.user_metadata.full_name
+      : undefined,
+    session?.user.email,
+  );
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: theme.colors.bg }]} edges={['top']}>
-      <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
-        {back ? (
+    <SafeAreaView
+      style={[styles.root, { backgroundColor: colors.white }]}
+      edges={safeAreaTop ? ['top'] : []}
+    >
+      {profileHeader ? (
+        <View style={[styles.profileHeader, { backgroundColor: colors.white }]}>
           <Pressable
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace('./');
-              }
-            }}
-            style={({ pressed }) => [styles.back, pressed && styles.pressed]}
-            accessibilityLabel="Go back">
-            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+            style={styles.profileIdentity}
+            onPress={() => router.push('./profile')}
+            accessibilityRole="button"
+            accessibilityLabel="Open profile"
+          >
+            <View style={styles.profileAvatarWrap}>
+              <ProfileAvatar
+                uri={avatarUrl}
+                name={name}
+                size={48}
+                backgroundColor={colors.amberSoft}
+              />
+              <View
+                style={[
+                  styles.profileStatusDot,
+                  { borderColor: theme.colors.card },
+                  online && styles.profileStatusDotOnline,
+                ]}
+              />
+            </View>
+            <View style={styles.profileIdentityText}>
+              <Text style={[styles.profileName, { color: theme.colors.text }]} numberOfLines={1}>
+                {name}
+              </Text>
+              <Text style={[styles.profileAvailability, { color: theme.colors.textMuted }]}>
+                {online ? 'Available' : 'Not Available'}
+              </Text>
+            </View>
           </Pressable>
-        ) : null}
-        <View style={styles.headerText}>
-          <Text style={[styles.title, { color: theme.colors.text }]}>{title}</Text>
-          {subtitle ? <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>{subtitle}</Text> : null}
+          <View style={styles.profileActions}>
+            <View style={styles.profileRating}>
+              <Ionicons name="star" size={20} color={colors.amber} />
+              <Text style={[styles.profileRatingValue, { color: theme.colors.text }]}>
+                {rating.toFixed(2)}
+              </Text>
+            </View>
+            <Pressable
+              style={styles.profileNotification}
+              onPress={() => router.push('./notifications')}
+              accessibilityRole="button"
+              accessibilityLabel="Open notifications"
+            >
+              <Ionicons name="notifications-outline" size={22} color={colors.amber} />
+            </Pressable>
+          </View>
         </View>
-        {right}
-      </View>
+      ) : null}
+      {!hideHeader ? (
+        <View style={[styles.header, { backgroundColor: colors.white, borderBottomColor: theme.colors.border }]}>
+          {back ? (
+            <Pressable
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.replace('./');
+                }
+              }}
+              style={({ pressed }) => [styles.back, pressed && styles.pressed]}
+              accessibilityLabel="Go back">
+              <Ionicons name="arrow-back" size={24} color="#000000" />
+            </Pressable>
+          ) : null}
+          <View style={styles.headerText}>
+            <Text style={[styles.title, { color: theme.colors.text }]}>{title}</Text>
+            {subtitle ? <Text style={[styles.subtitle, { color: theme.colors.textMuted }]}>{subtitle}</Text> : null}
+          </View>
+          {right}
+        </View>
+      ) : null}
       {children}
     </SafeAreaView>
   );
@@ -73,6 +157,69 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     backgroundColor: colors.bgElevated,
+  },
+  profileHeader: {
+    minHeight: 70,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  profileIdentity: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginRight: 12,
+  },
+  profileAvatarWrap: {
+    position: 'relative',
+  },
+  profileStatusDot: {
+    position: 'absolute',
+    right: 0,
+    top: 1,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: colors.sos,
+    borderWidth: 2,
+  },
+  profileStatusDotOnline: {
+    backgroundColor: colors.success,
+  },
+  profileIdentityText: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  profileAvailability: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  profileActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  profileRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  profileRatingValue: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  profileNotification: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   back: {
     width: 40,

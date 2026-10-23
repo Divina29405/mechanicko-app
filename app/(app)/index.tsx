@@ -1,26 +1,28 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as Location from "expo-location";
 import * as Linking from "expo-linking";
+import * as Location from "expo-location";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-    Animated,
-    Modal,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Image,
-    Text,
-    TextInput,
-    View,
+  Animated,
+  Image,
+  Modal,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ComingSoonModal } from "@/components/ComingSoonModal";
+import { MiniMapPreview } from "@/components/mechanic/MiniMapPreview";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMechanic } from "@/contexts/MechanicContext";
-import { ComingSoonModal } from "@/components/ComingSoonModal";
 import { supabase } from "@/lib/supabase";
 import { colors, radii, spacing } from "@/lib/theme";
 
@@ -32,6 +34,9 @@ type AvailableJob = {
   plate_number: string | null;
   vehicle_issue: string | null;
   request_type: string | null;
+  service_price: number | null;
+  estimated_total: number | null;
+  search_radius_km: number | null;
   created_at: string;
   scheduled_at: string | null;
   latitude: number | null;
@@ -56,18 +61,18 @@ function distanceInKm(from: Coordinates, to: Coordinates) {
     Math.sin(longitudeDelta / 2) ** 2 *
       Math.cos(latitude1) *
       Math.cos(latitude2);
-  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  return (
+    earthRadiusKm *
+    2 *
+    Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+  );
 }
 
 function formatDistance(
   mechanicLocation: Coordinates | null,
   job: AvailableJob,
 ) {
-  if (
-    !mechanicLocation ||
-    job.latitude === null ||
-    job.longitude === null
-  ) {
+  if (!mechanicLocation || job.latitude === null || job.longitude === null) {
     return "Distance unavailable";
   }
   const distance = distanceInKm(mechanicLocation, {
@@ -79,6 +84,45 @@ function formatDistance(
     : `${distance.toFixed(1)} km away`;
 }
 
+function formatBookingSchedule(value: string | null) {
+  if (!value) return "As soon as possible";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Schedule unavailable";
+
+  const today = new Date();
+  const startOfToday = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  );
+  const startOfDate = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  );
+  const dayDifference = Math.round(
+    (startOfDate.getTime() - startOfToday.getTime()) / 86400000,
+  );
+  const time = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  if (dayDifference === 1) {
+    return `Tomorrow, ${time}`;
+  }
+  if (dayDifference === 0) {
+    return `Today, ${time}`;
+  }
+
+  const day = date.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+  return `${day}, ${time}`;
+}
+
 function displayName(fullName: string | undefined, email: string | undefined) {
   if (fullName?.trim()) return fullName.trim();
   const local = email?.split("@")[0];
@@ -86,54 +130,62 @@ function displayName(fullName: string | undefined, email: string | undefined) {
   return local.replace(/[._]/g, " ");
 }
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
-function formatScheduledDate(value: string | null) {
-  if (!value) return "Date not specified";
-  return new Date(value).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function formatPickupLocation(job: AvailableJob) {
-  if (job.latitude === null || job.longitude === null) {
-    return "Location not provided";
-  }
-  return `${job.latitude.toFixed(5)}, ${job.longitude.toFixed(5)}`;
-}
-
 export default function MechanicHomeScreen() {
   const { session } = useAuth();
-  const {
-    online,
-    setOnline,
-    rating,
-    unreadNotifications,
-    avatarUrl,
-  } = useMechanic();
+  const { online, setOnline, rating, avatarUrl } = useMechanic();
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [sidebarProgress] = useState(() => new Animated.Value(0));
   const [availableJobs, setAvailableJobs] = useState<AvailableJob[]>([]);
   const [acceptingJobId, setAcceptingJobId] = useState<string | null>(null);
-  const [jobsError, setJobsError] = useState<string | null>(null);
+  const [, setJobsError] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<AvailableJob | null>(null);
   const [declineJobId, setDeclineJobId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
-  const [mechanicLocation, setMechanicLocation] =
-    useState<Coordinates | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  const [mechanicLocation, setMechanicLocation] = useState<Coordinates | null>(
+    null,
+  );
+  const [, setLocationError] = useState<string | null>(null);
   const [comingSoonVisible, setComingSoonVisible] = useState(false);
+  const [sliderActivated, setSliderActivated] = useState(false);
+  const [slidePosition] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    if (!sliderActivated && online) {
+      setOnline(false);
+    }
+  }, [online, setOnline, sliderActivated]);
+
+  const onlineSlider = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          Math.abs(gestureState.dx) > 5,
+        onPanResponderMove: (_, gestureState) => {
+          slidePosition.setValue(
+            Math.max(0, Math.min(1, gestureState.dx / 200)),
+          );
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const completed = gestureState.dx >= 130;
+          if (completed) {
+            setSliderActivated(true);
+            setOnline(true);
+          }
+          Animated.spring(slidePosition, {
+            toValue: 0,
+            useNativeDriver: false,
+            bounciness: 5,
+          }).start();
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(slidePosition, {
+            toValue: 0,
+            useNativeDriver: false,
+          }).start();
+        },
+      }),
+    [setOnline, slidePosition],
+  );
 
   function openCustomerLocation(job: AvailableJob) {
     if (job.latitude === null || job.longitude === null) {
@@ -147,7 +199,7 @@ export default function MechanicHomeScreen() {
   }
 
   useEffect(() => {
-    if (!online) {
+    if (!online || !sliderActivated) {
       return;
     }
 
@@ -156,7 +208,9 @@ export default function MechanicHomeScreen() {
       try {
         const permission = await Location.getForegroundPermissionsAsync();
         if (permission.status !== "granted") {
-          throw new Error("Location permission is required to calculate distance.");
+          throw new Error(
+            "Location permission is required to calculate distance.",
+          );
         }
         const current = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
@@ -183,20 +237,22 @@ export default function MechanicHomeScreen() {
       active = false;
       clearInterval(interval);
     };
-  }, [online]);
+  }, [online, sliderActivated]);
 
   useEffect(() => {
     let active = true;
 
     async function loadAvailableJobs() {
-      if (!online || !session?.user.id) {
+      if (!online || !sliderActivated || !session?.user.id) {
         setAvailableJobs([]);
         return;
       }
 
       const { data, error } = await supabase
         .from("service_requests")
-        .select("id,motorist_id,mechanic_id,vehicle_type,plate_number,vehicle_issue,request_type,created_at,scheduled_at,latitude,longitude")
+        .select(
+          "id,motorist_id,mechanic_id,vehicle_type,plate_number,vehicle_issue,request_type,service_price,estimated_total,search_radius_km,created_at,scheduled_at,latitude,longitude",
+        )
         .or(`mechanic_id.is.null,mechanic_id.eq.${session.user.id}`)
         .in("status", ["pending", "scheduled"])
         .order("created_at", { ascending: false });
@@ -226,9 +282,20 @@ export default function MechanicHomeScreen() {
           },
         ]),
       );
+      const visibleRequests = requests.filter((job) => {
+        if (job.request_type !== "emergency") return true;
+        if (!mechanicLocation || job.latitude === null || job.longitude === null) {
+          return false;
+        }
+        const radius = Number(job.search_radius_km ?? 5);
+        return distanceInKm(mechanicLocation, {
+          latitude: job.latitude,
+          longitude: job.longitude,
+        }) <= radius;
+      });
       setJobsError(null);
       setAvailableJobs(
-        requests.map((job) => ({
+        visibleRequests.map((job) => ({
           ...job,
           customer_name: profiles.get(job.motorist_id)?.name || "Customer",
           customer_contact:
@@ -239,27 +306,43 @@ export default function MechanicHomeScreen() {
 
     void loadAvailableJobs();
     const interval = setInterval(() => void loadAvailableJobs(), 10000);
+    const channel = supabase
+      .channel(`mechanic-sos-dispatch-${session?.user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "service_requests" },
+        () => void loadAvailableJobs(),
+      )
+      .subscribe();
+
     return () => {
       active = false;
       clearInterval(interval);
+      void supabase.removeChannel(channel);
     };
-  }, [online, session?.user.id]);
+  }, [online, session?.user.id, sliderActivated, mechanicLocation]);
 
   async function acceptJob(id: string) {
     if (!session?.user.id) return;
     setAcceptingJobId(id);
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("service_requests")
       .update({ mechanic_id: session.user.id, status: "accepted" })
       .eq("id", id)
-      .or(`mechanic_id.is.null,mechanic_id.eq.${session.user.id}`);
+      .or(`mechanic_id.is.null,mechanic_id.eq.${session.user.id}`)
+      .in("status", ["pending", "scheduled"])
+      .select("id")
+      .maybeSingle();
 
     if (error) {
       setJobsError(error.message);
+    } else if (!data) {
+      setJobsError("This request was already accepted by another mechanic.");
+      setAvailableJobs((jobs) => jobs.filter((job) => job.id !== id));
+      setSelectedJob(null);
     } else {
       setAvailableJobs((jobs) => jobs.filter((job) => job.id !== id));
       setSelectedJob(null);
-      router.push("./jobs");
     }
     setAcceptingJobId(null);
   }
@@ -335,6 +418,7 @@ export default function MechanicHomeScreen() {
     <SafeAreaView style={styles.root} edges={["top"]}>
       <StatusBar style="dark" />
       <ScrollView
+        style={styles.homeScroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
@@ -345,156 +429,344 @@ export default function MechanicHomeScreen() {
             accessibilityRole="button"
             accessibilityLabel="Open profile menu"
           >
-            <View style={styles.avatar}>
-              {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
-              ) : (
-                <Text style={styles.avatarText}>{initials(name)}</Text>
-              )}
+            <View style={styles.avatarWrap}>
+              <ProfileAvatar
+                uri={avatarUrl}
+                name={name}
+                size={48}
+                backgroundColor={colors.amberSoft}
+              />
+              <View
+                style={[
+                  styles.statusDot,
+                  online && sliderActivated && styles.statusDotOnline,
+                ]}
+              />
             </View>
             <View style={styles.identityText}>
               <Text style={styles.name} numberOfLines={1}>
                 {name}
               </Text>
-              <View style={styles.ratingRow}>
-                <Ionicons name="star" size={13} color={colors.amber} />
-                <Text style={styles.rating}>{rating.toFixed(1)}</Text>
-                <Text style={styles.ratingHint}>rating</Text>
-              </View>
-            </View>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push("./notifications")}
-            style={({ pressed }) => [styles.bell, pressed && styles.pressed]}
-          >
-            <Ionicons
-              name="notifications-outline"
-              size={22}
-              color={colors.text}
-            />
-            {unreadNotifications > 0 ? (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{unreadNotifications}</Text>
-              </View>
-            ) : null}
-          </Pressable>
-        </View>
-
-        <View style={styles.availability}>
-          <View style={styles.flex}>
-            <Text style={styles.availLabel}>
-              {online ? "Online · accepting jobs" : "Offline"}
-            </Text>
-            <Text style={styles.availHint}>
-              {online
-                ? "You are visible to nearby motorists."
-                : "You will not appear on the SOS radar while offline."}
-            </Text>
-          </View>
-          <Switch
-            value={online}
-            onValueChange={setOnline}
-            trackColor={{ false: colors.border, true: colors.success }}
-            thumbColor={colors.white}
-            ios_backgroundColor={colors.border}
-          />
-        </View>
-
-        {online ? (
-          <View style={styles.availableSection}>
-            <View style={styles.sectionRow}>
-              <Text style={styles.section}>Available job requests</Text>
-              <Text style={styles.jobCount}>{availableJobs.length}</Text>
-            </View>
-            {jobsError ? <Text style={styles.jobsError}>{jobsError}</Text> : null}
-            {locationError ? (
-              <Text style={styles.jobsError}>
-                Distance unavailable: {locationError}
+              <Text style={styles.availabilityText}>
+                {online && sliderActivated ? "Available" : "Not Available"}
               </Text>
-            ) : null}
+            </View>
+          </Pressable>
+          <View style={styles.headerActions}>
+            <View style={styles.headerRating}>
+              <Ionicons name="star" size={20} color={colors.amber} />
+              <Text style={styles.headerRatingValue}>{rating.toFixed(2)}</Text>
+            </View>
+            <Pressable
+              style={styles.notificationButton}
+              onPress={() => router.push("./notifications")}
+              accessibilityRole="button"
+              accessibilityLabel="Open notifications"
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={22}
+                color={colors.amber}
+              />
+            </Pressable>
+          </View>
+        </View>
+        {online && sliderActivated ? (
+          <Pressable
+            style={styles.offlineButton}
+            onPress={() => {
+              slidePosition.setValue(0);
+              setSliderActivated(false);
+              setOnline(false);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Go offline"
+          >
+            <Ionicons name="power-outline" size={17} color={colors.sos} />
+            <Text style={styles.offlineButtonText}>Go offline</Text>
+          </Pressable>
+        ) : null}
+        {!online || !sliderActivated ? (
+          <View style={styles.homeImageContainer}>
+            <Image
+              source={require("../../assets/images/mechanic-homeicon.png")}
+              resizeMode="contain"
+              style={styles.homeImage}
+              accessibilityLabel="Mechanic home illustration"
+            />
+            <Text style={styles.homeImageHeader}>Ready to fix and earn?</Text>
+            <Text style={styles.homeImageSubtext}>
+              Stay online to receive nearby repair and roadside assistance
+              requests.
+            </Text>
+            <View style={styles.onlineSlider}>
+              <Text style={styles.onlineSliderText}>Slide to online</Text>
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.onlineSliderTrail,
+                  {
+                    width: slidePosition.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 260],
+                    }),
+                  },
+                ]}
+              />
+              <Animated.View
+                {...onlineSlider.panHandlers}
+                style={[
+                  styles.onlineSliderHandle,
+                  {
+                    transform: [
+                      {
+                        translateX: slidePosition.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 198],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="chevron-forward"
+                  size={22}
+                  color={colors.blue}
+                />
+              </Animated.View>
+            </View>
+          </View>
+        ) : null}
+        {online && sliderActivated ? (
+          <View style={styles.availableSection}>
             {availableJobs.length === 0 ? (
-              <View style={styles.emptyJobs}>
-                <Text style={styles.emptyJobsText}>No new requests right now.</Text>
-                <Text style={styles.emptyJobsHint}>Stay online to receive nearby service requests.</Text>
+              <View style={styles.onlineEmptyState}>
+                <Image
+                  source={require("../../assets/images/no-booking.png")}
+                  resizeMode="contain"
+                  style={styles.noBookingImage}
+                  accessibilityLabel="No bookings"
+                />
+                <Text style={styles.noBookingText}>No bookings yet ...</Text>
               </View>
             ) : (
               <View style={styles.availableStack}>
-                {availableJobs.map((job) => (
-                  <Pressable
-                    key={job.id}
-                    onPress={() => setSelectedJob(job)}
-                    style={[
-                      styles.availableCard,
-                      job.request_type === "emergency"
-                        ? styles.emergencyCard
-                        : styles.scheduledCard,
-                    ]}
-                  >
+                {availableJobs.map((job) => {
+                  const isEmergency = job.request_type === "emergency";
+                  return (
                     <View
+                      key={job.id}
                       style={[
-                        styles.pickupHeader,
-                        job.request_type === "emergency"
-                          ? styles.emergencyHeader
-                          : styles.scheduledHeader,
+                        styles.availableCard,
+                        isEmergency && styles.emergencyCard,
+                        !isEmergency && styles.scheduledCard,
                       ]}
                     >
-                      <Text style={styles.pickupHeaderText}>
-                        {job.request_type === "emergency"
-                          ? "Urgent request · Pick Up Now"
-                          : formatScheduledDate(job.scheduled_at)}
-                      </Text>
+                      <Pressable onPress={() => setSelectedJob(job)}>
+                        {isEmergency ? (
+                          <>
+                            <View style={styles.sosDispatchHeader}>
+                              <View>
+                                <Text style={styles.sosDispatchTitle}>
+                                  INCOMING SOS DISPATCH
+                                </Text>
+                                <Text style={styles.sosDispatchSubtitle}>
+                                  Immediate roadside assist requested
+                                </Text>
+                              </View>
+                              <View style={styles.sosHeaderDistance}>
+                                <Text style={styles.sosHeaderDistanceText}>
+                                  {formatDistance(mechanicLocation, job)}
+                                </Text>
+                                <Text style={styles.sosHeaderArrivalText}>
+                                  ~6 mins arrival
+                                </Text>
+                              </View>
+                            </View>
+                          </>
+                        ) : null}
+                        <View
+                          style={
+                            isEmergency ? styles.sosRouteContainer : undefined
+                          }
+                        >
+                          {!isEmergency ? (
+                            <View style={styles.availableHeader}>
+                              <View style={styles.requestTitleRow}>
+                                <View style={styles.requestIcon}>
+                                  <Ionicons
+                                    name="calendar"
+                                    size={16}
+                                    color={colors.blue}
+                                  />
+                                </View>
+                                <Text style={styles.availableType}>
+                                  {formatBookingSchedule(job.scheduled_at)}
+                                </Text>
+                              </View>
+                              <Ionicons
+                                name="chevron-forward"
+                                size={20}
+                                color={colors.textDim}
+                              />
+                            </View>
+                          ) : null}
+                          {isEmergency ? (
+                            <MiniMapPreview
+                              compact
+                              mechanicLocation={mechanicLocation}
+                              customerLocation={
+                                job.latitude !== null && job.longitude !== null
+                                  ? {
+                                      latitude: job.latitude,
+                                      longitude: job.longitude,
+                                    }
+                                  : null
+                              }
+                              distanceLabel={formatDistance(mechanicLocation, job)}
+                            />
+                          ) : null}
+                        </View>
+                        <View
+                          style={
+                            isEmergency ? styles.sosDetailsContainer : undefined
+                          }
+                        >
+                          {!isEmergency ? (
+                            <Text
+                              style={styles.requestCustomer}
+                              numberOfLines={1}
+                            >
+                              {job.customer_name}
+                            </Text>
+                          ) : null}
+                          {isEmergency ? (
+                            <View style={styles.sosVehicleRow}>
+                              <View style={styles.sosVehicleInfo}>
+                                <View>
+                                  <Text style={styles.sosSectionLabel}>VEHICLE</Text>
+                                  <Text style={styles.sosVehicleName}>
+                                    {job.vehicle_type || "Vehicle not provided"}
+                                  </Text>
+                                </View>
+                              </View>
+                              <View style={styles.sosPlateBlock}>
+                                <Text style={styles.sosSectionLabel}>PLATE</Text>
+                                <Text style={styles.sosPlate}>
+                                  {job.plate_number || "NO PLATE"}
+                                </Text>
+                              </View>
+                            </View>
+                          ) : null}
+                          {!isEmergency ? (
+                            <View style={styles.requestInfoGrid}>
+                              <View style={styles.requestInfoItem}>
+                                <Ionicons
+                                  name="car-outline"
+                                  size={16}
+                                  color={colors.textMuted}
+                                />
+                                <Text
+                                  style={styles.requestInfoText}
+                                  numberOfLines={1}
+                                >
+                                  {job.vehicle_type || "Vehicle not provided"}
+                                </Text>
+                              </View>
+                              <View style={styles.requestInfoItem}>
+                                <Ionicons
+                                  name="location-outline"
+                                  size={16}
+                                  color={colors.textMuted}
+                                />
+                                <Text
+                                  style={styles.requestInfoText}
+                                  numberOfLines={1}
+                                >
+                                  {formatDistance(mechanicLocation, job)}
+                                </Text>
+                              </View>
+                            </View>
+                          ) : null}
+                          {job.vehicle_issue ? (
+                            isEmergency ? (
+                              <View style={styles.sosSymptoms}>
+                                <View style={styles.sosSymptomsAccent} />
+                                <View style={styles.sosSymptomsContent}>
+                                  <Text style={styles.sosSectionLabel}>
+                                    SYMPTOMS / SITUATION
+                                  </Text>
+                                  <Text style={styles.sosIssue} numberOfLines={3}>
+                                    {job.vehicle_issue}
+                                  </Text>
+                                </View>
+                              </View>
+                            ) : (
+                              <Text style={styles.requestIssue} numberOfLines={3}>
+                                {job.vehicle_issue}
+                              </Text>
+                            )
+                          ) : null}
+                        </View>
+                        {isEmergency ? (
+                          <View style={styles.sosFareBox}>
+                            <View style={styles.sosFareText}>
+                              <Text style={styles.sosFareLabel}>
+                                GUARANTEED EARNINGS
+                              </Text>
+                              <Text style={styles.sosFareHint}>
+                                Base fare ₱350.00 · Emergency dispatch
+                              </Text>
+                            </View>
+                            <Text style={styles.sosFareValue}>
+                              ₱
+                              {Number(
+                                job.estimated_total ?? job.service_price ?? 350,
+                              ).toFixed(2)}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </Pressable>
+                      {isEmergency ? (
+                        <View style={styles.sosActions}>
+                          <Pressable
+                            style={styles.sosAcceptButton}
+                            onPress={() => void acceptJob(job.id)}
+                            disabled={acceptingJobId === job.id}
+                          >
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={17}
+                              color={colors.white}
+                            />
+                            <Text style={styles.sosAcceptText}>
+                              {acceptingJobId === job.id
+                                ? "Saving..."
+                                : "Accept"}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={styles.sosDeclineButton}
+                            onPress={() => openDeclineDialog(job.id)}
+                            disabled={acceptingJobId === job.id}
+                          >
+                            <Ionicons
+                              name="close"
+                              size={17}
+                              color={colors.textMuted}
+                            />
+                            <Text style={styles.sosDeclineText}>Decline</Text>
+                          </Pressable>
+                        </View>
+                      ) : null}
                     </View>
-                    <View style={styles.availableHeader}>
-                      <View style={styles.badges}>
-                        <Text style={styles.bookingBadge}>Service</Text>
-                        <Text style={styles.bookingBadge}>
-                          {job.request_type === "emergency" ? "Priority" : "Scheduled"}
-                        </Text>
-                      </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={20}
-                        color={
-                          job.request_type === "emergency"
-                            ? colors.sos
-                            : colors.blue
-                        }
-                      />
-                    </View>
-                    <View style={styles.compactSummary}>
-                      <Text style={styles.compactDistance}>
-                        {formatDistance(mechanicLocation, job)}
-                      </Text>
-                    </View>
-                    <View style={styles.requestValues}>
-                      <View
-                        style={styles.requestValueRow}
-                      >
-                        <Ionicons name="location-outline" size={18} color={colors.sos} />
-                        <Text style={styles.requestValue} numberOfLines={2}>
-                          {formatPickupLocation(job)}
-                        </Text>
-                      </View>
-                      <View style={styles.requestValueRow}>
-                        <Ionicons name="person-outline" size={18} color={colors.textMuted} />
-                        <Text style={styles.requestValue} numberOfLines={1}>
-                          {job.customer_name}
-                        </Text>
-                      </View>
-                      <View style={styles.requestValueRow}>
-                        <Ionicons name="construct-outline" size={18} color={colors.textMuted} />
-                        <Text style={styles.requestValue} numberOfLines={2}>
-                          {job.vehicle_issue || "Service details not provided"}
-                        </Text>
-                      </View>
-                    </View>
-                  </Pressable>
-                ))}
+                  );
+                })}
               </View>
             )}
           </View>
         ) : null}
-
       </ScrollView>
 
       <Modal
@@ -504,7 +776,10 @@ export default function MechanicHomeScreen() {
         onRequestClose={() => setSelectedJob(null)}
       >
         {selectedJob ? (
-          <SafeAreaView style={styles.jobDetailScreen} edges={["top", "bottom"]}>
+          <SafeAreaView
+            style={styles.jobDetailScreen}
+            edges={["top", "bottom"]}
+          >
             <View
               style={[
                 styles.jobDetailHeader,
@@ -520,7 +795,7 @@ export default function MechanicHomeScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Close booking details"
               >
-                <Ionicons name="arrow-back" size={24} color={colors.white} />
+                <Ionicons name="arrow-back" size={24} color="#000000" />
               </Pressable>
               <Text style={styles.jobDetailHeaderTitle}>Booking details</Text>
               <View style={styles.detailHeaderSpacer} />
@@ -546,7 +821,10 @@ export default function MechanicHomeScreen() {
               <Pressable
                 style={styles.detailRoute}
                 onPress={() => openCustomerLocation(selectedJob)}
-                disabled={selectedJob.latitude === null || selectedJob.longitude === null}
+                disabled={
+                  selectedJob.latitude === null ||
+                  selectedJob.longitude === null
+                }
                 accessibilityRole="button"
                 accessibilityLabel="View customer location on map"
               >
@@ -561,7 +839,9 @@ export default function MechanicHomeScreen() {
                     }
                   />
                   <View style={styles.detailRouteText}>
-                    <Text style={styles.detailRouteLabel}>Customer location</Text>
+                    <Text style={styles.detailRouteLabel}>
+                      Customer location
+                    </Text>
                     <Text style={styles.detailRouteValue}>
                       {selectedJob.latitude !== null &&
                       selectedJob.longitude !== null
@@ -569,13 +849,14 @@ export default function MechanicHomeScreen() {
                         : "Location not provided"}
                     </Text>
                   </View>
-                  </View>
-                  <Text style={styles.detailRouteHint}>
-                    {selectedJob.latitude !== null && selectedJob.longitude !== null
-                      ? "Tap to open in maps"
-                      : "Location not available"}
-                  </Text>
-                </Pressable>
+                </View>
+                <Text style={styles.detailRouteHint}>
+                  {selectedJob.latitude !== null &&
+                  selectedJob.longitude !== null
+                    ? "Tap to open in maps"
+                    : "Location not available"}
+                </Text>
+              </Pressable>
               <View style={styles.fullDetailSection}>
                 <Text
                   style={[
@@ -611,7 +892,8 @@ export default function MechanicHomeScreen() {
                 </Text>
                 <Text style={styles.fullDetailLabel}>SERVICE DETAILS</Text>
                 <Text style={styles.fullDetailValue}>
-                  {selectedJob.vehicle_issue || "No issue description provided."}
+                  {selectedJob.vehicle_issue ||
+                    "No issue description provided."}
                 </Text>
               </View>
             </ScrollView>
@@ -626,7 +908,9 @@ export default function MechanicHomeScreen() {
                 disabled={acceptingJobId === selectedJob.id}
               >
                 <Text style={styles.acceptJobText}>
-                  {acceptingJobId === selectedJob.id ? "Saving..." : "Accept job"}
+                  {acceptingJobId === selectedJob.id
+                    ? "Saving..."
+                    : "Accept job"}
                 </Text>
               </Pressable>
               <Pressable
@@ -700,12 +984,14 @@ export default function MechanicHomeScreen() {
             style={[
               styles.sidebar,
               {
-                transform: [{
-                  translateX: sidebarProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-300, 0],
-                  }),
-                }],
+                transform: [
+                  {
+                    translateX: sidebarProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-300, 0],
+                    }),
+                  },
+                ],
               },
             ]}
           >
@@ -713,23 +999,32 @@ export default function MechanicHomeScreen() {
               style={styles.sidebarProfile}
               onPress={() => closeSidebar(() => router.push("./profile"))}
             >
-              <View style={styles.sidebarAvatar}>
-                {avatarUrl ? (
-                  <Image source={{ uri: avatarUrl }} style={styles.sidebarAvatarImage} />
-                ) : (
-                  <Text style={styles.avatarText}>{initials(name)}</Text>
-                )}
-              </View>
-              <Text style={styles.sidebarName} numberOfLines={2}>{name}</Text>
+              <ProfileAvatar
+                uri={avatarUrl}
+                name={name}
+                size={50}
+                backgroundColor={colors.amberSoft}
+              />
+              <Text style={styles.sidebarName} numberOfLines={2}>
+                {name}
+              </Text>
             </Pressable>
             <View style={styles.sidebarDivider} />
             <Pressable
               style={styles.sidebarRow}
               onPress={() => setComingSoonVisible(true)}
             >
-              <Ionicons name="help-circle-outline" size={23} color={colors.text} />
+              <Ionicons
+                name="help-circle-outline"
+                size={23}
+                color={colors.text}
+              />
               <Text style={styles.sidebarRowText}>Help</Text>
-              <Ionicons name="chevron-forward" size={19} color={colors.textDim} />
+              <Ionicons
+                name="chevron-forward"
+                size={19}
+                color={colors.textDim}
+              />
             </Pressable>
             <Pressable
               style={styles.sidebarRow}
@@ -737,7 +1032,11 @@ export default function MechanicHomeScreen() {
             >
               <Ionicons name="settings-outline" size={23} color={colors.text} />
               <Text style={styles.sidebarRowText}>Settings</Text>
-              <Ionicons name="chevron-forward" size={19} color={colors.textDim} />
+              <Ionicons
+                name="chevron-forward"
+                size={19}
+                color={colors.textDim}
+              />
             </Pressable>
           </Animated.View>
           <Pressable
@@ -758,6 +1057,9 @@ export default function MechanicHomeScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    backgroundColor: colors.white,
+  },
+  homeScroll: {
     backgroundColor: colors.bg,
   },
   content: {
@@ -768,7 +1070,76 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: colors.white,
+    borderRadius: 0,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    marginHorizontal: -spacing.sm,
     marginBottom: spacing.md,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+  },
+  homeImageContainer: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 120,
+    marginBottom: spacing.xl,
+  },
+  homeImage: {
+    width: "88%",
+    height: 260,
+  },
+  homeImageHeader: {
+    marginTop: -30,
+    color: colors.text,
+    fontSize: 21,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  onlineSlider: {
+    width: "78%",
+    maxWidth: 260,
+    height: 58,
+    marginTop: spacing.lg,
+    borderRadius: 29,
+    backgroundColor: colors.blue,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  onlineSliderText: {
+    color: colors.white,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  onlineSliderTrail: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: "rgba(255, 255, 255, 0.22)",
+  },
+  onlineSliderHandle: {
+    position: "absolute",
+    left: 4,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.white,
+  },
+  homeImageSubtext: {
+    maxWidth: 310,
+    marginTop: spacing.xs,
+    color: colors.textDim,
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: "center",
   },
   identity: {
     flexDirection: "row",
@@ -776,6 +1147,69 @@ const styles = StyleSheet.create({
     gap: 12,
     flex: 1,
     marginRight: 12,
+  },
+  avatarWrap: {
+    position: "relative",
+  },
+  statusDot: {
+    position: "absolute",
+    right: 0,
+    top: 1,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: colors.sos,
+    borderWidth: 2,
+    borderColor: colors.bg,
+  },
+  statusDotOnline: {
+    backgroundColor: colors.success,
+  },
+  availabilityText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  headerRating: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  headerRatingValue: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  notificationButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  offlineButton: {
+    alignSelf: "flex-end",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 38,
+    paddingHorizontal: 13,
+    borderWidth: 1,
+    borderColor: "rgba(255, 77, 79, 0.45)",
+    borderRadius: 19,
+    backgroundColor: colors.sosSoft,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  offlineButtonText: {
+    color: colors.sos,
+    fontSize: 13,
+    fontWeight: "800",
   },
   sidebarOverlay: {
     flex: 1,
@@ -869,7 +1303,7 @@ const styles = StyleSheet.create({
   },
   name: {
     color: colors.text,
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: "800",
   },
   ratingRow: {
@@ -940,7 +1374,24 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   availableSection: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
+  },
+  onlineEmptyState: {
+    alignItems: "center",
+    paddingTop: 120,
+    paddingHorizontal: spacing.lg,
+  },
+  noBookingImage: {
+    width: "72%",
+    maxWidth: 280,
+    height: 190,
+  },
+  noBookingText: {
+    color: colors.textMuted,
+    fontSize: 17,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 0,
   },
   jobCount: {
     color: colors.amber,
@@ -954,10 +1405,92 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgElevated,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 0,
-    padding: spacing.md,
-    minHeight: 142,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: spacing.sm,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
     overflow: "hidden",
+  },
+  sosDispatchHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: colors.sos,
+    marginHorizontal: -10,
+    marginTop: -10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    minHeight: 58,
+  },
+  sosDispatchTitle: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+  },
+  sosDispatchSubtitle: {
+    color: colors.white,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  sosHeaderDistance: {
+    alignItems: "flex-end",
+    marginLeft: 8,
+  },
+  sosHeaderDistanceText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  sosHeaderArrivalText: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  autoReassignRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginHorizontal: -10,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    minHeight: 38,
+    zIndex: 1,
+  },
+  autoReassignLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  autoReassignText: {
+    color: colors.textMuted,
+    fontSize: 9,
+    fontWeight: "900",
+  },
+  reassignTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 4,
+    backgroundColor: colors.amberSoft,
+    overflow: "hidden",
+  },
+  reassignProgress: {
+    width: "70%",
+    height: "100%",
+    backgroundColor: colors.amber,
+    borderRadius: 4,
+  },
+  reassignTime: {
+    color: colors.text,
+    fontSize: 11,
+    fontWeight: "800",
   },
   pickupHeader: {
     marginHorizontal: -spacing.md,
@@ -968,8 +1501,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.amber,
   },
   emergencyCard: {
-    borderColor: "rgba(255, 77, 79, 0.7)",
-    backgroundColor: colors.sosSoft,
+    borderColor: colors.border,
+    backgroundColor: colors.bgElevated,
+    marginHorizontal: -spacing.sm,
+    padding: 10,
+    marginTop: -10,
   },
   emergencyCardHeader: {
     backgroundColor: colors.sos,
@@ -992,11 +1528,12 @@ const styles = StyleSheet.create({
   bookingBadge: {
     color: colors.textMuted,
     backgroundColor: colors.bgInput,
-    borderRadius: 0,
+    borderRadius: 8,
     paddingHorizontal: 9,
     paddingVertical: 5,
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   scheduledCard: {
     borderColor: "rgba(37, 99, 235, 0.55)",
@@ -1004,12 +1541,252 @@ const styles = StyleSheet.create({
   availableHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     gap: spacing.sm,
+    marginBottom: 8,
+  },
+  sosRouteContainer: {
+    width: "100%",
+    marginBottom: 8,
+  },
+  sosDetailsContainer: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 7,
+  },
+  requestTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    flex: 1,
+  },
+  requestIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.blueSoft,
+  },
+  emergencyRequestIcon: {
+    backgroundColor: colors.sosSoft,
   },
   availableType: {
     color: colors.text,
+    fontSize: 16,
     fontWeight: "800",
     flex: 1,
+  },
+  sosDispatchType: {
+    fontSize: 14,
+    color: colors.text,
+  },
+  highPriorityBadge: {
+    backgroundColor: "rgba(255, 77, 79, 0.12)",
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  highPriorityText: {
+    color: colors.sos,
+    fontSize: 9,
+    fontWeight: "900",
+  },
+  sosCustomerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginTop: 2,
+  },
+  sosAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.blueSoft,
+    borderWidth: 1,
+    borderColor: "#A7C7FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sosAvatarText: {
+    color: colors.blue,
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  sosCustomerName: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  sosCallButton: {
+    width: 31,
+    height: 31,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.success,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sosVehicleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 2,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  sosVehicleInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    flex: 1,
+  },
+  sosVehicleName: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+  sosSectionLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.7,
+  },
+  sosPlateBlock: {
+    alignItems: "flex-end",
+  },
+  sosPlate: {
+    color: colors.text,
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 3,
+    letterSpacing: 0.5,
+  },
+  sosSymptoms: {
+    flexDirection: "row",
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 9,
+    backgroundColor: "#FFF8F8",
+  },
+  sosSymptomsAccent: {
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: colors.sos,
+    marginRight: 9,
+  },
+  sosSymptomsContent: {
+    flex: 1,
+  },
+  sosFareBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 7,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "#CFE0FF",
+    borderRadius: 9,
+    backgroundColor: "#F5F9FF",
+  },
+  sosFareText: {
+    flex: 1,
+  },
+  sosFareLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  sosFareHint: {
+    color: colors.textMuted,
+    fontSize: 10,
+    marginTop: 4,
+  },
+  sosFareValue: {
+    color: "#1D4294",
+    fontSize: 17,
+    fontWeight: "900",
+  },
+  sosActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 7,
+  },
+  sosAcceptButton: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 8,
+    backgroundColor: "#0EA54B",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 5,
+  },
+  sosAcceptText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  sosDeclineButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E88A8A",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 5,
+    backgroundColor: colors.white,
+  },
+  sosDeclineText: {
+    color: colors.textMuted,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  requestCustomer: {
+    color: colors.text,
+    fontSize: 21,
+    fontWeight: "800",
+    marginTop: 10,
+  },
+  requestInfoGrid: {
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  requestInfoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  requestInfoText: {
+    flex: 1,
+    color: colors.textMuted,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  requestIssue: {
+    color: colors.textDim,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 12,
+  },
+  sosIssue: {
+    color: colors.sos,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
+    marginTop: 4,
   },
   newLabel: {
     color: colors.success,
@@ -1026,7 +1803,7 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: "700",
     fontSize: 16,
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
   },
   availableIssue: {
     color: colors.textMuted,
@@ -1036,8 +1813,8 @@ const styles = StyleSheet.create({
   acceptJobButton: {
     flex: 1,
     backgroundColor: colors.amber,
-    borderRadius: 0,
-    minHeight: 42,
+    borderRadius: 8,
+    minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1050,8 +1827,8 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 1,
     borderColor: colors.sos,
-    borderRadius: 0,
-    minHeight: 42,
+    borderRadius: 8,
+    minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
   },

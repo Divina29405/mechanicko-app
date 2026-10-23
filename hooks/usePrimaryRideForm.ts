@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Alert, LayoutAnimation } from "react-native";
+import * as SecureStore from "expo-secure-store";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -30,22 +31,47 @@ export function usePrimaryRideForm() {
   }
 
   async function continueSetup() {
-    if (!session?.user.id) {
-      Alert.alert("Account session unavailable", "Please sign in again before saving your primary ride.");
+    const { data: sessionResult, error: sessionError } = await supabase.auth.getSession();
+    const activeSession = session ?? sessionResult.session;
+    const hasVehicleDetails =
+      !!selectedVehicle &&
+      !!selectedMake &&
+      !!modelName.trim() &&
+      !!vehicleYear.trim() &&
+      !!plateNumber.trim() &&
+      !!selectedFuel;
+
+    if (!hasVehicleDetails) {
+      await SecureStore.setItemAsync(
+        "pending_primary_ride",
+        JSON.stringify({ role, skipped: true }),
+      );
+      router.push({
+        pathname: "/quick-account-setup",
+        params: { role: role === "mechanic" ? "mechanic" : "customer", completed: "2" },
+      });
       return;
     }
-    if (!selectedVehicle || !selectedMake || !modelName.trim() || !vehicleYear.trim() || !plateNumber.trim() || !selectedFuel) {
-      Alert.alert("Incomplete vehicle details", "Please complete the vehicle category, make, model, year, plate number, and fuel type.");
-      return;
-    }
-    setSaving(true);
     const vehicleRecord = {
       type: selectedVehicle, make: selectedMake, model: modelName.trim(),
       year: vehicleYear.trim(), plate_number: plateNumber.trim().toUpperCase(),
       fuel_type: selectedFuel, is_primary: true,
-      mechanic_id: role === "mechanic" ? session.user.id : null,
-      motorist_id: role === "mechanic" ? null : session.user.id,
+      mechanic_id: role === "mechanic" ? activeSession?.user.id ?? null : null,
+      motorist_id: role === "mechanic" ? null : activeSession?.user.id ?? null,
     };
+    if (sessionError || !activeSession?.user.id) {
+      await SecureStore.setItemAsync(
+        "pending_primary_ride",
+        JSON.stringify({ ...vehicleRecord, role }),
+      );
+      router.push({
+        pathname: "/quick-account-setup",
+        params: { role: role === "mechanic" ? "mechanic" : "customer", completed: "2" },
+      });
+      return;
+    }
+
+    setSaving(true);
     const { error } = await supabase.from("vehicles").insert(vehicleRecord);
     setSaving(false);
     if (error) {

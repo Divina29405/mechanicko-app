@@ -21,6 +21,7 @@ export type Vehicle = {
   model: string;
   year: string;
   plate_number: string;
+  engine_type: string | null;
   fuel_type: FuelType;
   is_primary: boolean;
   created_at: string;

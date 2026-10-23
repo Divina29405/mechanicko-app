@@ -1,7 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useRef, useState } from "react";
-import { Alert } from "react-native";
 
 import {
   type AuthRole,
@@ -11,7 +10,10 @@ import {
 import {
   validateConfirmPassword,
   validateEmail,
+  validateFullName,
+  validatePhilippineMobileNumber,
   validatePassword,
+  validateRequired,
 } from "@/lib/validation";
 
 export function useSignupForm() {
@@ -35,10 +37,11 @@ export function useSignupForm() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [success] = useState(false);
   const [showAlmostDone, setShowAlmostDone] = useState(false);
   const [step, setStep] = useState(1);
   const [licenseFront, setLicenseFront] = useState<string | null>(null);
@@ -69,8 +72,8 @@ export function useSignupForm() {
     if (role === "customer") {
       setFormError(null);
       router.push({
-        pathname: "/(auth)/signup",
-        params: { role: "customer", setup: "complete" },
+        pathname: "/quick-account-setup",
+        params: { role: "customer" },
       });
       return;
     }
@@ -89,43 +92,72 @@ export function useSignupForm() {
       quality: 0.8,
     });
     if (result.canceled || !result.assets[0]?.uri) return;
-    if (side === "front") setLicenseFront(result.assets[0].uri);
-    else setLicenseBack(result.assets[0].uri);
+    if (side === "front") {
+      setLicenseFront(result.assets[0].uri);
+      setFieldErrors((current) => ({ ...current, licenseFront: null }));
+    } else {
+      setLicenseBack(result.assets[0].uri);
+      setFieldErrors((current) => ({ ...current, licenseBack: null }));
+    }
   }
 
   function nextStep() {
+    if (!validateStep(step)) return;
     setFormError(null);
     setStep((currentStep) => Math.min(currentStep + 1, 4));
   }
 
+  function validateStep(currentStep: number) {
+    const nextErrors: Record<string, string | null> = {};
+    if (currentStep === 1) {
+      nextErrors.fullName = validateFullName(fullName);
+      nextErrors.mobileNumber = validatePhilippineMobileNumber(mobileNumber);
+      nextErrors.email = validateEmail(email);
+      nextErrors.homeAddress = validateRequired(homeAddress);
+      nextErrors.password = validatePassword(password);
+      nextErrors.confirm = validateConfirmPassword(password, confirm);
+      setEmailError(nextErrors.email);
+      setPasswordError(nextErrors.password);
+      setConfirmError(nextErrors.confirm);
+    } else if (currentStep === 3) {
+      nextErrors.skills = validateRequired(skills);
+    } else if (currentStep === 2) {
+      nextErrors.licenseFront = licenseFront
+        ? null
+        : "This field is required.";
+      nextErrors.licenseBack = licenseBack ? null : "This field is required.";
+    } else if (currentStep === 4) {
+      nextErrors.certifications = validateRequired(certifications);
+      nextErrors.experience = validateRequired(experience);
+    }
+    setFieldErrors(nextErrors);
+    const hasErrors = Object.values(nextErrors).some(Boolean);
+    if (hasErrors) {
+      setFormError("Please correct the highlighted fields before continuing.");
+    }
+    return !hasErrors;
+  }
+
   async function submitMechanicApplication() {
-    const missingFields = [
-      ["full name", fullName],
-      ["mobile number", mobileNumber],
-      ["email address", email],
-      ["home address", homeAddress],
-      ["skills and specialization", skills],
-      ["certifications", certifications],
-      ["experience", experience],
-    ].find(([, value]) => !value.trim());
-    if (missingFields) {
-      setFormError(`Kumpletuhin ang ${missingFields[0]} bago isumite.`);
-      return;
-    }
-    const nextEmailError = validateEmail(email);
-    const nextPasswordError = validatePassword(password);
-    const nextConfirmError = validateConfirmPassword(password, confirm);
-    setEmailError(nextEmailError);
-    setPasswordError(nextPasswordError);
-    setConfirmError(nextConfirmError);
-    if (nextEmailError || nextPasswordError || nextConfirmError) {
-      setFormError("Ayusin muna ang mga error sa account details.");
-      return;
-    }
-    if (!licenseFront || !licenseBack) {
-      setFormError(
-        "I-upload ang front at back na larawan ng driver's license bago isumite.",
-      );
+    const nextErrors: Record<string, string | null> = {
+      fullName: validateFullName(fullName),
+      mobileNumber: validatePhilippineMobileNumber(mobileNumber),
+      email: validateEmail(email),
+      homeAddress: validateRequired(homeAddress),
+      password: validatePassword(password),
+      confirm: validateConfirmPassword(password, confirm),
+      licenseFront: licenseFront ? null : "This field is required.",
+      licenseBack: licenseBack ? null : "This field is required.",
+      skills: validateRequired(skills),
+      certifications: validateRequired(certifications),
+      experience: validateRequired(experience),
+    };
+    setEmailError(nextErrors.email);
+    setPasswordError(nextErrors.password);
+    setConfirmError(nextErrors.confirm);
+    setFieldErrors(nextErrors);
+    if (Object.values(nextErrors).some(Boolean)) {
+      setFormError("Please correct the highlighted fields before continuing.");
       return;
     }
     setLoading(true);
@@ -135,8 +167,8 @@ export function useSignupForm() {
       skills,
       certifications,
       experience,
-      licenseFrontUri: licenseFront,
-      licenseBackUri: licenseBack,
+      licenseFrontUri: licenseFront!,
+      licenseBackUri: licenseBack!,
     };
     const { error } = await signUp(
       email,
@@ -155,26 +187,6 @@ export function useSignupForm() {
   }
 
   async function saveAndContinue() {
-    setFormError(null);
-
-    const hasCompleteApplication =
-      fullName.trim() &&
-      mobileNumber.trim() &&
-      homeAddress.trim() &&
-      email.trim() &&
-      password &&
-      confirm &&
-      skills.trim() &&
-      certifications.trim() &&
-      experience.trim() &&
-      licenseFront &&
-      licenseBack;
-
-    if (!hasCompleteApplication) {
-      setShowAlmostDone(true);
-      return;
-    }
-
     await submitMechanicApplication();
   }
 
@@ -187,45 +199,27 @@ export function useSignupForm() {
       await submitMechanicApplication();
       return;
     }
-    const nextEmailError = validateEmail(email);
-    const nextPasswordError = validatePassword(password);
-    const nextConfirmError = validateConfirmPassword(password, confirm);
-    setEmailError(nextEmailError);
-    setPasswordError(nextPasswordError);
-    setConfirmError(nextConfirmError);
-    setFormError(null);
-    setInfo(null);
-    if (!mobileNumber.trim()) setFormError("Ilagay ang mobile number.");
-    if (
-      nextEmailError ||
-      nextPasswordError ||
-      nextConfirmError ||
-      !mobileNumber.trim()
-    )
-      return;
-    setLoading(true);
-    const { error } = await signUp(
-      email,
-      password,
-      fullName,
-      role,
-      undefined,
-      mobileNumber,
-    );
-    setLoading(false);
-    if (error) {
-      setFormError(error);
-      setSuccess(false);
+    const nextErrors = {
+      fullName: validateFullName(fullName),
+      mobileNumber: validatePhilippineMobileNumber(mobileNumber),
+      email: validateEmail(email),
+      password: validatePassword(password),
+      confirm: validateConfirmPassword(password, confirm),
+    };
+    setFieldErrors(nextErrors);
+    setEmailError(nextErrors.email);
+    setPasswordError(nextErrors.password);
+    setConfirmError(nextErrors.confirm);
+    if (Object.values(nextErrors).some(Boolean)) {
+      setFormError("Please correct the highlighted fields before continuing.");
       return;
     }
-    setSuccess(true);
-    setInfo("May verification link na ipinadala sa email address mo.");
+    setEmailError(null);
+    setPasswordError(null);
+    setConfirmError(null);
     setFormError(null);
-    Alert.alert(
-      "Verify your email",
-      "Na-create ang account. Buksan ang verification link sa email bago mag-login.",
-      [{ text: "Back to Login", onPress: () => router.push("/(auth)/login") }],
-    );
+    setInfo(null);
+    setShowAlmostDone(true);
   }
 
   return {
@@ -253,6 +247,8 @@ export function useSignupForm() {
     setPasswordError,
     confirmError,
     setConfirmError,
+    fieldErrors,
+    setFieldErrors,
     formError,
     info,
     loading,

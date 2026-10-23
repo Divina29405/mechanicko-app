@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router, Stack } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { PrimaryRideSteps } from "@/components/PrimaryRideSteps";
 import { useEffect } from "react";
 
@@ -21,17 +21,14 @@ import Animated, {
 } from "react-native-reanimated";
 
 const gradientColors = [
-  "#373327",
-  "#686150",
-  "#9E9786",
-  "#DCDCDB",
-  "#F3F3F5",
-  "#F8F8FA",
+  "#F5F7FA",
+  "#F5F7FA",
 ] as const;
 
 export default function AddPrimaryRideScreen() {
   const almostDoneTitleProgress = useSharedValue(0);
   const almostDoneTextProgress = useSharedValue(0);
+  const { back } = useLocalSearchParams<{ back?: string }>();
   const {
     selectedVehicle, setSelectedVehicle, multipleVehicles, setMultipleVehicles, step,
     setStep, makeDropdownOpen, setMakeDropdownOpen, selectedMake, setSelectedMake,
@@ -74,10 +71,14 @@ export default function AddPrimaryRideScreen() {
   }));
   return (
     <>
-      <Stack.Screen options={{ animation: "slide_from_right" }} />
+      <Stack.Screen
+        options={{
+          animation: back === "1" ? "slide_from_left" : "slide_from_right",
+        }}
+      />
       <LinearGradient
         colors={gradientColors}
-        locations={[0, 0.2, 0.38, 0.56, 0.72, 1]}
+        locations={[0, 1]}
         style={styles.screen}
       >
       <SafeAreaView style={styles.safeArea}>
@@ -99,7 +100,7 @@ export default function AddPrimaryRideScreen() {
             }}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={25} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={25} color="#000000" />
           </Pressable>
 
           <View style={styles.card}>
@@ -136,10 +137,8 @@ export default function AddPrimaryRideScreen() {
                   if (step === 2) {
                     animateUiChange();
                     setStep(1);
-                  } else if (router.canGoBack()) {
-                    router.back();
                   } else {
-                    router.replace("/quick-account-setup");
+                    router.back();
                   }
                 }}
                 style={styles.backAction}
@@ -236,6 +235,13 @@ const styles = StyleSheet.create({
     padding: 18,
     marginHorizontal: -18,
     marginBottom: -35,
+    borderWidth: 1,
+    borderColor: "#DCE3EF",
+    shadowColor: "#17213D",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
   },
   hiddenRideContent: {
     display: "none",
@@ -300,7 +306,7 @@ const styles = StyleSheet.create({
   },
   almostDoneProceedText: {
     color: "#FFFFFF",
-    fontSize: 18,
+    fontSize: 12,
     lineHeight: 20,
     fontWeight: "600",
   },

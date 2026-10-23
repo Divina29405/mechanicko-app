@@ -36,7 +36,11 @@ export function PrimaryButton({
         styles.button,
         variant === "blue" && styles.blueButton,
         variant === "login" && styles.loginButton,
-        pressed && !isDisabled ? styles.pressed : null,
+        pressed && !isDisabled
+          ? variant === "login"
+            ? styles.loginPressed
+            : styles.pressed
+          : null,
         isDisabled ? styles.disabled : null,
       ]}
     >
@@ -94,6 +98,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#24439A",
     minHeight: 48,
     borderRadius: 10,
+  },
+  loginPressed: {
+    backgroundColor: "#1B347A",
   },
   loginLabel: {
     color: "#FFFFFF",

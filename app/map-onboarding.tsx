@@ -47,19 +47,11 @@ export default function MapOnboardingScreen() {
         options={{
           animation: isBackNavigation ? "slide_from_left" : "slide_from_right",
           gestureEnabled: false,
-          contentStyle: { backgroundColor: "#373327" },
+          contentStyle: { backgroundColor: "#F5F7FA" },
         }}
       />
       <LinearGradient
-          colors={[
-            "#373327",
-            "#686150",
-            "#9E9786",
-            "#DCDCDB",
-            "#F3F3F5",
-            "#F8F8FA",
-          ]}
-          locations={[0, 0.2, 0.38, 0.56, 0.72, 1]}
+          colors={["#F5F7FA", "#F5F7FA"]}
           style={styles.screen}
       >
         <SafeAreaView style={styles.safeArea}>
@@ -95,7 +87,7 @@ export default function MapOnboardingScreen() {
             }
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={26} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={26} color="#000000" />
           </Pressable>
 
           <Image
@@ -109,7 +101,7 @@ export default function MapOnboardingScreen() {
               <Ionicons
                 name="navigate-circle-outline"
                 size={22}
-                color="#FFFFFF"
+                color="#24439A"
               />
               <Animated.Text style={[styles.title, titleAnimatedStyle]}>
                 Find Mechanics Near You

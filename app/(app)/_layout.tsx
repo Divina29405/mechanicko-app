@@ -1,26 +1,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs, useSegments } from "expo-router";
 import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  StyleSheet,
-  View,
-} from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, View } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { MechanicProvider, useMechanic } from "@/contexts/MechanicContext";
+import { MechanicProvider } from "@/contexts/MechanicContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 function MechanicTabs() {
-  const { unreadMessages } = useMechanic();
-  const { colors } = useAppTheme(); 
+  const { colors } = useAppTheme();
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        animation: "fade",
+        animation: "none",
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
@@ -66,11 +61,6 @@ function MechanicTabs() {
         name="messages"
         options={{
           title: "Chat",
-          tabBarBadge: unreadMessages > 0 ? unreadMessages : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: '#EF4444',
-            color: '#FFFFFF',
-          },
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubbles" size={size} color={color} />
           ),
@@ -89,10 +79,11 @@ function MechanicTabs() {
       <Tabs.Screen name="inventory" options={{ href: null }} />
       <Tabs.Screen name="wallet" options={{ href: null }} />
       <Tabs.Screen name="history" options={{ href: null }} />
+      <Tabs.Screen name="help-center" options={{ href: null }} />
+      <Tabs.Screen name="saved-locations" options={{ href: null }} />
       <Tabs.Screen name="MotoristMap" options={{ href: null }} />
       <Tabs.Screen name="motorist-profile" options={{ href: null }} />
       <Tabs.Screen name="motorist-activity" options={{ href: null }} />
-      <Tabs.Screen name="my-vehicles" options={{ href: null }} />
       <Tabs.Screen name="payment-methods" options={{ href: null }} />
       <Tabs.Screen name="emergency-checklist" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />
@@ -101,10 +92,17 @@ function MechanicTabs() {
 }
 
 function CustomerTabs() {
-  const { unreadMessages } = useMechanic();
   const { colors } = useAppTheme();
   const segments = useSegments();
-  const isEmergencyChecklist = String(segments[segments.length - 1]) === 'emergency-checklist';
+  const isEmergencyChecklist =
+    String(segments[segments.length - 1]) === "emergency-checklist";
+  const motoristTabIcon = (source: number, size: number) => (
+    <Image
+      source={source}
+      resizeMode="contain"
+      style={{ width: size * 0.72, height: size * 0.72 }}
+    />
+  );
 
   return (
     <Tabs
@@ -115,15 +113,36 @@ function CustomerTabs() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: colors.card,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          display: isEmergencyChecklist ? 'none' : 'flex',
+          backgroundColor: "#FFFFFF",
+          borderTopColor: "#F5F4FA",
+          borderTopWidth: 15,
+          height: 112,
+          paddingTop: 6,
+          paddingBottom: 8,
+          display: isEmergencyChecklist ? "none" : "flex",
+          justifyContent: "space-between",
+          paddingHorizontal: 12,
         },
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: "700",
-          marginBottom: 6,
+          marginBottom: 2,
+          transform: [{ translateY: -6 }],
+        },
+        tabBarButton: ({ ref: _ref, ...props }) => (
+          <Pressable {...props} android_ripple={{ color: "transparent" }} />
+        ),
+        tabBarIconStyle: {
+          transform: [{ translateY: -6 }],
+        },
+        tabBarItemStyle: {
+          flex: 0,
+          width: 72,
+          height: 60,
+          paddingTop: 2,
+          paddingBottom: 0,
+          justifyContent: "flex-start",
+          alignSelf: "flex-start",
         },
       }}
     >
@@ -131,50 +150,55 @@ function CustomerTabs() {
         name="MotoristMap"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
-          ),
+          tabBarIcon: ({ size }) =>
+            motoristTabIcon(
+              require("../../assets/images/motorist-home.jpg"),
+              size,
+            ),
         }}
       />
       <Tabs.Screen
         name="motorist-activity"
         options={{
-          title: "Activity",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="pulse" size={size} color={color} />
-          ),
+          title: "Bookings",
+          tabBarIcon: ({ size }) =>
+            motoristTabIcon(
+              require("../../assets/images/motorist-booking.jpg"),
+              size,
+            ),
         }}
       />
       <Tabs.Screen
         name="help-center"
         options={{
-          title: "Help Center",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="help-circle" size={size} color={color} />
-          ),
+          title: "Activity",
+          tabBarIcon: ({ size }) =>
+            motoristTabIcon(
+              require("../../assets/images/motorist-activity.png"),
+              size,
+            ),
         }}
       />
       <Tabs.Screen
         name="messages"
         options={{
           title: "Messages",
-          tabBarBadge: unreadMessages > 0 ? unreadMessages : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: "#EF4444",
-            color: "#FFFFFF",
-          },
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles" size={size} color={color} />
-          ),
+          tabBarIcon: ({ size }) =>
+            motoristTabIcon(
+              require("../../assets/images/motorist-message.jpg"),
+              size,
+            ),
         }}
       />
       <Tabs.Screen
         name="motorist-profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
-          ),
+          tabBarIcon: ({ size }) =>
+            motoristTabIcon(
+              require("../../assets/images/motorist-profile.png"),
+              size,
+            ),
         }}
       />
       <Tabs.Screen name="index" options={{ href: null }} />
@@ -186,7 +210,6 @@ function CustomerTabs() {
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="wallet" options={{ href: null }} />
       <Tabs.Screen name="saved-locations" options={{ href: null }} />
-      <Tabs.Screen name="my-vehicles" options={{ href: null }} />
       <Tabs.Screen name="payment-methods" options={{ href: null }} />
       <Tabs.Screen name="emergency-checklist" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />
@@ -223,9 +246,9 @@ export default function AppLayout() {
       }
 
       const { data, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
         .maybeSingle();
 
       if (!active) return;
@@ -279,7 +302,7 @@ export default function AppLayout() {
 
   return (
     <MechanicProvider>
-      {role === 'mechanic' ? (
+      {role === "mechanic" ? (
         <MechanicTabs key="mechanic-navigator" />
       ) : (
         <CustomerTabs key="customer-navigator" />

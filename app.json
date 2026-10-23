@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Mechaniko-app",
+    "name": "MECHANIC KO",
     "slug": "Mechaniko-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -25,6 +25,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -37,9 +38,9 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/logo.png",
           "resizeMode": "contain",
-          "backgroundColor": "#0C0D10"
+          "backgroundColor": "#F5F7FA"
         }
       ],
       "expo-secure-store",

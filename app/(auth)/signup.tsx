@@ -21,6 +21,8 @@ import { colors, radii, spacing } from "@/lib/theme";
 import {
   validateConfirmPassword,
   validateEmail,
+  validateFullName,
+  validatePhilippineMobileNumber,
   validatePassword,
 } from "@/lib/validation";
 
@@ -53,6 +55,8 @@ export default function SignupScreen() {
     setPasswordError,
     confirmError,
     setConfirmError,
+    fieldErrors,
+    setFieldErrors,
     formError,
     info,
     loading,
@@ -139,7 +143,7 @@ export default function SignupScreen() {
             }}
             style={styles.mechanicBackButton}
           >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={24} color="#000000" />
           </Pressable>
         ) : null}
 
@@ -212,7 +216,7 @@ export default function SignupScreen() {
                   onPress={() =>
                     router.push({
                       pathname: "/quick-account-setup",
-                      params: { role: "mechanic", completed: "1" },
+                      params: { role: role ?? "customer", completed: "1" },
                     })
                   }
                 >
@@ -256,10 +260,24 @@ export default function SignupScreen() {
               </Text>
               <AuthInput
                 label="Full name"
+                required
                 icon="person-outline"
                 iconImage={require("../../assets/images/profile1.png")}
                 value={fullName}
-                onChangeText={setFullName}
+                onChangeText={(value) => {
+                  setFullName(value);
+                  setFieldErrors((current) => ({
+                    ...current,
+                    fullName: validateFullName(value),
+                  }));
+                }}
+                error={fieldErrors.fullName}
+                onBlur={() =>
+                  setFieldErrors((current) => ({
+                    ...current,
+                    fullName: validateFullName(fullName),
+                  }))
+                }
                 autoCapitalize="words"
                 autoComplete="name"
                 textContentType="name"
@@ -268,16 +286,31 @@ export default function SignupScreen() {
               />
               <AuthInput
                 label="Mobile number"
+                required
                 icon="call-outline"
                 iconImage={require("../../assets/images/call.png")}
                 value={mobileNumber}
-                onChangeText={setMobileNumber}
+                onChangeText={(value) => {
+                  setMobileNumber(value);
+                  setFieldErrors((current) => ({
+                    ...current,
+                    mobileNumber: validatePhilippineMobileNumber(value),
+                  }));
+                }}
+                error={fieldErrors.mobileNumber}
+                onBlur={() =>
+                  setFieldErrors((current) => ({
+                    ...current,
+                    mobileNumber: validatePhilippineMobileNumber(mobileNumber),
+                  }))
+                }
                 keyboardType="phone-pad"
                 returnKeyType="next"
                 variant="customer"
               />
               <AuthInput
                 label="Email address"
+                required
                 icon="mail-outline"
                 iconImage={require("../../assets/images/email1.jpg")}
                 value={email}
@@ -286,6 +319,7 @@ export default function SignupScreen() {
                   if (emailError) setEmailError(validateEmail(v));
                 }}
                 error={emailError}
+                onBlur={() => setEmailError(validateEmail(email))}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
@@ -295,6 +329,7 @@ export default function SignupScreen() {
               />
               <AuthInput
                 label="Password"
+                required
                 icon="lock-closed-outline"
                 iconImage={require("../../assets/images/password1.jpg")}
                 value={password}
@@ -303,6 +338,7 @@ export default function SignupScreen() {
                   if (passwordError) setPasswordError(validatePassword(v));
                 }}
                 error={passwordError}
+                onBlur={() => setPasswordError(validatePassword(password))}
                 isPassword
                 autoCapitalize="none"
                 autoComplete="new-password"
@@ -312,6 +348,7 @@ export default function SignupScreen() {
               />
               <AuthInput
                 label="Confirm password"
+                required
                 icon="shield-checkmark-outline"
                 iconImage={require("../../assets/images/password1.jpg")}
                 value={confirm}
@@ -321,6 +358,9 @@ export default function SignupScreen() {
                     setConfirmError(validateConfirmPassword(password, v));
                 }}
                 error={confirmError}
+                onBlur={() =>
+                  setConfirmError(validateConfirmPassword(password, confirm))
+                }
                 isPassword
                 autoCapitalize="none"
                 autoComplete="new-password"
@@ -375,6 +415,8 @@ export default function SignupScreen() {
               setPasswordError={setPasswordError}
               confirmError={confirmError}
               setConfirmError={setConfirmError}
+              fieldErrors={fieldErrors}
+              setFieldErrors={setFieldErrors}
               licenseFront={licenseFront}
               licenseBack={licenseBack}
               pickLicensePhoto={(side) => void pickLicensePhoto(side)}
@@ -403,15 +445,7 @@ export default function SignupScreen() {
       {rolePickerVisible ? (
         <View style={styles.rolePickerOverlay}>
           <LinearGradient
-            colors={[
-              "#373327",
-              "#686150",
-              "#9E9786",
-              "#DCDCDB",
-              "#F3F3F5",
-              "#F8F8FA",
-            ]}
-            locations={[0, 0.2, 0.38, 0.56, 0.72, 1]}
+            colors={["#F5F7FA", "#F5F7FA"]}
             style={styles.modalBackdrop}
           >
             <SafeAreaView style={styles.roleScreen}>
@@ -427,7 +461,7 @@ export default function SignupScreen() {
                 }
                 style={styles.roleBackButton}
               >
-                <Ionicons name="arrow-back" size={25} color="#FFFFFF" />
+                <Ionicons name="arrow-back" size={25} color="#000000" />
               </Pressable>
 
               <View style={styles.roleModal}>
@@ -551,7 +585,13 @@ const styles = StyleSheet.create({
     marginTop: 54,
     minHeight: 680,
     borderRadius: 24,
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: "#17213D",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 20,
@@ -577,7 +617,7 @@ const styles = StyleSheet.create({
   customerSub: {
     width: "100%",
     color: "#2C2F35",
-    fontSize: 14,
+    fontSize: 12,
     lineHeight: 19,
     fontWeight: "500",
     marginBottom: 14,
@@ -704,6 +744,12 @@ const styles = StyleSheet.create({
     marginTop: -9,
     marginBottom: 8,
   },
+  errorMessage: {
+    color: "#B42318",
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
+  },
   info: {
     color: colors.success,
     fontSize: 13,
@@ -724,7 +770,7 @@ const styles = StyleSheet.create({
   },
   reviewTitle: {
     color: colors.success,
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "800",
     marginBottom: spacing.sm,
   },
@@ -795,8 +841,8 @@ const styles = StyleSheet.create({
   },
   almostDoneProceedText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 12,
+    lineHeight: 20,
     fontWeight: "700",
   },
   almostDoneArrow: {
@@ -957,6 +1003,13 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     marginTop: 70,
+    borderWidth: 1,
+    borderColor: "#DCE3EF",
+    shadowColor: "#17213D",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
   },
   roleBackButton: {
     position: "absolute",

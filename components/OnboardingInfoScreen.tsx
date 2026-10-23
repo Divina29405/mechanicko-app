@@ -129,7 +129,7 @@ export function OnboardingInfoScreen({
             }
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={26} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={26} color="#000000" />
           </Pressable>
 
           <View style={styles.copy}>

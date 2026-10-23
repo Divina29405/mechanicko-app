@@ -19,7 +19,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 import { MechanicScreen } from '@/components/mechanic/MechanicScreen';
-import { ComingSoonModal } from '@/components/ComingSoonModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMechanic } from '@/contexts/MechanicContext';
 import { colors, radii, spacing } from '@/lib/theme';
@@ -69,7 +68,6 @@ export default function ProfileScreen() {
   const [savingPrices, setSavingPrices] = useState(false);
   const [priceAdded, setPriceAdded] = useState(false);
   const [requestingDeletion, setRequestingDeletion] = useState(false);
-  const [comingSoonVisible, setComingSoonVisible] = useState(false);
   const [addressPickerVisible, setAddressPickerVisible] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<SelectedAddress | null>(null);
@@ -94,68 +92,59 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (!session?.user.id) return;
-    void supabase
-      .from('profiles')
-      .select(
-        'mobile_number,home_address,home_latitude,home_longitude,skills,certifications,maintenance_pricing,experience,license_front_path,license_back_path',
-      )
-      .eq('id', session.user.id)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (error) {
-          const metadata = session.user.user_metadata ?? {};
-          setProfile({
-            mobile_number: null,
-            home_address:
-              typeof metadata.home_address === 'string' ? metadata.home_address : null,
-            home_latitude:
-              typeof metadata.home_latitude === 'number' ? metadata.home_latitude : null,
-            home_longitude:
-              typeof metadata.home_longitude === 'number' ? metadata.home_longitude : null,
-            skills: null,
-            certifications: null,
-            maintenance_pricing: null,
-            experience: null,
-            license_front_path: null,
-            license_back_path: null,
-          });
-          Alert.alert('Profile unavailable', error.message);
-          return;
-        }
-        const metadata = session.user.user_metadata ?? {};
-        const metadataLatitude =
-          typeof metadata.home_latitude === 'number' ? metadata.home_latitude : null;
-        const metadataLongitude =
-          typeof metadata.home_longitude === 'number' ? metadata.home_longitude : null;
-        const mergedProfile = data
-          ? {
-              ...data,
-              home_address:
-                data.home_address ||
-                (typeof metadata.home_address === 'string' ? metadata.home_address : null),
-              home_latitude: data.home_latitude ?? metadataLatitude,
-              home_longitude: data.home_longitude ?? metadataLongitude,
-            }
-          : {
-              mobile_number: null,
-              home_address:
-                typeof metadata.home_address === 'string' ? metadata.home_address : null,
-              home_latitude: metadataLatitude,
-              home_longitude: metadataLongitude,
-              skills: null,
-              certifications: null,
-              maintenance_pricing: null,
-              experience: null,
-              license_front_path: null,
-              license_back_path: null,
-            };
-        setProfile(mergedProfile);
-        setMaintenancePrices(
-          Array.isArray(mergedProfile.maintenance_pricing)
-            ? mergedProfile.maintenance_pricing
-            : [],
-        );
-      });
+    let active = true;
+    const loadProfileDetails = async () => {
+      const metadata = session.user.user_metadata ?? {};
+      const metadataLatitude =
+        typeof metadata.home_latitude === 'number' ? metadata.home_latitude : null;
+      const metadataLongitude =
+        typeof metadata.home_longitude === 'number' ? metadata.home_longitude : null;
+      const profileFields =
+        'mobile_number,home_address,home_latitude,home_longitude,skills,certifications,maintenance_pricing,experience,license_front_path,license_back_path';
+      const [{ data, error }, { data: application }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select(profileFields)
+          .eq('id', session.user.id)
+          .maybeSingle(),
+        supabase
+          .from('mechanic_applications')
+          .select('skills,certifications,experience,license_front_path,license_back_path')
+          .eq('id', session.user.id)
+          .maybeSingle(),
+      ]);
+
+      if (!active) return;
+      if (error) {
+        Alert.alert('Profile unavailable', error.message);
+      }
+
+      const mergedProfile = {
+        mobile_number: data?.mobile_number ?? null,
+        home_address:
+          data?.home_address ||
+          (typeof metadata.home_address === 'string' ? metadata.home_address : null),
+        home_latitude: data?.home_latitude ?? metadataLatitude,
+        home_longitude: data?.home_longitude ?? metadataLongitude,
+        skills: data?.skills || application?.skills || null,
+        certifications: data?.certifications || application?.certifications || null,
+        maintenance_pricing: data?.maintenance_pricing ?? null,
+        experience: data?.experience || application?.experience || null,
+        license_front_path: data?.license_front_path || application?.license_front_path || null,
+        license_back_path: data?.license_back_path || application?.license_back_path || null,
+      };
+      setProfile(mergedProfile);
+      setMaintenancePrices(
+        Array.isArray(mergedProfile.maintenance_pricing)
+          ? mergedProfile.maintenance_pricing
+          : [],
+      );
+    };
+
+    void loadProfileDetails();
+    return () => {
+      active = false;
+    };
   }, [session?.user.id, session?.user.user_metadata]);
 
   const specializations = (profile?.skills ?? '')
@@ -169,9 +158,14 @@ export default function ProfileScreen() {
         .filter(Boolean)
     : [];
   const documents =
-    profile?.license_front_path || profile?.license_back_path
-      ? [{ label: 'Driver’s license', status: 'Submitted' }]
-      : [];
+    [
+      profile?.license_front_path
+        ? { label: "Driver's license - front", status: 'Submitted' }
+        : null,
+      profile?.license_back_path
+        ? { label: "Driver's license - back", status: 'Submitted' }
+        : null,
+    ].filter((document): document is { label: string; status: string } => Boolean(document));
 
   function toggleSection(
     section:
@@ -181,14 +175,6 @@ export default function ProfileScreen() {
       | 'maintenance-pricing'
       | 'account-details',
   ) {
-    if (
-      section === 'specializations' ||
-      section === 'documents' ||
-      section === 'certifications'
-    ) {
-      setComingSoonVisible(true);
-      return;
-    }
     setExpandedSection(section);
   }
 
@@ -722,16 +708,24 @@ export default function ProfileScreen() {
               ) : (
                 <Text style={styles.detailEmpty}>No documents uploaded yet.</Text>
               )
-            ) : certifications.length ? (
-              certifications.map((label) => (
-                <View key={label} style={styles.detailItem}>
-                  <Ionicons name="ribbon-outline" size={20} color={colors.amber} />
-                  <Text style={styles.detailItemText}>{label}</Text>
-                  <Text style={styles.docStatus}>Verified</Text>
-                </View>
-              ))
+            ) : certifications.length || profile?.experience ? (
+              <>
+                {certifications.map((label) => (
+                  <View key={label} style={styles.detailItem}>
+                    <Ionicons name="ribbon-outline" size={20} color={colors.amber} />
+                    <Text style={styles.detailItemText}>{label}</Text>
+                    <Text style={styles.docStatus}>Submitted</Text>
+                  </View>
+                ))}
+                {profile?.experience ? (
+                  <View style={styles.experienceCard}>
+                    <Text style={styles.experienceLabel}>Experience</Text>
+                    <Text style={styles.experienceText}>{profile.experience}</Text>
+                  </View>
+                ) : null}
+              </>
             ) : (
-              <Text style={styles.detailEmpty}>No certifications uploaded yet.</Text>
+              <Text style={styles.detailEmpty}>No certifications added yet.</Text>
             )}
           </ScrollView>
         </SafeAreaView>
@@ -785,10 +779,6 @@ export default function ProfileScreen() {
           </View>
         </SafeAreaView>
       </Modal>
-      <ComingSoonModal
-        visible={comingSoonVisible}
-        onClose={() => setComingSoonVisible(false)}
-      />
     </MechanicScreen>
   );
 }
@@ -993,6 +983,25 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: 'center',
     paddingVertical: spacing.xl,
+  },
+  experienceCard: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.bgElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+  },
+  experienceLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: spacing.xs,
+  },
+  experienceText: {
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 20,
   },
   accountDetails: {
     marginHorizontal: -spacing.md,

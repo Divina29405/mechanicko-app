@@ -5,12 +5,8 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const gradientColors = [
-  "#373327",
-  "#686150",
-  "#9E9786",
-  "#DCDCDB",
-  "#F3F3F5",
-  "#F8F8FA",
+  "#F5F7FA",
+  "#F5F7FA",
 ] as const;
 
 export default function QuickAccountSetupScreen() {
@@ -20,14 +16,43 @@ export default function QuickAccountSetupScreen() {
     back?: string;
   }>();
   const isMechanic = role === "mechanic";
-  const isCompleted = completed === "1";
+  const requestedCompletedStep =
+    completed === "3" ? 3 : completed === "2" ? 2 : completed === "1" ? 1 : 0;
+  const completedStep = isMechanic
+    ? requestedCompletedStep
+    : Math.min(requestedCompletedStep, 2);
+  const totalSteps = isMechanic ? 3 : 2;
+  const isAccountCompleted = completedStep >= 1;
+  const isRideCompleted = completedStep >= 2;
+  const isDispatchCompleted = completedStep >= 3;
 
   function continueSetup() {
-    if (isCompleted) {
+    if (completedStep === 1) {
       router.push({
         pathname: "/add-primary-ride",
         params: { role: isMechanic ? "mechanic" : "customer" },
       });
+      return;
+    }
+
+    if (completedStep === 3) {
+      router.push({
+        pathname: "/submit-application",
+        params: { role: isMechanic ? "mechanic" : "customer" },
+      });
+      return;
+    } else if (completedStep === 2) {
+      router.push(
+        isMechanic
+          ? {
+              pathname: "/dispatch-location",
+              params: { role: "mechanic" },
+            }
+          : {
+              pathname: "/submit-application",
+              params: { role: "customer" },
+            },
+      );
       return;
     }
 
@@ -49,7 +74,7 @@ export default function QuickAccountSetupScreen() {
       />
     <LinearGradient
       colors={gradientColors}
-      locations={[0, 0.2, 0.38, 0.56, 0.72, 1]}
+      locations={[0, 1]}
       style={styles.screen}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -59,44 +84,17 @@ export default function QuickAccountSetupScreen() {
             accessibilityLabel="Go back"
             hitSlop={12}
             onPress={() => {
-              router.replace({
-                pathname: "/(auth)/signup",
-                params: { back: "1" },
-              });
+              router.back();
             }}
-            style={[styles.backButton, isCompleted && styles.completedBackButton]}
+            style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={25} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={25} color="#000000" />
           </Pressable>
-
-          {isCompleted ? (
-            <View style={styles.onboardingTopBar}>
-              <View style={styles.progress}>
-                {Array.from({ length: 6 }, (_, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.progressItem,
-                      index < 2 && styles.progressItemActive,
-                    ]}
-                  />
-                ))}
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Skip onboarding"
-                hitSlop={12}
-                onPress={() => router.replace("/(auth)/login")}
-              >
-                <Text style={styles.skip}>Skip</Text>
-              </Pressable>
-            </View>
-          ) : null}
 
           <View
             style={[
               styles.setupCard,
-              isCompleted && styles.completedSetupCard,
+              isAccountCompleted && styles.completedSetupCard,
             ]}
           >
             <View style={styles.cardHeader}>
@@ -105,7 +103,7 @@ export default function QuickAccountSetupScreen() {
                 <Text style={styles.subtitle}>Setup your account</Text>
               </View>
               <Text style={styles.progressBadge}>
-                {isCompleted ? "1/3 Finished" : "0/3 Finished"}
+                {completedStep}/{totalSteps} Finished
               </Text>
             </View>
 
@@ -113,7 +111,12 @@ export default function QuickAccountSetupScreen() {
               <View
                 style={[
                   styles.progressFill,
-                  isCompleted && styles.progressFillCompleted,
+                  isAccountCompleted && styles.progressFillCompleted,
+                  isRideCompleted && styles.progressFillRideCompleted,
+                  isDispatchCompleted && styles.progressFillDispatchCompleted,
+                  !isMechanic &&
+                    isRideCompleted &&
+                    styles.progressFillMotoristCompleted,
                 ]}
               />
             </View>
@@ -122,29 +125,43 @@ export default function QuickAccountSetupScreen() {
               icon="person"
               title="1. Register your account"
               description="Provide necessary information"
-              status={isCompleted ? "FINISHED" : "PENDING"}
+              status={isAccountCompleted ? "FINISHED" : "PENDING"}
               statusStyle={
-                isCompleted ? styles.finishedStatus : styles.pendingStatus
+                isAccountCompleted ? styles.finishedStatus : styles.pendingStatus
               }
               iconStyle={styles.personIcon}
             />
             <SetupItem
               title="1. Add your primary ride"
               description="Motorcycle / Car / Van"
-              status={isCompleted ? "PENDING" : "NOT STARTED"}
+              status={isRideCompleted ? "FINISHED" : isAccountCompleted ? "PENDING" : "NOT STARTED"}
               statusStyle={
-                isCompleted ? styles.pendingStatus : styles.notStartedStatus
+                isRideCompleted ? styles.finishedStatus : isAccountCompleted ? styles.pendingStatus : styles.notStartedStatus
               }
               image
             />
-            <SetupItem
-              icon="navigate-outline"
-              title="2. Set dispatch location"
-              description="Home zone & frequent routes"
-              status="NOT STARTED"
-              statusStyle={styles.notStartedStatus}
-              iconStyle={styles.locationIcon}
-            />
+            {isMechanic ? (
+              <SetupItem
+                icon="navigate-outline"
+                title="2. Set dispatch location"
+                description="Home zone & frequent routes"
+                status={
+                  isDispatchCompleted
+                    ? "FINISHED"
+                    : isRideCompleted
+                      ? "PENDING"
+                      : "NOT STARTED"
+                }
+                statusStyle={
+                  isDispatchCompleted
+                    ? styles.finishedStatus
+                    : isRideCompleted
+                      ? styles.pendingStatus
+                      : styles.notStartedStatus
+                }
+                iconStyle={styles.locationIcon}
+              />
+            ) : null}
           </View>
 
           <View style={styles.bottomContent}>
@@ -157,7 +174,9 @@ export default function QuickAccountSetupScreen() {
                 pressed && styles.proceedPressed,
               ]}
             >
-              <Text style={styles.proceedText}>Proceed</Text>
+              <Text style={styles.proceedText}>
+                {completedStep === 2 && !isMechanic ? "Submit" : "Proceed"}
+              </Text>
               <Text style={styles.proceedArrow}>→</Text>
             </Pressable>
           </View>
@@ -245,7 +264,7 @@ const styles = StyleSheet.create({
     borderColor: "#FFFFFF",
   },
   skip: {
-    color: "#FFFFFF",
+    color: "#24439A",
     fontSize: 16,
     fontWeight: "400",
   },
@@ -255,14 +274,18 @@ const styles = StyleSheet.create({
     left: 18,
     zIndex: 2,
   },
-  completedBackButton: {
-    top: 73,
-  },
   setupCard: {
     width: "100%",
     minHeight: 360,
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#DCE3EF",
+    shadowColor: "#17213D",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
     padding: 20,
     marginTop: 70,
   },
@@ -309,6 +332,15 @@ const styles = StyleSheet.create({
   },
   progressFillCompleted: {
     width: "33%",
+  },
+  progressFillRideCompleted: {
+    width: "66%",
+  },
+  progressFillMotoristCompleted: {
+    width: "100%",
+  },
+  progressFillDispatchCompleted: {
+    width: "100%",
   },
   setupItem: {
     minHeight: 64,

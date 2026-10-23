@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image, Pressable, Text, TextInput, View, type ImageStyle, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import type { Dispatch, SetStateAction } from "react";
 import { useEffect } from "react";
 import Animated, {
   Easing,
@@ -11,7 +12,14 @@ import Animated, {
 import { AuthInput } from "@/components/auth/AuthInput";
 import { PrimaryButton } from "@/components/auth/PrimaryButton";
 import { colors } from "@/lib/theme";
-import { validateConfirmPassword, validateEmail, validatePassword } from "@/lib/validation";
+import {
+  validateConfirmPassword,
+  validateEmail,
+  validateFullName,
+  validatePhilippineMobileNumber,
+  validatePassword,
+  validateRequired,
+} from "@/lib/validation";
 
 export type SignupStepStyles = Record<
   string,
@@ -23,6 +31,7 @@ export function MechanicRegistrationSteps({
   homeAddress, setHomeAddress, email, setEmail, password, setPassword, confirm,
   setConfirm, emailError, setEmailError, passwordError, setPasswordError,
   confirmError, setConfirmError, licenseFront, licenseBack, pickLicensePhoto,
+  fieldErrors, setFieldErrors,
   skills, setSkills, certifications, setCertifications, experience, setExperience,
   setStep, setRolePickerVisible, backToQuickSetup, nextStep, saveAndContinue,
   onSubmit, loading,
@@ -39,6 +48,8 @@ export function MechanicRegistrationSteps({
   emailError: string | null; setEmailError: (value: string | null) => void;
   passwordError: string | null; setPasswordError: (value: string | null) => void;
   confirmError: string | null; setConfirmError: (value: string | null) => void;
+  fieldErrors: Record<string, string | null>;
+  setFieldErrors: Dispatch<SetStateAction<Record<string, string | null>>>;
   licenseFront: string | null; licenseBack: string | null;
   pickLicensePhoto: (side: "front" | "back") => void;
   skills: string; setSkills: (value: string) => void;
@@ -103,10 +114,24 @@ export function MechanicRegistrationSteps({
                 </Text>
                 <AuthInput
                   label="Full name"
+                  required
                   icon="person-outline"
                   iconImage={require("../../assets/images/profile1.png")}
                   value={fullName}
-                  onChangeText={setFullName}
+                  onChangeText={(value) => {
+                    setFullName(value);
+                    setFieldErrors((current) => ({
+                      ...current,
+                      fullName: validateFullName(value),
+                    }));
+                  }}
+                  error={fieldErrors.fullName}
+                  onBlur={() =>
+                    setFieldErrors((current) => ({
+                      ...current,
+                      fullName: validateFullName(fullName),
+                    }))
+                  }
                   autoCapitalize="words"
                   autoComplete="name"
                   textContentType="name"
@@ -114,15 +139,30 @@ export function MechanicRegistrationSteps({
                 />
                 <AuthInput
                   label="Mobile number"
+                  required
                   icon="call-outline"
                   iconImage={require("../../assets/images/call.png")}
                   value={mobileNumber}
-                  onChangeText={setMobileNumber}
+                  onChangeText={(value) => {
+                    setMobileNumber(value);
+                    setFieldErrors((current) => ({
+                      ...current,
+                      mobileNumber: validatePhilippineMobileNumber(value),
+                    }));
+                  }}
+                  error={fieldErrors.mobileNumber}
+                  onBlur={() =>
+                    setFieldErrors((current) => ({
+                      ...current,
+                      mobileNumber: validatePhilippineMobileNumber(mobileNumber),
+                    }))
+                  }
                   keyboardType="phone-pad"
                   variant="mechanic"
                 />
                 <AuthInput
                   label="Email address"
+                  required
                   icon="mail-outline"
                   iconImage={require("../../assets/images/email1.jpg")}
                   value={email}
@@ -131,6 +171,7 @@ export function MechanicRegistrationSteps({
                     if (emailError) setEmailError(validateEmail(v));
                   }}
                   error={emailError}
+                  onBlur={() => setEmailError(validateEmail(email))}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoComplete="email"
@@ -139,15 +180,30 @@ export function MechanicRegistrationSteps({
                 />
                 <AuthInput
                   label="Home address"
+                  required
                   icon="location-outline"
                   iconImage={require("../../assets/images/location1.png")}
                   value={homeAddress}
-                  onChangeText={setHomeAddress}
+                  onChangeText={(value) => {
+                    setHomeAddress(value);
+                    setFieldErrors((current) => ({
+                      ...current,
+                      homeAddress: validateRequired(value),
+                    }));
+                  }}
+                  error={fieldErrors.homeAddress}
+                  onBlur={() =>
+                    setFieldErrors((current) => ({
+                      ...current,
+                      homeAddress: validateRequired(homeAddress),
+                    }))
+                  }
                   autoCapitalize="words"
                   variant="mechanic"
                 />
                 <AuthInput
                   label="Password"
+                  required
                   icon="lock-closed-outline"
                   iconImage={require("../../assets/images/password1.jpg")}
                   value={password}
@@ -156,12 +212,14 @@ export function MechanicRegistrationSteps({
                     if (passwordError) setPasswordError(validatePassword(v));
                   }}
                   error={passwordError}
+                  onBlur={() => setPasswordError(validatePassword(password))}
                   isPassword
                   autoCapitalize="none"
                   variant="mechanic"
                 />
                 <AuthInput
                   label="Ulitin ang password"
+                  required
                   icon="shield-checkmark-outline"
                   iconImage={require("../../assets/images/password1.jpg")}
                   value={confirm}
@@ -171,6 +229,9 @@ export function MechanicRegistrationSteps({
                       setConfirmError(validateConfirmPassword(password, v));
                   }}
                   error={confirmError}
+                  onBlur={() =>
+                    setConfirmError(validateConfirmPassword(password, confirm))
+                  }
                   isPassword
                   autoCapitalize="none"
                   variant="mechanic"
@@ -184,14 +245,16 @@ export function MechanicRegistrationSteps({
                   Upload a clear photo of your driver&apos;s license
                 </Text>
                 <LicensePhoto
-                  label="Driver's license - front"
+                  label="Driver's license - front *"
                   uri={licenseFront}
+                  error={fieldErrors.licenseFront}
                   styles={styles}
                   onPress={() => void pickLicensePhoto("front")}
                 />
                 <LicensePhoto
-                  label="Driver's license - back"
+                  label="Driver's license - back *"
                   uri={licenseBack}
+                  error={fieldErrors.licenseBack}
                   styles={styles}
                   onPress={() => void pickLicensePhoto("back")}
                 />
@@ -205,6 +268,12 @@ export function MechanicRegistrationSteps({
                 placeholderTextColor={colors.textDim}
                 value={skills}
                 onChangeText={setSkills}
+                onBlur={() =>
+                  setFieldErrors((current) => ({
+                    ...current,
+                    skills: validateRequired(skills),
+                  }))
+                }
                 multiline
                 textAlignVertical="top"
               />
@@ -218,6 +287,12 @@ export function MechanicRegistrationSteps({
                   placeholderTextColor={colors.textDim}
                   value={certifications}
                   onChangeText={setCertifications}
+                  onBlur={() =>
+                    setFieldErrors((current) => ({
+                      ...current,
+                      certifications: validateRequired(certifications),
+                    }))
+                  }
                   multiline
                   textAlignVertical="top"
                 />
@@ -227,10 +302,25 @@ export function MechanicRegistrationSteps({
                   placeholderTextColor={colors.textDim}
                   value={experience}
                   onChangeText={setExperience}
+                  onBlur={() =>
+                    setFieldErrors((current) => ({
+                      ...current,
+                      experience: validateRequired(experience),
+                    }))
+                  }
                   multiline
                   textAlignVertical="top"
                 />
               </>
+            ) : null}
+            {step === 3 && fieldErrors.skills ? (
+              <Text style={styles.errorMessage}>{fieldErrors.skills}</Text>
+            ) : null}
+            {step === 4 && fieldErrors.certifications ? (
+              <Text style={styles.errorMessage}>{fieldErrors.certifications}</Text>
+            ) : null}
+            {step === 4 && fieldErrors.experience ? (
+              <Text style={styles.errorMessage}>{fieldErrors.experience}</Text>
             ) : null}
       </Animated.View>
 
@@ -277,11 +367,13 @@ export function MechanicRegistrationSteps({
 function LicensePhoto({
   label,
   uri,
+  error,
   styles,
   onPress,
 }: {
   label: string;
   uri: string | null;
+  error?: string | null;
   styles: SignupStepStyles;
   onPress: () => void;
 }) {
@@ -295,6 +387,7 @@ function LicensePhoto({
         <Text style={styles.photoHint}>{uri ? "Photo selected" : "Choose photo"}</Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color={colors.textDim} />
+      {error ? <Text style={styles.errorMessage}>{error}</Text> : null}
     </Pressable>
   );
 }

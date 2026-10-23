@@ -60,17 +60,49 @@ alter table if exists public.service_requests
 alter table if exists public.service_requests
   add column if not exists estimated_total numeric(10, 2);
 alter table if exists public.service_requests
+  add column if not exists additional_charges jsonb not null default '[]'::jsonb;
+alter table if exists public.service_requests
+  add column if not exists completed_at timestamptz;
+alter table if exists public.service_requests
   add column if not exists scheduled_at timestamptz;
 alter table if exists public.service_requests
   add column if not exists plate_number text;
+alter table if exists public.service_requests
+  add column if not exists mechanic_latitude double precision;
+alter table if exists public.service_requests
+  add column if not exists mechanic_longitude double precision;
 
 create table if not exists public.chat_messages (
   id uuid primary key default gen_random_uuid(),
   service_request_id uuid not null references public.service_requests(id) on delete cascade,
   sender_id uuid not null references auth.users(id) on delete cascade,
   recipient_id uuid not null references auth.users(id) on delete cascade,
-  body text not null check (length(trim(body)) > 0),
+  body text check (length(trim(coalesce(body, ''))) > 0 or image_url is not null),
+  image_url text,
   created_at timestamptz not null default now()
+);
+
+alter table if exists public.chat_messages
+  add column if not exists image_url text;
+
+insert into storage.buckets (id, name, public)
+values ('chat-media', 'chat-media', false)
+on conflict (id) do nothing;
+
+drop policy if exists "chat_media_participants_select" on storage.objects;
+create policy "chat_media_participants_select"
+on storage.objects for select
+using (
+  bucket_id = 'chat-media'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "chat_media_own_insert" on storage.objects;
+create policy "chat_media_own_insert"
+on storage.objects for insert
+with check (
+  bucket_id = 'chat-media'
+  and (storage.foldername(name))[1] = auth.uid()::text
 );
 
 create index if not exists chat_messages_request_idx

@@ -32,7 +32,10 @@ type MechanicContextValue = {
   rating: number;
   todayEarnings: number;
   weeklyEarnings: number;
+  monthlyEarnings: number;
   completedToday: number;
+  completedThisWeek: number;
+  completedThisMonth: number;
   walletBalance: number;
   sosOffer: SosOffer | null;
   acceptedSos: SosOffer | null;
@@ -48,6 +51,7 @@ type MechanicContextValue = {
   notifications: AppNotification[];
   unreadNotifications: number;
   unreadMessages: number;
+  refreshEarnings: () => Promise<void>;
   markNotificationsRead: () => void;
   avatarUrl: string | null;
   setAvatarUrl: (url: string | null) => void;
@@ -61,9 +65,17 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarLoading, setAvatarLoading] = useState(true);
   const [rating, setRating] = useState(5);
-  const [earnings, setEarnings] = useState({ today: 0, weekly: 0, completedToday: 0, wallet: 0 });
+  const [earnings, setEarnings] = useState({
+    today: 0,
+    weekly: 0,
+    monthly: 0,
+    completedToday: 0,
+    completedThisWeek: 0,
+    completedThisMonth: 0,
+    wallet: 0,
+  });
   const [payouts, setPayouts] = useState<PayoutRow[]>([]);
-  const [online, setOnlineState] = useState(true);
+  const [online, setOnlineState] = useState(false);
   const [sosOffer, setSosOffer] = useState<SosOffer | null>(initialSosOffer);
   const [acceptedSos, setAcceptedSos] = useState<SosOffer | null>(null);
   const [sosExpired, setSosExpired] = useState(false);
@@ -98,9 +110,6 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
       if (active && typeof data?.average_rating === 'number') {
         setRating(Math.min(5, Math.max(1, data.average_rating)));
       }
-      if (active && typeof data?.is_online === 'boolean') {
-        setOnlineState(data.is_online);
-      }
       if (active) setAvatarLoading(false);
     }
     void loadProfileData();
@@ -123,43 +132,91 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
     [session],
   );
 
-  useEffect(() => {
-    let active = true;
-    async function loadEarnings() {
+  const refreshEarnings = useCallback(async () => {
       if (!session?.user.id) return;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('service_requests')
-        .select('id,final_price,status,updated_at')
+        .select('id,estimated_total,service_price,additional_charges,status,created_at,completed_at')
         .eq('mechanic_id', session.user.id)
-        .in('status', ['completed', 'done', 'resolved'])
-        .order('updated_at', { ascending: false });
-      if (!active || !data) return;
+        .order('created_at', { ascending: false });
+      if (error) {
+        console.warn('Mechanic earnings load failed:', error.message);
+        return;
+      }
+      if (!data) return;
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
       const startOfWeek = startOfDay - now.getDay() * 86400000;
-      const rows = data.map((row) => ({
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      const rows = data
+        .filter((row) =>
+          ['completed', 'done', 'resolved', 'closed'].includes(
+            String(row.status ?? '').toLowerCase(),
+          ),
+        )
+        .map((row) => ({
         ...row,
-        amount: Number(row.final_price) || 0,
-        time: new Date(row.updated_at ?? now).getTime(),
+        amount:
+          (Number(row.estimated_total ?? row.service_price) || 0) +
+          (Array.isArray(row.additional_charges)
+            ? row.additional_charges
+                .filter((charge: { status?: string }) => charge.status === 'approved')
+                .reduce(
+                  (sum: number, charge: { amount?: number }) =>
+                    sum + (Number(charge.amount) || 0),
+                  0,
+                )
+            : 0),
+        time: new Date(row.completed_at ?? row.created_at ?? now).getTime(),
       }));
       setEarnings({
         today: rows.filter((row) => row.time >= startOfDay).reduce((sum, row) => sum + row.amount, 0),
         weekly: rows.filter((row) => row.time >= startOfWeek).reduce((sum, row) => sum + row.amount, 0),
+        monthly: rows.filter((row) => row.time >= startOfMonth).reduce((sum, row) => sum + row.amount, 0),
         completedToday: rows.filter((row) => row.time >= startOfDay).length,
+        completedThisWeek: rows.filter((row) => row.time >= startOfWeek).length,
+        completedThisMonth: rows.filter((row) => row.time >= startOfMonth).length,
         wallet: rows.reduce((sum, row) => sum + row.amount, 0),
       });
       setPayouts(rows.slice(0, 10).map((row) => ({
         id: row.id,
         label: 'Completed service',
         amount: row.amount,
-        date: new Date(row.time).toLocaleDateString(),
+        date: new Date(row.time).toISOString(),
         method: 'GCash',
         status: 'completed',
       })));
+  }, [session]);
+
+  useEffect(() => {
+    async function load() {
+      await refreshEarnings();
     }
-    void loadEarnings();
-    return () => { active = false; };
-  }, [session?.user.id]);
+    void load();
+  }, [refreshEarnings]);
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+    const channel = supabase
+      .channel(`mechanic_earnings_${session.user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'service_requests',
+          filter: `mechanic_id=eq.${session.user.id}`,
+        },
+        () => {
+          void refreshEarnings();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [refreshEarnings, session?.user.id]);
 
   useEffect(() => {
     if (!online) return;
@@ -206,7 +263,10 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
       rating,
       todayEarnings: earnings.today,
       weeklyEarnings: earnings.weekly,
+      monthlyEarnings: earnings.monthly,
       completedToday: earnings.completedToday,
+      completedThisWeek: earnings.completedThisWeek,
+      completedThisMonth: earnings.completedThisMonth,
       walletBalance: earnings.wallet,
       sosOffer: online ? sosOffer : null,
       acceptedSos,
@@ -222,6 +282,7 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
       notifications,
       unreadNotifications: notifications.filter((item) => !item.read).length,
       unreadMessages: initialThreads.reduce((sum, thread) => sum + thread.unread, 0),
+      refreshEarnings,
       markNotificationsRead,
       avatarUrl,
       setAvatarUrl,
@@ -245,6 +306,7 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
       rating,
       earnings,
       payouts,
+      refreshEarnings,
     ],
   );
 

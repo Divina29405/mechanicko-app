@@ -1,16 +1,67 @@
 import { Link, Stack, router } from "expo-router";
-import { useState } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import * as SecureStore from "expo-secure-store";
+import { useEffect, useState } from "react";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { AuthInput } from "@/components/auth/AuthInput";
 import { AuthLogo } from "@/components/auth/AuthLogo";
 import { AuthScreenShell } from "@/components/auth/AuthScreenShell";
 import { ErrorBanner } from "@/components/auth/ErrorBanner";
 import { PrimaryButton } from "@/components/auth/PrimaryButton";
-import { ComingSoonModal } from "@/components/ComingSoonModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors, spacing } from "@/lib/theme";
 import { validateEmail, validatePassword } from "@/lib/validation";
+
+const MECHANIC_REMEMBERED_LOGIN_KEY = "mechanic-remembered-login";
+
+type RememberedMechanicLogin = {
+  email: string;
+  password: string;
+};
+
+async function readRememberedMechanicLogin(): Promise<RememberedMechanicLogin | null> {
+  const raw =
+    Platform.OS === "web"
+      ? typeof localStorage === "undefined"
+        ? null
+        : localStorage.getItem(MECHANIC_REMEMBERED_LOGIN_KEY)
+      : await SecureStore.getItemAsync(MECHANIC_REMEMBERED_LOGIN_KEY);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as RememberedMechanicLogin;
+    if (
+      typeof parsed.email !== "string" ||
+      typeof parsed.password !== "string"
+    ) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function saveRememberedMechanicLogin(email: string, password: string) {
+  const value = JSON.stringify({ email: email.trim(), password });
+  if (Platform.OS === "web") {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(MECHANIC_REMEMBERED_LOGIN_KEY, value);
+    }
+    return;
+  }
+  await SecureStore.setItemAsync(MECHANIC_REMEMBERED_LOGIN_KEY, value);
+}
+
+async function clearRememberedMechanicLogin() {
+  if (Platform.OS === "web") {
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem(MECHANIC_REMEMBERED_LOGIN_KEY);
+    }
+    return;
+  }
+  await SecureStore.deleteItemAsync(MECHANIC_REMEMBERED_LOGIN_KEY);
+}
 
 export default function AdminLoginScreen() {
   const { signInAsMechanic } = useAuth();
@@ -20,8 +71,16 @@ export default function AdminLoginScreen() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [comingSoonVisible, setComingSoonVisible] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(false);
+
+  useEffect(() => {
+    void readRememberedMechanicLogin().then((savedLogin) => {
+      if (!savedLogin) return;
+      setEmail(savedLogin.email);
+      setPassword(savedLogin.password);
+      setRememberPassword(true);
+    });
+  }, []);
 
   async function submit() {
     const nextEmailError = validateEmail(email);
@@ -38,6 +97,20 @@ export default function AdminLoginScreen() {
       setError(result.error);
       return;
     }
+
+    try {
+      if (rememberPassword) {
+        await saveRememberedMechanicLogin(email, password);
+      } else {
+        await clearRememberedMechanicLogin();
+      }
+    } catch {
+      setError(
+        "Login succeeded, but your remember-me preference could not be saved.",
+      );
+      return;
+    }
+
     router.replace("/(app)");
   }
 
@@ -134,25 +207,6 @@ export default function AdminLoginScreen() {
             />
           </View>
 
-          <View style={styles.dividerRow}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>o</Text>
-            <View style={styles.divider} />
-          </View>
-
-          <Pressable
-            style={styles.googleButton}
-            onPress={() => setComingSoonVisible(true)}
-            disabled={loading}
-          >
-            <Image
-              source={require("../../assets/images/google.png")}
-              resizeMode="contain"
-              style={styles.googleIcon}
-            />
-            <Text style={styles.googleButtonText}>Continue with Google</Text>
-          </Pressable>
-
           <Link href="/(auth)/login" asChild>
             <Pressable style={styles.adminLink}>
               <Text style={styles.adminLinkText}>Log in as Customer</Text>
@@ -171,10 +225,6 @@ export default function AdminLoginScreen() {
         </View>
       </View>
 
-      <ComingSoonModal
-        visible={comingSoonVisible}
-        onClose={() => setComingSoonVisible(false)}
-      />
       </AuthScreenShell>
     </>
   );
@@ -196,12 +246,18 @@ const styles = StyleSheet.create({
     transform: [{ translateY: -55 }],
   },
   card: {
-    backgroundColor: colors.bgElevated,
+    backgroundColor: "#FFFFFF",
     borderRadius: 30,
     paddingHorizontal: 24,
     paddingTop: 40,
     paddingBottom: 50,
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: "#DCE3EF",
+    shadowColor: "#17213D",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
     marginHorizontal: 0,
     marginTop: -33,
   },

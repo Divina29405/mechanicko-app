@@ -1,7 +1,6 @@
 import * as Location from "expo-location";
-import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router, useSegments } from "expo-router";
+import { useSegments } from "expo-router";
 import { useEffect, useState, type ReactNode } from "react";
 import {
     ActivityIndicator,
@@ -44,22 +43,40 @@ async function checkLocationAccess() {
 }
 
 async function openLocationSettings() {
-  if (Platform.OS === "android") {
-    try {
+  try {
+    if (Platform.OS === "android") {
       await Linking.sendIntent("android.settings.LOCATION_SOURCE_SETTINGS");
       return;
-    } catch {}
-  }
+    }
 
-  await Linking.openSettings();
+    await Linking.openSettings();
+  } catch (error) {
+    console.warn(
+      "Unable to open device location settings:",
+      error instanceof Error ? error.message : error,
+    );
+  }
 }
 
 export function LocationGate({ children }: { children: ReactNode }) {
-  const { loading } = useAuth();
+  const { loading, session } = useAuth();
   const segments = useSegments();
   const locationNotRequired = segments.some(
     (segment) =>
-      segment === "admin-login" || segment === "(admin)" || segment === "admin",
+      segment === "(auth)" ||
+      segment === "welcome" ||
+      segment === "help" ||
+      segment === "map-onboarding" ||
+      segment === "help-when-needed" ||
+      segment === "setup-complete" ||
+      segment === "choose-service" ||
+      segment === "quick-account-setup" ||
+      segment === "add-primary-ride" ||
+      segment === "dispatch-location" ||
+      segment === "submit-application" ||
+      segment === "admin-login" ||
+      segment === "(admin)" ||
+      segment === "admin",
   );
   const [locationStatus, setLocationStatus] = useState<
     "checking" | "granted" | "blocked"
@@ -69,7 +86,7 @@ export function LocationGate({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (loading || locationNotRequired) {
+    if (loading || !session || locationNotRequired) {
       return;
     }
 
@@ -140,9 +157,9 @@ export function LocationGate({ children }: { children: ReactNode }) {
       subscription.remove();
       clearInterval(monitor);
     };
-  }, [loading, locationNotRequired]);
+  }, [loading, locationNotRequired, session]);
 
-  if (loading || locationNotRequired) {
+  if (loading || !session || locationNotRequired) {
     return <>{children}</>;
   }
 
@@ -161,31 +178,13 @@ export function LocationGate({ children }: { children: ReactNode }) {
   return (
     <LinearGradient
       colors={[
-        "#373327",
-        "#686150",
-        "#9E9786",
-        "#DCDCDB",
-        "#F3F3F5",
-        "#F8F8FA",
+        "#FFFFFF",
+        "#FFFFFF",
       ]}
-      locations={[0, 0.2, 0.38, 0.56, 0.72, 1]}
+      locations={[0, 1]}
       style={styles.locationGate}
     >
       <SafeAreaView style={styles.locationSafeArea}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace("/");
-            }
-          }}
-          style={styles.locationBackButton}
-        >
-          <Ionicons name="arrow-back" size={25} color="#FFFFFF" />
-        </Pressable>
         <View style={styles.locationCard}>
           <View style={styles.warningIcon}>
             <Text style={styles.warningIconText}>!</Text>
@@ -244,28 +243,29 @@ const styles = StyleSheet.create({
   },
   locationGate: {
     flex: 1,
+    backgroundColor: "#FFFFFF",
   },
   locationSafeArea: {
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: 16,
   },
-  locationBackButton: {
-    position: "absolute",
-    top: 24,
-    left: 20,
-    zIndex: 2,
-  },
   locationCard: {
     width: "100%",
     backgroundColor: colors.bgElevated,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    minHeight: 680,
-    marginHorizontal: -24,
+    borderRadius: 20,
+    flex: 1,
     marginTop: 54,
     paddingHorizontal: 24,
     paddingTop: 34,
+    paddingBottom: 24,
+    borderWidth: 1,
+    borderColor: "#DCE3EF",
+    shadowColor: "#17213D",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
   },
   warningIcon: {
     width: 52,

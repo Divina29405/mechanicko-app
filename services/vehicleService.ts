@@ -44,3 +44,25 @@ export async function listVehicles(
 
   return { data: (data ?? []) as Vehicle[], error: null };
 }
+
+export async function setPrimaryVehicle(
+  ownerId: string,
+  vehicleId: string,
+): Promise<{ error: string | null }> {
+  const { error: clearError } = await supabase
+    .from("vehicles")
+    .update({ is_primary: false })
+    .eq("motorist_id", ownerId);
+
+  if (clearError) {
+    return { error: clearError.message };
+  }
+
+  const { error: primaryError } = await supabase
+    .from("vehicles")
+    .update({ is_primary: true })
+    .eq("id", vehicleId)
+    .eq("motorist_id", ownerId);
+
+  return { error: primaryError?.message ?? null };
+}

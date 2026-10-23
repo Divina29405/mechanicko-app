@@ -20,6 +20,7 @@ import { colors, radii, spacing } from '@/lib/theme';
 
 type Props = {
   label: string;
+  required?: boolean;
   icon: keyof typeof Ionicons.glyphMap;
   error?: string | null;
   isPassword?: boolean;
@@ -31,10 +32,11 @@ type Props = {
   iconImageStyle?: StyleProp<ImageStyle>;
   labelStyle?: StyleProp<TextStyle>;
   inputStyle?: StyleProp<TextStyle>;
-} & Pick<TextInputProps, 'value' | 'onChangeText' | 'autoCapitalize' | 'autoComplete' | 'textContentType' | 'returnKeyType' | 'onSubmitEditing'>;
+} & Pick<TextInputProps, 'value' | 'onChangeText' | 'autoCapitalize' | 'autoComplete' | 'textContentType' | 'returnKeyType' | 'onSubmitEditing' | 'onBlur'>;
 
 export function AuthInput({
   label,
+  required = false,
   icon,
   error,
   isPassword,
@@ -69,7 +71,7 @@ export function AuthInput({
           labelStyle,
         ]}
       >
-        {label}
+        {label}{required ? " *" : ""}
       </Text>
       <View
         style={[
@@ -95,6 +97,11 @@ export function AuthInput({
         )}
         <TextInput
           {...inputProps}
+          onFocus={() => setFocused(true)}
+          onBlur={(event) => {
+            setFocused(false);
+            inputProps.onBlur?.(event);
+          }}
           style={[
             styles.input,
             (isMechanic || isCustomer) && styles.mechanicInput,
@@ -103,8 +110,6 @@ export function AuthInput({
           placeholderTextColor={colors.textDim}
           keyboardType={keyboardType}
           secureTextEntry={hidden}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
         />
         {isPassword ? (
           <Pressable onPress={() => setHidden((v) => !v)} hitSlop={10}>
