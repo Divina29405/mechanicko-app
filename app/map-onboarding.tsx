@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { normalizeText } from "@/lib/typography";
 
 export default function MapOnboardingScreen() {
   const { back } = useLocalSearchParams<{ back?: string }>();
@@ -92,7 +93,7 @@ export default function MapOnboardingScreen() {
 
             <Image
               source={require("../assets/images/onboardmap.png")}
-              resizeMode="contain"
+              resizeMode="cover"
               style={styles.mapImage}
             />
 
@@ -174,9 +175,8 @@ const styles = StyleSheet.create({
   },
   skip: {
     color: "#1E3A8A",
-    fontFamily: "sans-serif",
-    fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(15),
   },
   backButton: {
     alignSelf: "flex-start",
@@ -184,14 +184,17 @@ const styles = StyleSheet.create({
   },
   mapImage: {
     alignSelf: "center",
-    width: 320,
-    height: 186,
-    borderRadius: 14,
-    marginTop: 38,
+    width: "100%",
+    height: 220, // Clean, fixed height so it stops eating the whole screen
+    borderRadius: 16,
+    marginTop: 32,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   copy: {
-    marginTop: 24,
     paddingHorizontal: 12,
+    marginBottom: 20,
   },
   titleRow: {
     flexDirection: "row",
@@ -200,18 +203,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    color: "#0F172A",
-    fontFamily: "sans-serif",
-    fontSize: 24,
-    fontWeight: "800",
-    letterSpacing: -0.5,
+    color: "#1E3A8A",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(22),
+    letterSpacing: -0.2,
   },
   body: {
-    color: "#334155",
-    fontFamily: "sans-serif",
-    fontSize: 16,
-    fontWeight: "600",
-    lineHeight: 26,
+    color: "#0F172A",
+    fontFamily: "PlusJakartaSans",
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(24),
     letterSpacing: 0.1,
   },
   bottomContent: {
@@ -220,9 +221,8 @@ const styles = StyleSheet.create({
   },
   description: {
     color: "#334155",
-    fontFamily: "sans-serif",
-    fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans",
+    fontSize: normalizeText(14),
     letterSpacing: 0.1,
     textAlign: "center",
     marginBottom: 20,
@@ -247,14 +247,13 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: "#FFFFFF",
-    fontFamily: "sans-serif",
-    fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(17),
     letterSpacing: 0.3,
   },
   arrow: {
     color: "#FFFFFF",
-    fontSize: 24,
+    fontSize: normalizeText(24),
     marginLeft: 10,
     marginTop: -2,
   },

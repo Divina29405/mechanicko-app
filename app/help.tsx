@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { normalizeText } from "@/lib/typography";
 
 export default function HelpOnboardingScreen() {
   const { back } = useLocalSearchParams<{ back?: string }>();
@@ -185,7 +186,7 @@ const styles = StyleSheet.create({
   skip: {
     color: "#1E3A8A",
     fontFamily: "sans-serif",
-    fontSize: 16,
+    fontSize: normalizeText(16),
     fontWeight: "600",
   },
   backButton: {
@@ -197,11 +198,11 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   headingLine: {
-    color: "#0F172A",
+    color: "#1E3A8A",
     fontFamily: "sans-serif",
-    fontSize: 34,
-    fontWeight: "800",
-    lineHeight: 40,
+    fontSize: normalizeText(36),
+    fontWeight: "900",
+    lineHeight: normalizeText(42),
     letterSpacing: -0.5,
   },
   bottomContent: {
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
   description: {
     color: "#334155",
     fontFamily: "sans-serif",
-    fontSize: 15,
+    fontSize: normalizeText(15),
     fontWeight: "600",
     letterSpacing: 0.1,
     textAlign: "center",
@@ -238,13 +239,13 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#FFFFFF",
     fontFamily: "sans-serif",
-    fontSize: 18,
+    fontSize: normalizeText(18),
     fontWeight: "700",
     letterSpacing: 0.3,
   },
   arrow: {
     color: "#FFFFFF",
-    fontSize: 24,
+    fontSize: normalizeText(24),
     marginLeft: 10,
     marginTop: -2,
   },

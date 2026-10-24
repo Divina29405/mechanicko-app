@@ -1,6 +1,7 @@
 import { Modal, Pressable, StyleSheet, Text } from "react-native";
 
 import { colors, radii, spacing } from "@/lib/theme";
+import { normalizeText } from "@/lib/typography";
 
 export function ComingSoonModal({
   visible,
@@ -38,14 +39,14 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: normalizeText(18),
     fontWeight: "800",
     textAlign: "center",
   },
   message: {
     color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: normalizeText(14),
+    lineHeight: normalizeText(21),
     marginTop: spacing.sm,
     textAlign: "center",
   },

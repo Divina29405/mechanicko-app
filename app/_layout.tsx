@@ -15,6 +15,7 @@ import { LocationGate } from "@/components/LocationGate";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider, useAppTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
+import { normalizeText } from "@/lib/typography";
 
 export { ErrorBoundary } from "expo-router";
 
@@ -158,7 +159,7 @@ function GlobalMotoristCancellationNotice() {
           ]}
         >
           <View style={globalNoticeStyles.icon}>
-            <Ionicons name="close" size={32} color="#FFFFFF" />
+            <Ionicons name="close" size={36} color="#FFFFFF" />
           </View>
           <Text style={[globalNoticeStyles.title, { color: colors.text }]}>
             Booking cancelled
@@ -249,37 +250,37 @@ const networkStyles = StyleSheet.create({
     padding: 28,
   },
   iconCircle: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
+    marginBottom: 22,
   },
   title: {
-    fontSize: 21,
+    fontSize: normalizeText(23),
     fontWeight: "800",
     textAlign: "center",
-    marginTop: 16,
+    marginTop: 18,
   },
   message: {
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: normalizeText(16),
+    lineHeight: normalizeText(24),
     textAlign: "center",
-    marginTop: 8,
-    maxWidth: 300,
+    marginTop: 10,
+    maxWidth: 320,
   },
   retryButton: {
-    borderRadius: 10,
-    minWidth: 130,
-    minHeight: 44,
+    borderRadius: 12,
+    minWidth: 140,
+    minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 22,
+    marginTop: 26,
   },
   retryText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: normalizeText(16),
     fontWeight: "800",
   },
 });
@@ -297,7 +298,7 @@ const globalNoticeStyles = StyleSheet.create({
     maxWidth: 380,
     borderRadius: 22,
     borderWidth: 1,
-    padding: 26,
+    padding: 28,
     alignItems: "center",
     elevation: 8,
     shadowColor: "#000",
@@ -306,27 +307,27 @@ const globalNoticeStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
   },
   icon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#D64545",
-    marginBottom: 14,
+    marginBottom: 16,
   },
-  title: { fontSize: 21, fontWeight: "800", marginBottom: 8 },
+  title: { fontSize: normalizeText(23), fontWeight: "800", marginBottom: 10 },
   message: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: normalizeText(16),
+    lineHeight: normalizeText(24),
     textAlign: "center",
-    marginBottom: 22,
+    marginBottom: 24,
   },
   button: {
     width: "100%",
     alignItems: "center",
     backgroundColor: "#172B66",
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 15,
   },
-  buttonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
+  buttonText: { color: "#FFFFFF", fontSize: normalizeText(16), fontWeight: "800" },
 });

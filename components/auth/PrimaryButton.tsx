@@ -8,6 +8,7 @@ import {
 } from "react-native";
 
 import { colors, radii } from "@/lib/theme";
+import { normalizeText } from "@/lib/typography";
 
 type Props = {
   label: string;
@@ -72,7 +73,7 @@ export function PrimaryButton({
 const styles = StyleSheet.create({
   button: {
     backgroundColor: colors.amber,
-    minHeight: 54,
+    minHeight: 56,
     borderRadius: radii.md,
     flexDirection: "row",
     alignItems: "center",
@@ -80,9 +81,9 @@ const styles = StyleSheet.create({
   },
   blueButton: {
     backgroundColor: "#24439A",
-    minHeight: 42,
-    paddingHorizontal: 18,
-    borderRadius: 11,
+    minHeight: 46,
+    paddingHorizontal: 20,
+    borderRadius: 12,
     shadowColor: "#132D73",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
@@ -91,21 +92,21 @@ const styles = StyleSheet.create({
   },
   blueLabel: {
     color: "#FFFFFF",
-    fontSize: 13,
+    fontSize: normalizeText(14),
     fontWeight: "700",
   },
   loginButton: {
     backgroundColor: "#24439A",
-    minHeight: 48,
-    borderRadius: 10,
+    minHeight: 52,
+    borderRadius: 12,
   },
   loginPressed: {
     backgroundColor: "#1B347A",
   },
   loginLabel: {
     color: "#FFFFFF",
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: normalizeText(17),
+    lineHeight: normalizeText(24),
     fontWeight: "700",
   },
   pressed: {
@@ -116,13 +117,13 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.bg,
-    fontSize: 16,
+    fontSize: normalizeText(17),
     fontWeight: "800",
     letterSpacing: 0.3,
   },
   icon: {
-    width: 18,
-    height: 18,
+    width: 20,
+    height: 20,
     marginLeft: 8,
     resizeMode: "contain",
   },

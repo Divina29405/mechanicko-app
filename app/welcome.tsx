@@ -10,6 +10,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { normalizeText } from "@/lib/typography";
 
 export default function WelcomeScreen() {
   const { back } = useLocalSearchParams<{ back?: string }>();
@@ -196,9 +197,8 @@ const styles = StyleSheet.create({
   },
   skip: {
     color: "#1E3A8A",
-    fontFamily: "sans-serif",
-    fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(15),
   },
   brand: {
     alignItems: "center",
@@ -206,16 +206,16 @@ const styles = StyleSheet.create({
   },
   heading: {
     color: "#1E3A8A",
-    fontFamily: "sans-serif",
-    fontSize: 32,
-    fontWeight: "800",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(30),
     letterSpacing: 0.5,
     textAlign: "center",
   },
   wordmark: {
     width: 220,
     height: 36,
-    marginTop: 24,
+    marginTop: 16,
+    tintColor: "#1E3A8A", 
   },
   bottomContent: {
     marginTop: "auto",
@@ -223,10 +223,9 @@ const styles = StyleSheet.create({
   },
   description: {
     color: "#0F172A",
-    fontFamily: "sans-serif",
-    fontSize: 16,
-    fontWeight: "600",
-    lineHeight: 24,
+    fontFamily: "PlusJakartaSans",
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(24),
     letterSpacing: 0.1,
     textAlign: "center",
     marginBottom: 24,
@@ -251,14 +250,13 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: "#FFFFFF",
-    fontFamily: "sans-serif",
-    fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(17),
     letterSpacing: 0.3,
   },
   arrow: {
     color: "#FFFFFF",
-    fontSize: 24,
+    fontSize: normalizeText(24),
     marginLeft: 10,
     marginTop: -2,
   },

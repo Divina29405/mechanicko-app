@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,15 +20,18 @@ import {
   subscribeToSharedAvatar,
 } from "@/lib/avatarStore";
 import { supabase } from "@/lib/supabase";
+import { normalizeText } from "@/lib/typography";
 
 const appLogo = require("../assets/images/mechanichome.png");
 
 export function MotoristHomeHeader() {
   const router = useRouter();
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
   const [titleAnimation] = useState(() => new Animated.Value(1));
   const { session } = useAuth();
   const { colors } = useAppTheme();
+  
   const metadataAvatarUrl =
     typeof session?.user.user_metadata?.avatar_url === "string"
       ? session.user.user_metadata.avatar_url
@@ -35,10 +39,12 @@ export function MotoristHomeHeader() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
     () => getSharedAvatarUrl() || metadataAvatarUrl,
   );
+  
   const name =
     typeof session?.user.user_metadata?.full_name === "string"
       ? session.user.user_metadata.full_name
       : session?.user.email?.split("@")[0] || "Motorist";
+      
   const screenTitle = pathname.includes("motorist-profile")
     ? "Profile"
     : pathname.includes("messages")
@@ -83,12 +89,13 @@ export function MotoristHomeHeader() {
       unsubscribe();
     };
   }, [metadataAvatarUrl, session?.user.id]);
+  
   return (
     <View
       style={[
         styles.topContainer,
         {
-          paddingTop: Platform.OS === "ios" ? 58 : 44,
+          paddingTop: Platform.OS === 'android' ? Math.max(insets.top, 8) : Math.max(insets.top, 12),
           backgroundColor: colors.card,
           borderColor: colors.border,
         },
@@ -123,7 +130,7 @@ export function MotoristHomeHeader() {
           >
             <Ionicons
               name="notifications-outline"
-              size={27}
+              size={22} 
               color={colors.text}
             />
           </TouchableOpacity>
@@ -138,7 +145,7 @@ export function MotoristHomeHeader() {
             <ProfileAvatar
               uri={avatarUrl}
               name={name}
-              size={50}
+              size={32} 
               backgroundColor="#FFF1D6"
               borderColor="#F0A202"
             />
@@ -154,36 +161,53 @@ const styles = StyleSheet.create({
     position: "relative",
     left: 0,
     right: 0,
-    paddingHorizontal: 10,
-    paddingBottom: 10,
-    borderRadius: 0,
+    paddingHorizontal: 16, 
+    paddingBottom: 6, 
     borderWidth: 1,
+    borderTopWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
     zIndex: 10,
-    elevation: 7,
+    elevation: 3, 
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
-    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
   },
-  headerRow: { minHeight: 58, flexDirection: "row", alignItems: "center" },
-  appLogo: { width: 74, height: 58 },
-  screenTitle: { flex: 1, marginLeft: 8, fontSize: 22, fontWeight: "800" },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 14 },
+  headerRow: { 
+    minHeight: 36, 
+    flexDirection: "row", 
+    alignItems: "center" 
+  },
+  appLogo: { 
+    width: 46, 
+    height: 36, 
+  },
+  screenTitle: { 
+    flex: 1, 
+    marginLeft: 10, 
+    fontSize: normalizeText(18), 
+    fontWeight: "800" 
+  },
+  headerActions: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    gap: 12 
+  },
   activityButton: {
-    width: 34,
-    height: 50,
+    width: 32,
+    height: 36,
     alignItems: "center",
     justifyContent: "center",
-    position: "relative",
   },
   iconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 32, 
+    height: 32, 
+    borderRadius: 16,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 5,
+    elevation: 2,
     borderWidth: 1,
   },
 });

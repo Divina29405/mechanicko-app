@@ -1,16 +1,16 @@
 import { Link, Stack, router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, Image } from "react-native";
 
 import { AuthInput } from "@/components/auth/AuthInput";
-import { AuthLogo } from "@/components/auth/AuthLogo";
 import { AuthScreenShell } from "@/components/auth/AuthScreenShell";
 import { ErrorBanner } from "@/components/auth/ErrorBanner";
 import { PrimaryButton } from "@/components/auth/PrimaryButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors, spacing } from "@/lib/theme";
 import { validateEmail, validatePassword } from "@/lib/validation";
+import { normalizeText } from "@/lib/typography";
 
 const MECHANIC_REMEMBERED_LOGIN_KEY = "mechanic-remembered-login";
 
@@ -119,8 +119,12 @@ export default function AdminLoginScreen() {
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <AuthScreenShell>
       <View style={styles.loginContent}>
-        <Text style={styles.kicker}>MECHANIC</Text>
-        <AuthLogo variant="blue" />
+        
+        <View style={styles.brandContainer}>
+          <Image source={require("../../assets/images/logo.png")} style={styles.brandLogo} resizeMode="contain" />
+          <Image source={require("../../assets/images/mechanikotext.png")} style={styles.brandText} resizeMode="contain" />
+          <Text style={styles.roleKicker}>MECHANIC LOGIN</Text>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.heading}>Log in</Text>
@@ -146,7 +150,6 @@ export default function AdminLoginScreen() {
               textContentType="emailAddress"
               returnKeyType="next"
               variant="customer"
-              fieldStyle={styles.emailField}
               iconImage={require("../../assets/images/email.jpg")}
               iconImageStyle={styles.loginImageIcon}
               labelStyle={styles.loginLabel}
@@ -170,7 +173,6 @@ export default function AdminLoginScreen() {
               returnKeyType="go"
               onSubmitEditing={() => void submit()}
               variant="customer"
-              fieldStyle={styles.passwordField}
               iconImage={require("../../assets/images/password.jpg")}
               iconImageStyle={styles.loginImageIcon}
               labelStyle={styles.loginLabel}
@@ -224,7 +226,6 @@ export default function AdminLoginScreen() {
           </Link>
         </View>
       </View>
-
       </AuthScreenShell>
     </>
   );
@@ -232,97 +233,99 @@ export default function AdminLoginScreen() {
 
 const styles = StyleSheet.create({
   loginContent: {
-    transform: [{ translateY: 35 }],
+    paddingHorizontal: 12, 
+    transform: [{ translateY: 20 }],
   },
-  kicker: {
-    alignSelf: "center",
-    color: "#000000",
-    fontFamily: "sans-serif",
-    fontSize: 15,
-    lineHeight: 15,
-    letterSpacing: 2.2,
+  brandContainer: {
+    alignItems: 'center',
+    marginBottom: 10,
+    transform: [{ translateY: -20 }]
+  },
+  brandLogo: {
+    width: 80,
+    height: 80,
+    marginBottom: 12
+  },
+  brandText: {
+    width: 170,
+    height: 24,
+    tintColor: "#1E3A8A",
+    marginBottom: 10
+  },
+  roleKicker: {
+    color: "#64748B",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(13),
     fontWeight: "800",
-    marginBottom: 16,
-    transform: [{ translateY: -55 }],
+    letterSpacing: 2,
   },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 30,
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 50,
+    borderRadius: 24,
+    paddingHorizontal: 28,
+    paddingTop: 32,
+    paddingBottom: 40,
     borderWidth: 1,
     borderColor: "#DCE3EF",
     shadowColor: "#17213D",
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.1,
-    shadowRadius: 16,
+    shadowRadius: 14,
     elevation: 4,
-    marginHorizontal: 0,
-    marginTop: -33,
+    marginTop: -40,
+    width: "100%",
   },
   heading: {
-    color: "#2C2F35",
-    fontFamily: "sans-serif",
-    fontSize: 26,
-    lineHeight: 32,
-    letterSpacing: -0.55,
-    fontWeight: "700",
-    marginBottom: 3,
-    transform: [{ translateY: -10 }],
+    color: "#0F172A",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(28),
+    letterSpacing: -0.5,
+    marginBottom: 6,
   },
   sub: {
-    color: "#5F6877",
-    fontFamily: "sans-serif",
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 18,
-    transform: [{ translateY: -10 }],
+    color: "#475569",
+    fontFamily: "PlusJakartaSans",
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(22),
+    marginBottom: 24,
   },
   loginInput: {
-    marginBottom: 7,
+    marginBottom: 12,
   },
   loginLabel: {
-    fontSize: 14,
-    lineHeight: 19,
-    marginBottom: 5,
-  },
-  emailField: {
-    transform: [{ translateY: 5 }],
-  },
-  passwordField: {
-    transform: [{ translateY: 5 }],
+    fontSize: normalizeText(15),
+    fontWeight: "700",
+    color: "#334155",
+    marginBottom: 8,
   },
   loginImageIcon: {
-    width: 22,
-    height: 22,
-    transform: [{ translateX: 14 }],
+    width: 24,
+    height: 24,
+    marginLeft: 12,
   },
   loginFieldInput: {
-    paddingLeft: 27,
-    fontSize: 17,
-    paddingVertical: 11,
+    paddingLeft: 12,
+    fontSize: normalizeText(16),
+    paddingVertical: 14,
   },
   loginButtonOffset: {
-    transform: [{ translateY: 8 }],
+    marginTop: 12,
   },
   rememberRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
-    marginBottom: 12,
-    minHeight: 22,
-    transform: [{ translateY: 5 }],
+    gap: 10,
+    marginBottom: 16,
+    marginTop: 8,
   },
   checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
-    transform: [{ translateY: 1 }],
   },
   checkboxChecked: {
     backgroundColor: "#24439A",
@@ -330,87 +333,46 @@ const styles = StyleSheet.create({
   },
   checkmark: {
     color: colors.bg,
-    fontSize: 13,
-    lineHeight: 14,
+    fontSize: normalizeText(14),
+    fontWeight: "800",
   },
   rememberText: {
     color: "#475569",
-    fontFamily: "sans-serif",
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: "500",
-  },
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginTop: 20,
-    marginBottom: 12,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    color: "#B7BFCC",
-    fontSize: 10,
-  },
-  googleButton: {
-    minHeight: 48,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  googleIcon: {
-    width: 22,
-    height: 22,
-  },
-  googleButtonText: {
-    color: "#2C2F35",
-    fontSize: 14,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans",
+    fontSize: normalizeText(15),
+    fontWeight: "600",
   },
   footer: {
-    marginTop: 17,
+    marginTop: 24,
     flexDirection: "row",
     justifyContent: "center",
-    gap: 6,
+    gap: 8,
   },
   footerText: {
-    color: "#727B8A",
-    fontFamily: "sans-serif",
-    fontSize: 13,
-    lineHeight: 18,
+    color: "#64748B",
+    fontFamily: "PlusJakartaSans",
+    fontSize: normalizeText(15),
   },
   footerLink: {
     color: "#24439A",
-    fontFamily: "sans-serif",
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(15),
   },
   adminLink: {
     alignSelf: "center",
-    marginTop: 20,
+    marginTop: 24,
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
+    gap: 8,
   },
   adminLinkText: {
-    color: "#000000",
-    fontFamily: "sans-serif",
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: "500",
+    color: "#0F172A",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(15),
   },
   adminArrow: {
-    color: "#2C2F35",
-    fontSize: 13,
-    lineHeight: 13,
+    color: "#0F172A",
+    fontSize: normalizeText(16),
+    fontWeight: "bold",
   },
 });

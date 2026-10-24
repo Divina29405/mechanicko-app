@@ -31,13 +31,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
+import { normalizeText } from "@/lib/typography";
 
 const bikeIcon = require("../../assets/images/bike.png");
 const motoristCallIcon = require("../../assets/images/motorist-call.png");
 const appLogo = require("../../assets/images/mechanichome.png");
 const recenterIcon = require("../../assets/images/recenter.png");
 const mapOrientationIcon = require("../../assets/images/maporientation.png");
-const mapNavIcon = require("../../assets/images/mapnav.png");
 const clockIcon = require("../../assets/images/clock.png");
 const MOTORIST_RADIUS_KEY = "motorist_search_radius_km";
 
@@ -195,7 +195,6 @@ export default function MotoristMap() {
         : null),
   );
   const mapRef = useRef<WebView | null>(null);
-  const mapNavUri = Image.resolveAssetSource(mapNavIcon).uri;
   const previousBookingStatus = useRef<string | null>(null);
   const [radarRotation] = useState(() => new Animated.Value(0));
   const motoristAvatarPath = useRef<string | null>(null);
@@ -1313,7 +1312,7 @@ export default function MotoristMap() {
             >
               <Ionicons
                 name="notifications-outline"
-                size={27}
+                size={28}
                 color={colors.text}
               />
             </TouchableOpacity>
@@ -1328,7 +1327,7 @@ export default function MotoristMap() {
               <ProfileAvatar
                 uri={motoristAvatarUrl}
                 name={motoristName}
-                size={50}
+                size={52}
                 backgroundColor="#FFF1D6"
                 borderColor="#F0A202"
               />
@@ -1347,11 +1346,11 @@ export default function MotoristMap() {
         <View
           style={[styles.nearbyMechanicsPill, { backgroundColor: colors.card }]}
         >
-          <Ionicons name="people-outline" size={16} color="#0037B0" />
+          <Ionicons name="people-outline" size={18} color="#0037B0" />
           <Text style={[styles.nearbyMechanicsCount, { color: colors.text }]}>
             Mechanics Near You
           </Text>
-          <Ionicons name="chevron-forward" size={16} color="#536078" />
+          <Ionicons name="chevron-forward" size={18} color="#536078" />
         </View>
       </TouchableOpacity>
       {activeRequest &&
@@ -1521,7 +1520,7 @@ export default function MotoristMap() {
                 onPress={() => setNearbyMechanicsVisible(false)}
                 accessibilityLabel="Close nearby mechanics"
               >
-                <Ionicons name="close" size={18} color="#536078" />
+                <Ionicons name="close" size={20} color="#536078" />
               </TouchableOpacity>
             </View>
             <ScrollView
@@ -1546,7 +1545,7 @@ export default function MotoristMap() {
                       />
                     ) : (
                       <View style={styles.nearbyMechanicAvatarFallback}>
-                        <Ionicons name="person" size={20} color="#FFFFFF" />
+                        <Ionicons name="person" size={24} color="#FFFFFF" />
                       </View>
                     )}
                     <View style={styles.nearbyMechanicCopy}>
@@ -1583,7 +1582,7 @@ export default function MotoristMap() {
                     </View>
                     <Ionicons
                       name="chevron-forward"
-                      size={18}
+                      size={20}
                       color="#536078"
                     />
                   </TouchableOpacity>
@@ -1592,7 +1591,7 @@ export default function MotoristMap() {
                 <View style={styles.nearbyMechanicsEmpty}>
                   <Ionicons
                     name="people-outline"
-                    size={34}
+                    size={40}
                     color={colors.textMuted}
                   />
                   <Text
@@ -1770,7 +1769,7 @@ export default function MotoristMap() {
                   onPress={() => setCancelModalVisible(true)}
                   accessibilityLabel="Cancel booking"
                 >
-                  <Ionicons name="close" size={23} color="#FFFFFF" />
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
                   <Text style={styles.cancelBookingButtonText}>
                     Cancel Booking
                   </Text>
@@ -1799,7 +1798,7 @@ export default function MotoristMap() {
                     }
                     accessibilityLabel="Call mechanic"
                   >
-                    <Ionicons name="call-outline" size={18} color="#FFFFFF" />
+                    <Ionicons name="call-outline" size={20} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
                 <View
@@ -1843,7 +1842,7 @@ export default function MotoristMap() {
                                 {isComplete ? (
                                   <Ionicons
                                     name="checkmark"
-                                    size={12}
+                                    size={14}
                                     color="#FFFFFF"
                                   />
                                 ) : null}
@@ -1885,7 +1884,7 @@ export default function MotoristMap() {
                   >
                     <Ionicons
                       name="receipt-outline"
-                      size={18}
+                      size={20}
                       color="#FFFFFF"
                     />
                     <Text style={styles.receiptButtonText}>
@@ -1915,7 +1914,7 @@ export default function MotoristMap() {
             >
               <View style={styles.mechanicPanelEyebrow}>
                 <View style={styles.mechanicPanelEyebrowLabel}>
-                  <Ionicons name="settings" size={14} color="#0037B0" />
+                  <Ionicons name="settings" size={15} color="#0037B0" />
                   <Text style={styles.mechanicPanelEyebrowText}>
                     MECHANIC PROFILE & PRICING
                   </Text>
@@ -1925,7 +1924,7 @@ export default function MotoristMap() {
                   onPress={() => setSelectedMechanic(null)}
                   accessibilityLabel="Close mechanic details"
                 >
-                  <Ionicons name="close" size={17} color="#536078" />
+                  <Ionicons name="close" size={18} color="#536078" />
                 </TouchableOpacity>
               </View>
               <View style={styles.profileHeader}>
@@ -1940,7 +1939,7 @@ export default function MotoristMap() {
                     />
                   ) : (
                     <View style={styles.mechanicAvatarFallback}>
-                      <Ionicons name="person" size={24} color="#FFFFFF" />
+                      <Ionicons name="person" size={26} color="#FFFFFF" />
                     </View>
                   )}
                   <View style={styles.selectedInfo}>
@@ -1989,7 +1988,7 @@ export default function MotoristMap() {
                   style={styles.bookmarkButton}
                   accessibilityLabel="Save mechanic"
                 >
-                  <Ionicons name="bookmark-outline" size={20} color="#536078" />
+                  <Ionicons name="bookmark-outline" size={22} color="#536078" />
                 </TouchableOpacity>
               </View>
               <View style={styles.mechanicStatsRow}>
@@ -2026,7 +2025,7 @@ export default function MotoristMap() {
                 <View style={styles.detailRowLabel}>
                   <Ionicons
                     name="pricetag-outline"
-                    size={19}
+                    size={21}
                     color={colors.primary}
                   />
                   <Text style={[styles.detailRowText, { color: colors.text }]}>
@@ -2046,7 +2045,7 @@ export default function MotoristMap() {
                 ) : null}
                 <Ionicons
                   name={showServices ? "chevron-up" : "chevron-forward"}
-                  size={19}
+                  size={21}
                   color={colors.textMuted}
                 />
               </TouchableOpacity>
@@ -2054,7 +2053,7 @@ export default function MotoristMap() {
                 style={styles.requestServiceButton}
                 onPress={openBooking}
               >
-                <Ionicons name="location-outline" size={17} color="#FFFFFF" />
+                <Ionicons name="location-outline" size={19} color="#FFFFFF" />
                 <Text style={styles.requestServiceButtonText}>
                   Request Service
                 </Text>
@@ -2065,7 +2064,7 @@ export default function MotoristMap() {
               >
                 <Ionicons
                   name="swap-vertical-outline"
-                  size={18}
+                  size={20}
                   color="#172033"
                 />
                 <Text style={styles.compareButtonText}>Compare Pricing</Text>
@@ -2096,10 +2095,10 @@ export default function MotoristMap() {
                 onPress={() => setShowServices(false)}
                 accessibilityLabel="Back to mechanic details"
               >
-                <Ionicons name="arrow-back" size={21} color="#172033" />
+                <Ionicons name="arrow-back" size={24} color="#172033" />
               </TouchableOpacity>
               <View style={styles.servicesSheetTitleRow}>
-                <Ionicons name="settings" size={13} color="#0037B0" />
+                <Ionicons name="settings" size={14} color="#0037B0" />
                 <Text style={styles.servicesSheetTitle}>
                   OFFERED SERVICES & BASE PRICES
                 </Text>
@@ -2109,7 +2108,7 @@ export default function MotoristMap() {
                 onPress={() => setShowServices(false)}
                 accessibilityLabel="Close service offerings"
               >
-                <Ionicons name="close" size={17} color="#536078" />
+                <Ionicons name="close" size={19} color="#536078" />
               </TouchableOpacity>
             </View>
             <ScrollView
@@ -2128,7 +2127,7 @@ export default function MotoristMap() {
                       <View style={styles.serviceIconBox}>
                         <Ionicons
                           name="construct-outline"
-                          size={17}
+                          size={19}
                           color={colors.primary}
                         />
                       </View>
@@ -2187,7 +2186,7 @@ export default function MotoristMap() {
               onPress={() => setPriceComparisonVisible(false)}
               accessibilityLabel="Close price comparison"
             >
-              <Ionicons name="arrow-back" size={23} color="#000000" />
+              <Ionicons name="arrow-back" size={26} color="#000000" />
             </TouchableOpacity>
             <Text style={[styles.servicesTitle, { color: colors.text }]}>
               Compare prices
@@ -2207,7 +2206,7 @@ export default function MotoristMap() {
             >
               <Ionicons
                 name="search-outline"
-                size={19}
+                size={22}
                 color={colors.textMuted}
               />
               <TextInput
@@ -2225,7 +2224,7 @@ export default function MotoristMap() {
                 >
                   <Ionicons
                     name="close-circle"
-                    size={19}
+                    size={22}
                     color={colors.textMuted}
                   />
                 </TouchableOpacity>
@@ -2301,7 +2300,7 @@ export default function MotoristMap() {
                       </Text>
                       <Ionicons
                         name="chevron-forward"
-                        size={18}
+                        size={20}
                         color={colors.textMuted}
                       />
                     </View>
@@ -2311,7 +2310,7 @@ export default function MotoristMap() {
                 <View style={styles.comparisonEmpty}>
                   <Ionicons
                     name="search-outline"
-                    size={30}
+                    size={36}
                     color={colors.textMuted}
                   />
                   <Text
@@ -2362,7 +2361,7 @@ export default function MotoristMap() {
               style={styles.servicesBackButton}
               accessibilityLabel="Close mechanic profile"
             >
-              <Ionicons name="arrow-back" size={23} color="#000000" />
+              <Ionicons name="arrow-back" size={26} color="#000000" />
             </TouchableOpacity>
             <Text style={[styles.servicesTitle, { color: colors.text }]}>
               Mechanic Profile
@@ -2504,7 +2503,8 @@ export default function MotoristMap() {
         onRequestClose={() => setBookingModalVisible(false)}
       >
         <SafeAreaView
-          style={[styles.bookingScreen, { backgroundColor: colors.bg }]}
+          style={[styles.bookingScreen, { backgroundColor: colors.bg }]
+          }
           edges={["top", "bottom"]}
         >
           <View
@@ -2531,7 +2531,7 @@ export default function MotoristMap() {
               style={styles.servicesBackButton}
               accessibilityLabel="Close booking"
             >
-              <Ionicons name="close" size={24} color={colors.text} />
+              <Ionicons name="close" size={26} color={colors.text} />
             </TouchableOpacity>
           </View>
           <View style={styles.bookingContent}>
@@ -2682,7 +2682,7 @@ export default function MotoristMap() {
                 >
                   <Ionicons
                     name="calendar-outline"
-                    size={18}
+                    size={20}
                     color={colors.primary}
                   />
                   <Text
@@ -2739,7 +2739,7 @@ export default function MotoristMap() {
                 >
                   <Ionicons
                     name="time-outline"
-                    size={18}
+                    size={20}
                     color={colors.primary}
                   />
                   <Text
@@ -2846,7 +2846,7 @@ export default function MotoristMap() {
             >
               <Ionicons
                 name="information-circle-outline"
-                size={19}
+                size={22}
                 color={colors.primary}
               />
               <Text
@@ -2903,7 +2903,7 @@ export default function MotoristMap() {
                 onPress={() => setBookingReceiptVisible(false)}
                 accessibilityLabel="Close receipt"
               >
-                <Ionicons name="close" size={24} color={colors.text} />
+                <Ionicons name="close" size={26} color={colors.text} />
               </TouchableOpacity>
             </View>
             <View
@@ -3010,7 +3010,7 @@ export default function MotoristMap() {
           >
             <Ionicons
               name="checkmark-circle"
-              size={42}
+              size={46}
               color="#10b981"
               style={styles.ratingCompleteIcon}
             />
@@ -3053,7 +3053,7 @@ export default function MotoristMap() {
                   <TouchableOpacity key={star} onPress={() => setRating(star)}>
                     <Ionicons
                       name={star <= rating ? "star" : "star-outline"}
-                      size={30}
+                      size={34}
                       color={colors.primary}
                       style={styles.compactStar}
                     />
@@ -3118,7 +3118,7 @@ export default function MotoristMap() {
             ]}
           >
             <View style={styles.acceptedSuccessIcon}>
-              <Ionicons name="checkmark" size={32} color="#FFFFFF" />
+              <Ionicons name="checkmark" size={36} color="#FFFFFF" />
             </View>
             <Text style={[styles.acceptedSuccessTitle, { color: colors.text }]}>
               Booking accepted
@@ -3157,7 +3157,7 @@ export default function MotoristMap() {
             ]}
           >
             <View style={styles.cancelSuccessIcon}>
-              <Ionicons name="checkmark" size={28} color="#FFFFFF" />
+              <Ionicons name="checkmark" size={32} color="#FFFFFF" />
             </View>
             <Text style={[styles.cancelSuccessTitle, { color: colors.text }]}>
               Booking Cancelled
@@ -3272,10 +3272,10 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   fallbackText: {
-    fontSize: 16,
+    fontSize: normalizeText(17),
     textAlign: "center",
     marginBottom: 24,
-    lineHeight: 24,
+    lineHeight: normalizeText(24),
   },
   recenterButton: {
     position: "absolute",
@@ -3295,7 +3295,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     zIndex: 8,
   },
-  recenterButtonText: { color: "#1B1B1B", fontSize: 15, fontWeight: "800" },
+  recenterButtonText: { color: "#1B1B1B", fontSize: normalizeText(16), fontWeight: "800" },
   recenterIcon: {
     width: 48,
     height: 48,
@@ -3311,10 +3311,10 @@ const styles = StyleSheet.create({
     bottom: -10,
     left: "4%",
     right: "4%",
-    height: 152,
+    minHeight: 160,
     borderWidth: 1,
     borderRadius: 16,
-    padding: 10,
+    padding: 12,
     elevation: 9,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -3358,24 +3358,24 @@ const styles = StyleSheet.create({
     bottom: 12,
     width: "100%",
     color: "#111111",
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: normalizeText(16),
+    lineHeight: normalizeText(22),
     textAlign: "center",
   },
   waitingRadarTitleStrong: { fontWeight: "800" },
   waitingRequestDivider: { height: 1, marginVertical: 9 },
   waitingRequestMetaStrong: { fontWeight: "800" },
-  waitingRequestStatus: { fontSize: 13, lineHeight: 19 },
+  waitingRequestStatus: { fontSize: normalizeText(14), lineHeight: normalizeText(20) },
   dispatchHeader: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 4,
-    height: 78,
+    height: 84,
   },
   dispatchClock: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F0D7D9",
@@ -3383,27 +3383,27 @@ const styles = StyleSheet.create({
     borderColor: "#E9C9CB",
     marginRight: 12,
   },
-  dispatchClockImage: { width: 34, height: 34 },
+  dispatchClockImage: { width: 36, height: 36 },
   dispatchCopy: { flex: 1 },
   dispatchEyebrow: {
     color: "#AD3F08",
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "900",
     letterSpacing: 0.4,
-    marginBottom: 3,
+    marginBottom: 4,
   },
   dispatchTitle: {
-    fontSize: 16,
-    lineHeight: 19,
+    fontSize: normalizeText(17),
+    lineHeight: normalizeText(20),
     fontWeight: "700",
   },
   dispatchSubtitle: {
-    fontSize: 12,
-    lineHeight: 15,
-    marginTop: 3,
+    fontSize: normalizeText(13),
+    lineHeight: normalizeText(16),
+    marginTop: 4,
   },
   dispatchProgressTrack: {
-    height: 10,
+    height: 12,
     borderRadius: 7,
     overflow: "hidden",
     backgroundColor: "#E7EAFE",
@@ -3416,8 +3416,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FF5A1F",
   },
   waitingCancelButton: {
-    height: 28,
-    marginTop: 5,
+    height: 32,
+    marginTop: 8,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -3427,7 +3427,7 @@ const styles = StyleSheet.create({
   },
   waitingCancelButtonText: {
     color: "#C44A00",
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "800",
   },
   acceptedOverlay: {
@@ -3478,33 +3478,33 @@ const styles = StyleSheet.create({
   },
   acceptedBookingHandle: {
     width: 54,
-    height: 5,
+    height: 6,
     borderRadius: 3,
     backgroundColor: "#D5D9DE",
   },
   acceptedBookingBanner: {
-    minHeight: 42,
+    minHeight: 46,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     borderRadius: 10,
     backgroundColor: "#EAF2F8",
   },
   acceptedBookingBannerMinimized: {
-    minHeight: 42,
+    minHeight: 46,
     paddingHorizontal: 16,
     borderRadius: 8,
   },
   acceptedBookingIcon: {
-    width: 30,
-    height: 30,
+    width: 32,
+    height: 32,
     resizeMode: "contain",
     marginRight: 10,
   },
   acceptedBookingBannerText: {
     flex: 1,
     color: "#1B1B1B",
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "800",
     letterSpacing: 0.1,
   },
@@ -3512,24 +3512,24 @@ const styles = StyleSheet.create({
   acceptedSectionTitle: {
     marginTop: 12,
     marginBottom: 5,
-    fontSize: 16,
+    fontSize: normalizeText(17),
     fontWeight: "800",
     letterSpacing: 0.1,
   },
   acceptedDetailRow: { flexDirection: "row", alignItems: "center" },
   acceptedDetailIcon: {
-    width: 28,
-    height: 28,
+    width: 30,
+    height: 30,
     resizeMode: "contain",
     marginRight: 8,
   },
-  acceptedDetailText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  acceptedDetailText: { flex: 1, fontSize: normalizeText(14), lineHeight: normalizeText(20) },
   acceptedDetailStrong: { fontWeight: "800" },
-  acceptedIssueText: { marginLeft: 36, fontSize: 13, lineHeight: 18 },
-  acceptedInfoText: { fontSize: 13, lineHeight: 19 },
+  acceptedIssueText: { marginLeft: 38, fontSize: normalizeText(14), lineHeight: normalizeText(20) },
+  acceptedInfoText: { fontSize: normalizeText(14), lineHeight: normalizeText(21) },
   cancelBookingButton: {
-    minHeight: 48,
-    marginTop: 12,
+    minHeight: 52,
+    marginTop: 14,
     borderRadius: 24,
     flexDirection: "row",
     alignItems: "center",
@@ -3538,13 +3538,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#F97316",
   },
   cancelBookingButtonMinimized: {
-    minHeight: 48,
-    marginTop: 12,
+    minHeight: 52,
+    marginTop: 14,
     borderRadius: 24,
   },
   cancelBookingButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: normalizeText(17),
     fontWeight: "700",
     letterSpacing: 0.1,
   },
@@ -3596,9 +3596,9 @@ const styles = StyleSheet.create({
     top: Platform.OS === "ios" ? 124 : 110,
     left: 0,
     right: 0,
-    minHeight: 48,
+    minHeight: 52,
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 0,
     borderTopWidth: 1,
     borderBottomWidth: 1,
@@ -3611,7 +3611,7 @@ const styles = StyleSheet.create({
   },
   ongoingOrderTitle: {
     color: "#0037B0",
-    fontSize: 15,
+    fontSize: normalizeText(16),
     fontWeight: "800",
     letterSpacing: 0.15,
     textAlign: "center",
@@ -3635,14 +3635,14 @@ const styles = StyleSheet.create({
   },
   mechanicPanelEyebrowText: {
     color: "#0037B0",
-    fontSize: 11,
+    fontSize: normalizeText(12),
     fontWeight: "900",
     letterSpacing: 0.25,
   },
   mechanicPanelClose: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#E9EDFA",
@@ -3653,17 +3653,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   mechanicAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     marginRight: 10,
     borderWidth: 2,
     borderColor: "#E5A13A",
   },
   mechanicAvatarFallback: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     marginRight: 10,
     alignItems: "center",
     justifyContent: "center",
@@ -3671,13 +3671,13 @@ const styles = StyleSheet.create({
   },
   mechanicServiceSummary: {
     color: "#657085",
-    fontSize: 11,
+    fontSize: normalizeText(12),
     marginTop: 2,
   },
   bookmarkButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F0F2F8",
@@ -3685,9 +3685,9 @@ const styles = StyleSheet.create({
   },
   selectedInfo: { flex: 1 },
   callIconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 12,
@@ -3698,10 +3698,10 @@ const styles = StyleSheet.create({
     marginTop: 5,
     gap: 6,
   },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusLabel: { fontSize: 12, fontWeight: "800" },
-  title: { fontSize: 19, fontWeight: "bold" },
-  rating: { color: "#FF6B00", fontSize: 14, marginTop: 4, fontWeight: "700" },
+  statusDot: { width: 10, height: 10, borderRadius: 5 },
+  statusLabel: { fontSize: normalizeText(13), fontWeight: "800" },
+  title: { fontSize: normalizeText(20), fontWeight: "bold" },
+  rating: { color: "#FF6B00", fontSize: normalizeText(15), marginTop: 4, fontWeight: "700" },
   mechanicStatsRow: {
     flexDirection: "row",
     gap: 7,
@@ -3710,7 +3710,7 @@ const styles = StyleSheet.create({
   },
   mechanicStatBox: {
     flex: 1,
-    minHeight: 45,
+    minHeight: 50,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
@@ -3718,19 +3718,19 @@ const styles = StyleSheet.create({
   },
   mechanicStatLabel: {
     color: "#6E778C",
-    fontSize: 8,
+    fontSize: normalizeText(9),
     fontWeight: "800",
     letterSpacing: 0.2,
   },
   mechanicStatValue: {
     color: "#0037B0",
-    fontSize: 11,
+    fontSize: normalizeText(13),
     fontWeight: "800",
     marginTop: 3,
   },
-  price: { fontSize: 24, fontWeight: "900" },
+  price: { fontSize: normalizeText(26), fontWeight: "900" },
   detailRow: {
-    minHeight: 54,
+    minHeight: 58,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -3739,18 +3739,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 18,
   },
-  detailRowLabel: { flexDirection: "row", alignItems: "center", gap: 9 },
-  detailRowText: { fontSize: 14, fontWeight: "800" },
+  detailRowLabel: { flexDirection: "row", alignItems: "center", gap: 10 },
+  detailRowText: { fontSize: normalizeText(15), fontWeight: "800" },
   basePrice: {
     color: "#0037B0",
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "900",
     marginLeft: "auto",
     marginRight: 8,
   },
   compareButton: {
-    minHeight: 42,
-    borderRadius: 10,
+    minHeight: 46,
+    borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -3758,10 +3758,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     backgroundColor: "#E8ECFF",
   },
-  compareButtonText: { fontSize: 14, fontWeight: "800" },
+  compareButtonText: { fontSize: normalizeText(15), fontWeight: "800" },
   requestServiceButton: {
-    minHeight: 48,
-    borderRadius: 10,
+    minHeight: 52,
+    borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -3771,7 +3771,7 @@ const styles = StyleSheet.create({
   },
   requestServiceButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: normalizeText(16),
     fontWeight: "800",
   },
   servicesList: { paddingHorizontal: 12, paddingVertical: 5 },
@@ -3779,18 +3779,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 9,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
   serviceName: {
     flex: 1,
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "600",
     textAlign: "left",
   },
-  servicePrice: { fontSize: 14, fontWeight: "800", marginLeft: 12 },
-  noServices: { paddingVertical: 12, fontSize: 13 },
+  servicePrice: { fontSize: normalizeText(15), fontWeight: "800", marginLeft: 12 },
+  noServices: { paddingVertical: 14, fontSize: normalizeText(14) },
   servicesScreen: { flex: 1 },
   servicesModalOverlay: {
     flex: 1,
@@ -3814,7 +3814,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   servicesSheetHeader: {
-    minHeight: 48,
+    minHeight: 52,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,
@@ -3830,36 +3830,36 @@ const styles = StyleSheet.create({
   },
   servicesSheetTitle: {
     color: "#0037B0",
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "900",
     letterSpacing: 0.2,
   },
   servicesCloseButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#E9EDFA",
   },
   servicesHeader: {
-    minHeight: 58,
-    paddingHorizontal: 16,
+    minHeight: 64,
+    paddingHorizontal: 18,
     flexDirection: "row",
     alignItems: "center",
     borderBottomWidth: 1,
   },
   servicesBackButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
   },
-  servicesHeaderSpacer: { width: 40 },
+  servicesHeaderSpacer: { width: 44 },
   servicesTitle: {
     flex: 1,
     textAlign: "center",
-    fontSize: 18,
+    fontSize: normalizeText(19),
     fontWeight: "800",
   },
   servicesMechanic: {
@@ -3867,63 +3867,63 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderBottomWidth: 1,
   },
-  servicesMechanicName: { fontSize: 18, fontWeight: "800" },
-  servicesMechanicMeta: { fontSize: 13, marginTop: 4 },
+  servicesMechanicName: { fontSize: normalizeText(19), fontWeight: "800" },
+  servicesMechanicMeta: { fontSize: normalizeText(14), marginTop: 4 },
   comparisonScreen: { flex: 1 },
-  comparisonContent: { flex: 1, padding: 16 },
-  comparisonIntro: { fontSize: 13, lineHeight: 19, marginBottom: 12 },
+  comparisonContent: { flex: 1, padding: 18 },
+  comparisonIntro: { fontSize: normalizeText(14), lineHeight: normalizeText(20), marginBottom: 14 },
   comparisonSearch: {
-    minHeight: 48,
+    minHeight: 52,
     borderWidth: 1,
     borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     gap: 8,
   },
-  comparisonInput: { flex: 1, fontSize: 14, paddingVertical: 10 },
-  comparisonList: { paddingTop: 14, paddingBottom: 30, gap: 10 },
-  comparisonCard: { borderWidth: 1, borderRadius: 12, padding: 14 },
-  comparisonCardTop: { flexDirection: "row", alignItems: "center", gap: 10 },
+  comparisonInput: { flex: 1, fontSize: normalizeText(15), paddingVertical: 12 },
+  comparisonList: { paddingTop: 16, paddingBottom: 30, gap: 12 },
+  comparisonCard: { borderWidth: 1, borderRadius: 12, padding: 16 },
+  comparisonCardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
   comparisonMechanicInfo: { flex: 1 },
-  comparisonMechanicName: { fontSize: 15, fontWeight: "800" },
-  comparisonServiceName: { fontSize: 13, marginTop: 4 },
-  comparisonPrice: { fontSize: 18, fontWeight: "900" },
+  comparisonMechanicName: { fontSize: normalizeText(16), fontWeight: "800" },
+  comparisonServiceName: { fontSize: normalizeText(14), marginTop: 4 },
+  comparisonPrice: { fontSize: normalizeText(19), fontWeight: "900" },
   comparisonMeta: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    marginTop: 12,
+    gap: 16,
+    marginTop: 14,
   },
-  comparisonMetaText: { fontSize: 12, fontWeight: "700" },
+  comparisonMetaText: { fontSize: normalizeText(13), fontWeight: "700" },
   comparisonEmpty: {
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 70,
+    paddingTop: 80,
   },
   comparisonEmptyTitle: {
-    fontSize: 16,
+    fontSize: normalizeText(17),
     fontWeight: "800",
-    marginTop: 12,
+    marginTop: 14,
     textAlign: "center",
   },
   comparisonEmptyText: {
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 6,
+    fontSize: normalizeText(14),
+    lineHeight: normalizeText(20),
+    marginTop: 8,
     textAlign: "center",
   },
   fullServicesList: { flex: 1, marginTop: 0 },
   fullServicesContent: { paddingTop: 5, paddingBottom: 12 },
   fullServiceItem: {
-    minHeight: 69,
+    minHeight: 74,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginHorizontal: 10,
     marginVertical: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
     borderRadius: 12,
     backgroundColor: "#F0F2FA",
   },
@@ -3931,11 +3931,11 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
   },
   serviceIconBox: {
-    width: 30,
-    height: 30,
+    width: 34,
+    height: 34,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
@@ -3949,8 +3949,8 @@ const styles = StyleSheet.create({
   },
   serviceDescription: {
     color: "#657085",
-    fontSize: 9,
-    lineHeight: 12,
+    fontSize: normalizeText(10),
+    lineHeight: normalizeText(13),
     marginTop: 2,
     textAlign: "left",
   },
@@ -3960,13 +3960,13 @@ const styles = StyleSheet.create({
   },
   baseRateLabel: {
     color: "#657085",
-    fontSize: 8,
+    fontSize: normalizeText(9),
     marginTop: 1,
   },
   mechanicProfileScreen: { flex: 1 },
   mechanicProfileHeader: {
-    minHeight: 58,
-    paddingHorizontal: 16,
+    minHeight: 64,
+    paddingHorizontal: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -3974,15 +3974,15 @@ const styles = StyleSheet.create({
   },
   mechanicProfileContent: {
     alignItems: "center",
-    padding: 20,
+    padding: 22,
     paddingBottom: 40,
   },
   mechanicProfileAvatar: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
     resizeMode: "cover",
-    marginTop: 16,
+    marginTop: 18,
   },
   mechanicProfileAvatarFallback: {
     alignItems: "center",
@@ -3990,165 +3990,165 @@ const styles = StyleSheet.create({
   },
   mechanicProfileInitials: {
     color: "#FFFFFF",
-    fontSize: 42,
+    fontSize: normalizeText(44),
     fontWeight: "900",
   },
   mechanicProfileName: {
-    fontSize: 24,
+    fontSize: normalizeText(26),
     fontWeight: "900",
-    marginTop: 14,
+    marginTop: 16,
     textAlign: "center",
   },
-  mechanicProfileService: { fontSize: 14, marginTop: 5 },
+  mechanicProfileService: { fontSize: normalizeText(15), marginTop: 5 },
   mechanicProfileStats: {
     width: "100%",
-    minHeight: 78,
+    minHeight: 84,
     borderWidth: 1,
-    borderRadius: 12,
-    marginTop: 20,
+    borderRadius: 14,
+    marginTop: 24,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-evenly",
   },
   mechanicProfileStat: { flex: 1, alignItems: "center" },
-  mechanicProfileStatValue: { fontSize: 18, fontWeight: "900" },
-  mechanicProfileStatLabel: { fontSize: 12, marginTop: 3 },
-  mechanicProfileStatDivider: { width: 1, height: 42 },
+  mechanicProfileStatValue: { fontSize: normalizeText(19), fontWeight: "900" },
+  mechanicProfileStatLabel: { fontSize: normalizeText(13), marginTop: 4 },
+  mechanicProfileStatDivider: { width: 1, height: 46 },
   mechanicReviewsTitle: {
     width: "100%",
-    fontSize: 20,
+    fontSize: normalizeText(22),
     fontWeight: "900",
-    marginTop: 26,
-    marginBottom: 8,
+    marginTop: 28,
+    marginBottom: 10,
   },
-  mechanicReviewsLoader: { marginTop: 20 },
+  mechanicReviewsLoader: { marginTop: 22 },
   mechanicReviewRow: {
     width: "100%",
-    paddingVertical: 13,
+    paddingVertical: 14,
     borderBottomWidth: 1,
   },
-  mechanicReviewStars: { fontSize: 16, letterSpacing: 1, marginBottom: 5 },
-  mechanicReviewText: { fontSize: 14, lineHeight: 20 },
+  mechanicReviewStars: { fontSize: normalizeText(17), letterSpacing: 1, marginBottom: 6 },
+  mechanicReviewText: { fontSize: normalizeText(15), lineHeight: normalizeText(22) },
   bookingScreen: { flex: 1 },
   bookingHeader: {
-    minHeight: 58,
-    paddingHorizontal: 16,
+    minHeight: 64,
+    paddingHorizontal: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
   },
-  bookingTitle: { fontSize: 18, fontWeight: "800" },
-  bookingSubtitle: { fontSize: 12, marginTop: 2 },
-  bookingContent: { flex: 1, padding: 16 },
-  bookingSectionTitle: { fontSize: 14, fontWeight: "800", marginBottom: 7 },
-  primaryVehicleNotice: { fontSize: 12, marginTop: -4, marginBottom: 8 },
-  bookingVehicleRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
+  bookingTitle: { fontSize: normalizeText(20), fontWeight: "800" },
+  bookingSubtitle: { fontSize: normalizeText(13), marginTop: 2 },
+  bookingContent: { flex: 1, padding: 18 },
+  bookingSectionTitle: { fontSize: normalizeText(15), fontWeight: "800", marginBottom: 8 },
+  primaryVehicleNotice: { fontSize: normalizeText(13), marginTop: -4, marginBottom: 10 },
+  bookingVehicleRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
   bookingVehicleInput: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 46,
     borderWidth: 1,
-    borderRadius: 9,
-    paddingHorizontal: 10,
-    fontSize: 13,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: normalizeText(14),
   },
   bookingServices: {
-    height: 192,
+    height: 200,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: "hidden",
   },
   bookingServicesContent: { flexGrow: 1 },
   bookingServiceRow: {
-    minHeight: 48,
+    minHeight: 52,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     borderBottomWidth: 1,
   },
   bookingRadio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: 14,
   },
-  bookingRadioDot: { width: 10, height: 10, borderRadius: 5 },
-  bookingServiceName: { flex: 1, fontSize: 14, fontWeight: "700" },
-  bookingServicePrice: { fontSize: 14, fontWeight: "800", marginLeft: 12 },
+  bookingRadioDot: { width: 12, height: 12, borderRadius: 6 },
+  bookingServiceName: { flex: 1, fontSize: normalizeText(15), fontWeight: "700" },
+  bookingServicePrice: { fontSize: normalizeText(15), fontWeight: "800", marginLeft: 14 },
   bookingScheduleRow: {
     flexDirection: "row",
-    gap: 8,
-    marginTop: 2,
-    marginBottom: 6,
+    gap: 10,
+    marginTop: 4,
+    marginBottom: 8,
   },
   bookingScheduleField: { flex: 1 },
-  bookingScheduleLabel: { fontSize: 15, fontWeight: "800", marginBottom: 5 },
-  bookingDateTitle: { marginTop: 12 },
-  bookingTimeTitle: { marginTop: 12 },
+  bookingScheduleLabel: { fontSize: normalizeText(16), fontWeight: "800", marginBottom: 6 },
+  bookingDateTitle: { marginTop: 14 },
+  bookingTimeTitle: { marginTop: 14 },
   bookingDateButton: {
-    minHeight: 44,
+    minHeight: 48,
     borderWidth: 1,
     borderRadius: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
   },
-  bookingDateText: { flex: 1, fontSize: 14, fontWeight: "700" },
+  bookingDateText: { flex: 1, fontSize: normalizeText(15), fontWeight: "700" },
   priceSummary: {
-    marginTop: 5,
+    marginTop: 8,
     borderWidth: 1,
-    borderRadius: 12,
-    minHeight: 96,
-    padding: 10,
+    borderRadius: 14,
+    minHeight: 106,
+    padding: 12,
   },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 4,
+    paddingVertical: 5,
   },
-  summaryLabel: { fontSize: 13, flex: 1 },
-  summaryValue: { fontSize: 14, fontWeight: "700", marginLeft: 16 },
+  summaryLabel: { fontSize: normalizeText(14), flex: 1 },
+  summaryValue: { fontSize: normalizeText(15), fontWeight: "700", marginLeft: 18 },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     borderTopWidth: 1,
-    marginTop: 5,
-    paddingTop: 9,
+    marginTop: 6,
+    paddingTop: 10,
   },
-  totalLabel: { fontSize: 15, fontWeight: "800" },
-  totalValue: { fontSize: 20, fontWeight: "900" },
+  totalLabel: { fontSize: normalizeText(16), fontWeight: "800" },
+  totalValue: { fontSize: normalizeText(22), fontWeight: "900" },
   fareNotice: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 8,
+    gap: 10,
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 9,
-  },
-  fareNoticeText: { flex: 1, fontSize: 11, lineHeight: 15 },
-  confirmBookingButton: {
-    minHeight: 50,
     borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+  },
+  fareNoticeText: { flex: 1, fontSize: normalizeText(12), lineHeight: normalizeText(16) },
+  confirmBookingButton: {
+    minHeight: 54,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 12,
+    marginTop: 14,
   },
-  confirmBookingText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  confirmBookingText: { color: "#FFFFFF", fontSize: normalizeText(17), fontWeight: "800" },
   disabledButton: { opacity: 0.55 },
-  subtitle: { fontSize: 14, marginBottom: 20 },
+  subtitle: { fontSize: normalizeText(15), marginBottom: 20 },
 
   sosButton: {
     backgroundColor: "#FF3800",
-    width: 297,
-    height: 48,
-    borderRadius: 10,
+    width: 310,
+    height: 52,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 0,
@@ -4165,25 +4165,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 10,
   },
   sosText: {
     color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 15,
+    fontSize: normalizeText(16),
     letterSpacing: 0.2,
   },
   bookButton: {
     backgroundColor: "#FF6B00",
-    paddingVertical: 14,
+    paddingVertical: 15,
     width: "100%",
-    borderRadius: 5,
+    borderRadius: 6,
     alignItems: "center",
     marginBottom: 10,
   },
-  bookButtonText: { color: "#FFFFFF", fontWeight: "bold", fontSize: 16 },
-  cancelButton: { paddingVertical: 12, alignItems: "center" },
-  cancelButtonText: { color: "#EF4444", fontWeight: "bold", fontSize: 14 },
+  bookButtonText: { color: "#FFFFFF", fontWeight: "bold", fontSize: normalizeText(17) },
+  cancelButton: { paddingVertical: 14, alignItems: "center" },
+  cancelButtonText: { color: "#EF4444", fontWeight: "bold", fontSize: normalizeText(15) },
 
   topContainer: {
     position: "absolute",
@@ -4202,7 +4202,7 @@ const styles = StyleSheet.create({
   },
   headerRow: { minHeight: 58, flexDirection: "row", alignItems: "center" },
   appLogo: { width: 74, height: 58 },
-  screenTitle: { flex: 1, marginLeft: 8, fontSize: 22, fontWeight: "800" },
+  screenTitle: { flex: 1, marginLeft: 8, fontSize: normalizeText(24), fontWeight: "800" },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 14 },
   nearbyMechanicsSummary: {
     position: "absolute",
@@ -4214,13 +4214,13 @@ const styles = StyleSheet.create({
     zIndex: 9,
   },
   nearbyMechanicsPill: {
-    minHeight: 36,
-    paddingHorizontal: 12,
+    minHeight: 40,
+    paddingHorizontal: 14,
     borderRadius: 20,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 7,
+    gap: 8,
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -4238,7 +4238,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   nearbyMechanicsCount: {
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "900",
     fontFamily: "PlusJakartaSansBold",
   },
@@ -4252,9 +4252,9 @@ const styles = StyleSheet.create({
     maxHeight: "68%",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingTop: 18,
-    paddingHorizontal: 14,
-    paddingBottom: 20,
+    paddingTop: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
     elevation: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -3 },
@@ -4266,81 +4266,81 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 4,
-    paddingBottom: 12,
+    paddingBottom: 14,
   },
   nearbyMechanicsSheetTitle: {
-    fontSize: 20,
+    fontSize: normalizeText(22),
     fontWeight: "900",
     fontFamily: "PlusJakartaSansBold",
   },
   nearbyMechanicsSheetSubtitle: {
-    fontSize: 12,
-    marginTop: 3,
+    fontSize: normalizeText(13),
+    marginTop: 4,
     fontFamily: "PlusJakartaSans",
   },
   nearbyMechanicsClose: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#E9EDFA",
   },
   nearbyMechanicsList: {
-    paddingTop: 4,
-    paddingBottom: 8,
-    gap: 8,
+    paddingTop: 6,
+    paddingBottom: 10,
+    gap: 10,
   },
   nearbyMechanicItem: {
-    minHeight: 70,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
+    minHeight: 74,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F0F2FA",
   },
   nearbyMechanicAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 10,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    marginRight: 12,
     borderWidth: 2,
     borderColor: "#E5A13A",
   },
   nearbyMechanicAvatarFallback: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 10,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    marginRight: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#2450D8",
   },
   nearbyMechanicCopy: { flex: 1 },
   nearbyMechanicName: {
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "800",
     fontFamily: "PlusJakartaSansBold",
   },
   nearbyMechanicMeta: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 5,
-    gap: 5,
+    marginTop: 6,
+    gap: 6,
   },
   nearbyMechanicMetaText: {
-    fontSize: 11,
+    fontSize: normalizeText(12),
     fontFamily: "PlusJakartaSans",
   },
   nearbyMechanicsEmpty: {
-    minHeight: 150,
+    minHeight: 160,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 10,
   },
   nearbyMechanicsEmptyText: {
-    fontSize: 13,
+    fontSize: normalizeText(14),
     textAlign: "center",
     fontFamily: "PlusJakartaSans",
   },
@@ -4352,30 +4352,30 @@ const styles = StyleSheet.create({
     zIndex: 8,
   },
   mapControlButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
   },
-  mapControlImage: { width: 17, height: 17, resizeMode: "contain" },
+  mapControlImage: { width: 19, height: 19, resizeMode: "contain" },
   topActions: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
   iconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
     elevation: 5,
     borderWidth: 1,
   },
-  iconAvatarImage: { width: "100%", height: "100%", borderRadius: 25 },
-  iconInitials: { fontSize: 18, fontWeight: "800" },
+  iconAvatarImage: { width: "100%", height: "100%", borderRadius: 26 },
+  iconInitials: { fontSize: normalizeText(19), fontWeight: "800" },
   activityButton: {
-    width: 34,
-    height: 50,
+    width: 36,
+    height: 52,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
@@ -4384,42 +4384,42 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 4,
     right: -2,
-    minWidth: 21,
-    height: 21,
-    paddingHorizontal: 5,
-    borderRadius: 11,
+    minWidth: 23,
+    height: 23,
+    paddingHorizontal: 6,
+    borderRadius: 12,
     backgroundColor: "#B84B00",
     alignItems: "center",
     justifyContent: "center",
   },
-  notificationBadgeText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
+  notificationBadgeText: { color: "#FFFFFF", fontSize: normalizeText(13), fontWeight: "800" },
   vehicleSelector: {
     flex: 1,
-    minHeight: 44,
+    minHeight: 48,
     borderWidth: 1,
     borderColor: "#D7D9DE",
-    borderRadius: 3,
-    paddingHorizontal: 14,
-    paddingVertical: 3,
+    borderRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
   },
-  vehicleSelectorLabel: { fontSize: 11, lineHeight: 14 },
+  vehicleSelectorLabel: { fontSize: normalizeText(12), lineHeight: normalizeText(15) },
   vehicleSelectorValue: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
+    gap: 8,
     marginTop: 2,
   },
-  vehicleSelectorText: { flex: 1, fontSize: 14, fontWeight: "700" },
-  vehicleSelectorIcon: { width: 26, height: 26 },
+  vehicleSelectorText: { flex: 1, fontSize: normalizeText(15), fontWeight: "700" },
+  vehicleSelectorIcon: { width: 28, height: 28 },
   vehicleMenu: {
     position: "absolute",
     top: 110,
     left: 70,
     right: 54,
     borderWidth: 1,
-    borderRadius: 3,
+    borderRadius: 4,
     overflow: "hidden",
     elevation: 10,
     shadowColor: "#000",
@@ -4429,48 +4429,48 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   vehicleMenuItem: {
-    minHeight: 58,
+    minHeight: 62,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     backgroundColor: "#FFFFFF",
   },
   vehicleMenuItemSelected: { backgroundColor: "#F1F3F5" },
-  vehicleMenuIcon: { width: 28, height: 28 },
-  vehicleMenuCopy: { flex: 1, marginLeft: 10 },
-  vehicleMenuTitle: { fontSize: 14, fontWeight: "700" },
-  vehicleMenuDetails: { fontSize: 12, marginTop: 2 },
-  sosImage: { width: 18, height: 18, resizeMode: "contain" },
+  vehicleMenuIcon: { width: 30, height: 30 },
+  vehicleMenuCopy: { flex: 1, marginLeft: 12 },
+  vehicleMenuTitle: { fontSize: normalizeText(15), fontWeight: "700" },
+  vehicleMenuDetails: { fontSize: normalizeText(13), marginTop: 2 },
+  sosImage: { width: 20, height: 20, resizeMode: "contain" },
 
   trackingCard: {
     width: "100%",
     paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 2,
+    paddingTop: 6,
+    paddingBottom: 4,
   },
   trackingHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  trackingName: { fontSize: 19, fontWeight: "800", letterSpacing: 0.1 },
+  trackingName: { fontSize: normalizeText(20), fontWeight: "800", letterSpacing: 0.1 },
   trackingCallButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     elevation: 2,
   },
   trackingStatusCard: {
     width: "100%",
-    minHeight: 190,
+    minHeight: 200,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 18,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
     alignItems: "center",
     justifyContent: "space-between",
     elevation: 1,
@@ -4480,12 +4480,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 4,
+    paddingVertical: 5,
   },
   statusText: {
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "800",
-    marginLeft: 10,
+    marginLeft: 12,
     textAlign: "center",
     flexShrink: 1,
   },
@@ -4497,15 +4497,15 @@ const styles = StyleSheet.create({
   timelineItem: { flex: 1, alignItems: "center" },
   timelineTrack: {
     width: "100%",
-    height: 24,
+    height: 26,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
   },
   timelineDot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#B8C2CC",
     alignItems: "center",
@@ -4518,31 +4518,31 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: "50%",
     right: "-50%",
-    top: 11,
+    top: 12,
     height: 2,
     backgroundColor: "#B8C2CC",
     zIndex: 0,
   },
   timelineLabel: {
-    fontSize: 11,
+    fontSize: normalizeText(12),
     fontWeight: "700",
     textAlign: "center",
-    marginTop: 7,
+    marginTop: 8,
   },
   receiptButton: {
-    minWidth: 190,
-    minHeight: 42,
-    borderRadius: 22,
+    minWidth: 200,
+    minHeight: 46,
+    borderRadius: 23,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingHorizontal: 18,
+    gap: 10,
+    paddingHorizontal: 20,
     elevation: 2,
   },
   receiptButtonText: {
     color: "#FFFFFF",
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "900",
     letterSpacing: 0.3,
   },
@@ -4550,121 +4550,122 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "center",
-    padding: 20,
+    padding: 22,
   },
-  receiptCard: { borderWidth: 1, borderRadius: 16, padding: 20, elevation: 8 },
+  receiptCard: { borderWidth: 1, borderRadius: 18, padding: 22, elevation: 8 },
   receiptHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
   },
-  receiptTitle: { fontSize: 20, fontWeight: "900" },
-  receiptSubtitle: { fontSize: 13, marginTop: 3 },
-  receiptDivider: { borderBottomWidth: 1, marginVertical: 16 },
-  receiptLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.4 },
-  receiptValue: { fontSize: 14, fontWeight: "700", marginTop: 4 },
+  receiptTitle: { fontSize: normalizeText(21), fontWeight: "900" },
+  receiptSubtitle: { fontSize: normalizeText(14), marginTop: 4 },
+  receiptDivider: { borderBottomWidth: 1, marginVertical: 18 },
+  receiptLabel: { fontSize: normalizeText(12), fontWeight: "700", letterSpacing: 0.4 },
+  receiptValue: { fontSize: normalizeText(15), fontWeight: "700", marginTop: 5 },
   receiptRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 15,
-    gap: 12,
+    marginTop: 16,
+    gap: 14,
   },
   receiptTotalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     borderTopWidth: 1,
-    marginTop: 18,
-    paddingTop: 14,
+    marginTop: 20,
+    paddingTop: 16,
   },
-  receiptTotalLabel: { fontSize: 16, fontWeight: "900" },
-  receiptTotalValue: { fontSize: 20, fontWeight: "900" },
-  receiptNote: { fontSize: 11, lineHeight: 15, marginTop: 16 },
-  actionBtnText: { color: "#FFFFFF", fontWeight: "bold", fontSize: 15 },
+  receiptTotalLabel: { fontSize: normalizeText(17), fontWeight: "900" },
+  receiptTotalValue: { fontSize: normalizeText(21), fontWeight: "900" },
+  receiptNote: { fontSize: normalizeText(12), lineHeight: normalizeText(16), marginTop: 18 },
+  actionBtnText: { color: "#FFFFFF", fontWeight: "bold", fontSize: normalizeText(16) },
 
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
-    padding: 20,
+    padding: 22,
   },
   modalContent: {
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: 26,
+    padding: 26,
     alignItems: "center",
     elevation: 10,
     borderWidth: 1,
   },
-  modalTitle: { fontSize: 24, fontWeight: "bold", marginBottom: 8 },
+  modalTitle: { fontSize: normalizeText(25), fontWeight: "bold", marginBottom: 10 },
   modalSubtitle: {
-    fontSize: 14,
+    fontSize: normalizeText(15),
     textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 20,
+    marginBottom: 26,
+    lineHeight: normalizeText(22),
   },
-  ratingModalContent: { padding: 16, borderRadius: 18 },
-  ratingCompleteIcon: { marginBottom: 7 },
-  ratingModalTitle: { fontSize: 20, marginBottom: 4 },
-  ratingModalSubtitle: { fontSize: 12, marginBottom: 12, lineHeight: 16 },
+  ratingModalContent: { padding: 18, borderRadius: 20 },
+  ratingCompleteIcon: { marginBottom: 8 },
+  ratingModalTitle: { fontSize: normalizeText(21), marginBottom: 5 },
+  ratingModalSubtitle: { fontSize: normalizeText(13), marginBottom: 14, lineHeight: normalizeText(18) },
   ratingBox: {
     width: "100%",
     alignItems: "center",
-    marginBottom: 20,
-    paddingVertical: 16,
-    borderRadius: 16,
+    marginBottom: 22,
+    paddingVertical: 18,
+    borderRadius: 18,
     borderWidth: 1,
   },
-  compactRatingBox: { marginBottom: 12, paddingVertical: 10, borderRadius: 12 },
-  ratingPrompt: { fontSize: 16, fontWeight: "600", marginBottom: 12 },
-  compactRatingPrompt: { fontSize: 14, marginBottom: 7 },
+  compactRatingBox: { marginBottom: 14, paddingVertical: 12, borderRadius: 14 },
+  ratingPrompt: { fontSize: normalizeText(17), fontWeight: "600", marginBottom: 14 },
+  compactRatingPrompt: { fontSize: normalizeText(15), marginBottom: 8 },
   starsRow: { flexDirection: "row" },
   compactStar: { marginHorizontal: 2 },
-  ratingScaleText: { fontSize: 12, fontWeight: "700", marginTop: 8 },
+  ratingScaleText: { fontSize: normalizeText(13), fontWeight: "700", marginTop: 10 },
   reviewInput: {
     width: "100%",
-    borderRadius: 12,
-    padding: 16,
-    height: 100,
+    borderRadius: 14,
+    padding: 18,
+    height: 110,
     textAlignVertical: "top",
-    marginBottom: 20,
+    marginBottom: 22,
     borderWidth: 1,
+    fontSize: normalizeText(15),
   },
   compactReviewInput: {
-    height: 64,
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 14,
+    height: 70,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    fontSize: normalizeText(15),
   },
   reviewCounter: {
     alignSelf: "flex-end",
-    fontSize: 11,
-    marginTop: -14,
-    marginBottom: 16,
+    fontSize: normalizeText(12),
+    marginTop: -16,
+    marginBottom: 18,
   },
   submitReviewBtn: {
     backgroundColor: "#10b981",
     width: "100%",
-    paddingVertical: 16,
-    borderRadius: 12,
+    paddingVertical: 18,
+    borderRadius: 14,
     alignItems: "center",
   },
-  compactSubmitReviewBtn: { paddingVertical: 12, borderRadius: 10 },
-  submitReviewText: { color: "#FFFFFF", fontWeight: "bold", fontSize: 16 },
+  compactSubmitReviewBtn: { paddingVertical: 14, borderRadius: 12 },
+  submitReviewText: { color: "#FFFFFF", fontWeight: "bold", fontSize: normalizeText(17) },
 
-  // Cancellation Styles
   reasonRow: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 14,
     borderWidth: 1,
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  reasonText: { fontSize: 14, fontWeight: "600" },
+  reasonText: { fontSize: normalizeText(15), fontWeight: "600" },
   closeCancelBtn: {
     flex: 1,
-    paddingVertical: 16,
-    borderRadius: 12,
+    paddingVertical: 18,
+    borderRadius: 14,
     alignItems: "center",
     borderWidth: 1,
     borderColor: "transparent",
@@ -4672,64 +4673,64 @@ const styles = StyleSheet.create({
   confirmCancelBtn: {
     flex: 1,
     backgroundColor: "#EF4444",
-    paddingVertical: 16,
-    borderRadius: 12,
+    paddingVertical: 18,
+    borderRadius: 14,
     alignItems: "center",
   },
-  cancelSuccessCard: { alignItems: "center", paddingTop: 28 },
+  cancelSuccessCard: { alignItems: "center", paddingTop: 30 },
   cancelSuccessIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#18A957",
-    marginBottom: 14,
+    marginBottom: 16,
   },
   cancelSuccessTitle: {
-    fontSize: 20,
+    fontSize: normalizeText(21),
     fontWeight: "800",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   cancelSuccessMessage: {
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(22),
     textAlign: "center",
-    marginBottom: 22,
+    marginBottom: 24,
   },
   cancelSuccessButton: {
     width: "100%",
     alignItems: "center",
     backgroundColor: "#172B66",
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: 14,
+    paddingVertical: 16,
   },
-  acceptedSuccessCard: { alignItems: "center", paddingTop: 28 },
+  acceptedSuccessCard: { alignItems: "center", paddingTop: 30 },
   acceptedSuccessIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#18A957",
-    marginBottom: 14,
+    marginBottom: 16,
   },
   acceptedSuccessTitle: {
-    fontSize: 21,
+    fontSize: normalizeText(22),
     fontWeight: "800",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   acceptedSuccessMessage: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: normalizeText(16),
+    lineHeight: normalizeText(24),
     textAlign: "center",
-    marginBottom: 22,
+    marginBottom: 24,
   },
   acceptedSuccessButton: {
     width: "100%",
     alignItems: "center",
     backgroundColor: "#172B66",
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: 14,
+    paddingVertical: 16,
   },
 });

@@ -19,6 +19,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { normalizeText } from "@/lib/typography";
 
 const DEVICE_ONBOARDING_KEY = "mechaniko-device-onboarding-complete";
 
@@ -125,7 +126,7 @@ export default function Index() {
   if (returningDevice) {
     return <Redirect href="/login" />;
   }
-
+  
   const handleGetStarted = async () => {
     await markDeviceOnboardingComplete();
     router.push("/welcome");
@@ -207,6 +208,7 @@ const styles = StyleSheet.create({
     width: 220,
     height: 36,
     marginTop: 24,
+    tintColor: "#1E3A8A", 
   },
   spacer: {
     flex: 1,
@@ -218,21 +220,19 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#1E3A8A",
-    fontFamily: "sans-serif",
-    fontSize: 22,
-    fontWeight: "900",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(21),
     letterSpacing: 0.5,
     textAlign: "center",
   },
   description: {
     color: "#0F172A",
-    fontFamily: "sans-serif",
-    fontSize: 16,
-    fontWeight: "500",
-    lineHeight: 26,
-    letterSpacing: 0.1,
+    fontFamily: "PlusJakartaSans",
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(24),
+    letterSpacing: 0.2,
     maxWidth: 320,
-    marginTop: 24,
+    marginTop: 20,
     textAlign: "center",
   },
   bottomSpacer: {
@@ -259,14 +259,13 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: "#FFFFFF",
-    fontFamily: "sans-serif",
-    fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(17),
     letterSpacing: 0.3,
   },
   arrow: {
     color: "#FFFFFF",
-    fontSize: 24,
+    fontSize: normalizeText(24),
     marginLeft: 10,
     marginTop: -2,
   },
@@ -287,8 +286,8 @@ const styles = StyleSheet.create({
   bootWordmark: {
     marginTop: 24,
     color: "#1E3A8A",
-    fontSize: 24,
-    fontWeight: "900",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(24),
     letterSpacing: 2,
   },
   bootProgressTrack: {
@@ -307,7 +306,7 @@ const styles = StyleSheet.create({
   bootPercent: {
     marginTop: 12,
     color: "#475569",
-    fontSize: 13,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(13),
   },
 });

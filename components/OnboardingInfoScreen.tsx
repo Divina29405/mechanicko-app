@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { normalizeText } from "@/lib/typography";
 
 type OnboardingInfoScreenProps = {
   activeSteps: number;
@@ -71,19 +72,11 @@ export function OnboardingInfoScreen({
         options={{
           animation: isBackNavigation ? "slide_from_left" : "slide_from_right",
           gestureEnabled: false,
-          contentStyle: { backgroundColor: "#373327" },
+          contentStyle: { backgroundColor: "#F8FAFC" },
         }}
       />
       <LinearGradient
-        colors={[
-          "#373327",
-          "#686150",
-          "#9E9786",
-          "#DCDCDB",
-          "#F3F3F5",
-          "#F8F8FA",
-        ]}
-        locations={[0, 0.2, 0.38, 0.56, 0.72, 1]}
+        colors={["#F8FAFC", "#F1F5F9"]}
         style={styles.screen}
       >
         <SafeAreaView style={styles.safeArea}>
@@ -129,7 +122,7 @@ export function OnboardingInfoScreen({
               }
               style={styles.backButton}
             >
-              <Ionicons name="arrow-back" size={28} color="#111111" />
+              <Ionicons name="arrow-back" size={28} color="#0F172A" />
             </Pressable>
 
             <View style={styles.copy}>
@@ -219,21 +212,18 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "rgba(255,255,255,0.3)",
+    backgroundColor: "#E2E8F0",
   },
   progressItemActive: {
     backgroundColor: "#24439A",
-    borderWidth: 1,
-    borderColor: "#FFFFFF",
   },
   skip: {
-    color: "#FFFFFF",
-    fontFamily: "sans-serif",
-    fontSize: 16,
-    fontWeight: "500",
+    color: "#1E3A8A",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(15),
   },
   largeSkip: {
-    fontSize: 17,
+    fontSize: normalizeText(16),
   },
   backButton: {
     alignSelf: "flex-start",
@@ -245,16 +235,14 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   title: {
-    color: "#FFFFFF",
-    fontFamily: "sans-serif",
-    fontWeight: "800",
-    letterSpacing: -0.4,
+    color: "#1E3A8A",
+    fontFamily: "PlusJakartaSansBold",
+    letterSpacing: -0.2,
     marginBottom: 24,
   },
   body: {
     color: "#0F172A",
-    fontFamily: "sans-serif",
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans",
     letterSpacing: 0.1,
   },
   bottomContent: {
@@ -263,15 +251,14 @@ const styles = StyleSheet.create({
   },
   description: {
     color: "#334155",
-    fontFamily: "sans-serif",
-    fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans",
+    fontSize: normalizeText(14),
     letterSpacing: 0.15,
     textAlign: "center",
     marginBottom: 20,
   },
   largeDescription: {
-    fontSize: 15,
+    fontSize: normalizeText(15),
   },
   button: {
     alignSelf: "stretch",
@@ -293,21 +280,20 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: "#FFFFFF",
-    fontFamily: "sans-serif",
-    fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(17),
     letterSpacing: 0.3,
   },
   largeButtonText: {
-    fontSize: 19,
+    fontSize: normalizeText(18),
   },
   arrow: {
     color: "#FFFFFF",
-    fontSize: 24,
+    fontSize: normalizeText(24),
     marginLeft: 10,
     marginTop: -2,
   },
   largeArrow: {
-    fontSize: 26,
+    fontSize: normalizeText(26),
   },
 });

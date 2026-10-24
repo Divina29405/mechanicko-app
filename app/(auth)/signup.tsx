@@ -25,6 +25,7 @@ import {
   validatePhilippineMobileNumber,
   validatePassword,
 } from "@/lib/validation";
+import { normalizeText } from "@/lib/typography";
 
 export default function SignupScreen() {
   const { back } = useLocalSearchParams<{ back?: string }>();
@@ -143,7 +144,7 @@ export default function SignupScreen() {
             }}
             style={styles.mechanicBackButton}
           >
-            <Ionicons name="arrow-back" size={24} color="#000000" />
+            <Ionicons name="arrow-back" size={26} color="#0F172A" />
           </Pressable>
         ) : null}
 
@@ -283,6 +284,7 @@ export default function SignupScreen() {
                 textContentType="name"
                 returnKeyType="next"
                 variant="customer"
+                fieldStyle={styles.formFieldContainer}
               />
               <AuthInput
                 label="Mobile number"
@@ -307,6 +309,7 @@ export default function SignupScreen() {
                 keyboardType="phone-pad"
                 returnKeyType="next"
                 variant="customer"
+                fieldStyle={styles.formFieldContainer}
               />
               <AuthInput
                 label="Email address"
@@ -326,6 +329,7 @@ export default function SignupScreen() {
                 textContentType="emailAddress"
                 returnKeyType="next"
                 variant="customer"
+                fieldStyle={styles.formFieldContainer}
               />
               <AuthInput
                 label="Password"
@@ -345,6 +349,7 @@ export default function SignupScreen() {
                 textContentType="newPassword"
                 returnKeyType="next"
                 variant="customer"
+                fieldStyle={styles.formFieldContainer}
               />
               <AuthInput
                 label="Confirm password"
@@ -368,6 +373,7 @@ export default function SignupScreen() {
                 returnKeyType="go"
                 onSubmitEditing={onSubmit}
                 variant="customer"
+                fieldStyle={styles.formFieldContainer}
               />
               <View style={styles.customerActions}>
                 <Pressable
@@ -386,7 +392,7 @@ export default function SignupScreen() {
                   </Text>
                   <Ionicons
                     name="arrow-forward-circle-outline"
-                    size={16}
+                    size={20}
                     color="#FFFFFF"
                   />
                 </Pressable>
@@ -445,7 +451,7 @@ export default function SignupScreen() {
       {rolePickerVisible ? (
         <View style={styles.rolePickerOverlay}>
           <LinearGradient
-            colors={["#F5F7FA", "#F5F7FA"]}
+            colors={["#F8FAFC", "#F1F5F9"]}
             style={styles.modalBackdrop}
           >
             <SafeAreaView style={styles.roleScreen}>
@@ -461,7 +467,7 @@ export default function SignupScreen() {
                 }
                 style={styles.roleBackButton}
               >
-                <Ionicons name="arrow-back" size={25} color="#000000" />
+                <Ionicons name="arrow-back" size={28} color="#0F172A" />
               </Pressable>
 
               <View style={styles.roleModal}>
@@ -499,7 +505,7 @@ export default function SignupScreen() {
                     ]}
                   >
                     {role === "customer" ? (
-                      <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                      <Ionicons name="checkmark" size={14} color="#FFFFFF" />
                     ) : null}
                   </View>
                 </Pressable>
@@ -536,7 +542,7 @@ export default function SignupScreen() {
                     ]}
                   >
                     {role === "mechanic" ? (
-                      <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                      <Ionicons name="checkmark" size={14} color="#FFFFFF" />
                     ) : null}
                   </View>
                 </Pressable>
@@ -580,9 +586,12 @@ const styles = StyleSheet.create({
   hiddenUnderlyingCard: {
     display: "none",
   },
+  formFieldContainer: {
+    marginBottom: 6,
+  },
   customerCard: {
-    marginHorizontal: -24,
-    marginTop: 54,
+    marginHorizontal: 12, // Reduced margin to widen card
+    marginTop: 64,
     minHeight: 680,
     borderRadius: 24,
     borderWidth: 1,
@@ -592,55 +601,50 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 3,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 20,
+    paddingHorizontal: 26, // Increased inner padding
+    paddingTop: 28,
+    paddingBottom: 28,
   },
   customerSectionTitle: {
-    color: "#2C2F35",
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: "700",
-    letterSpacing: -0.35,
-    marginTop: 2,
-    marginBottom: 0,
+    color: "#0F172A",
+    fontSize: normalizeText(18),
+    fontWeight: "800",
+    letterSpacing: -0.3,
+    marginTop: 4,
+    marginBottom: 4,
   },
   customerHeading: {
-    color: "#2C2F35",
+    color: "#0F172A",
     width: "100%",
-    fontSize: 26,
-    lineHeight: 31,
-    fontWeight: "700",
+    fontSize: normalizeText(28),
+    fontWeight: "800",
     letterSpacing: -0.6,
-    marginBottom: 2,
+    marginBottom: 6,
   },
   customerSub: {
     width: "100%",
-    color: "#2C2F35",
-    fontSize: 12,
-    lineHeight: 19,
-    fontWeight: "500",
-    marginBottom: 14,
+    color: "#475569",
+    fontSize: normalizeText(14),
+    lineHeight: normalizeText(22),
+    fontWeight: "600",
+    marginBottom: 16,
   },
   customerRequiredHelper: {
-    color: "#2C2F35",
-    fontSize: 13,
-    lineHeight: 18,
+    color: "#475569",
+    fontSize: normalizeText(13),
     fontWeight: "700",
-    letterSpacing: -0.35,
-    marginTop: 2,
-    marginBottom: 10,
+    marginBottom: 16,
   },
   customerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 20,
-    marginTop: 10,
+    gap: 16,
+    marginTop: 16,
   },
   customerBackButton: {
-    width: 76,
-    height: 42,
-    borderRadius: 11,
+    width: 84,
+    height: 48,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E0E5F0",
     alignItems: "center",
@@ -648,28 +652,28 @@ const styles = StyleSheet.create({
   },
   customerBackText: {
     color: "#334155",
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: normalizeText(15),
+    fontWeight: "700",
   },
   customerNextButton: {
-    width: 108,
-    height: 42,
-    borderRadius: 11,
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
     backgroundColor: "#3D3D4D",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    gap: 6,
+    gap: 8,
     shadowColor: "#D97706",
-    shadowOffset: { width: 0, height: 5 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
-    shadowRadius: 7,
+    shadowRadius: 6,
     elevation: 4,
   },
   customerNextText: {
     color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: normalizeText(15),
+    fontWeight: "700",
   },
   mechanicBackButton: {
     position: "absolute",
@@ -678,81 +682,77 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   mechanicCard: {
-    marginHorizontal: -24,
-    marginTop: 54,
+    marginHorizontal: 12, // Reduced margin to widen card
+    marginTop: 64,
     minHeight: 680,
     borderRadius: 24,
-    borderWidth: 0,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 26, // Increased inner padding
+    paddingTop: 28,
+    paddingBottom: 28,
+    shadowColor: "#17213D",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
   },
   heading: {
     color: colors.text,
-    fontSize: 22,
+    fontSize: normalizeText(22),
     fontWeight: "700",
     marginBottom: 4,
   },
   sub: {
     color: colors.textMuted,
-    fontSize: 14,
+    fontSize: normalizeText(14),
     marginBottom: spacing.lg,
   },
   mechanicHeading: {
-    color: "#2C2F35",
+    color: "#0F172A",
     width: "100%",
-    fontSize: 26,
-    lineHeight: 31,
+    fontSize: normalizeText(28),
     letterSpacing: -0.6,
-    fontWeight: "700",
-    marginBottom: 2,
+    fontWeight: "800",
+    marginBottom: 6,
   },
   mechanicStep3Heading: {
-    width: 342,
-    fontSize: 24,
-    lineHeight: 27.5,
-    letterSpacing: -0.55,
+    fontSize: normalizeText(25),
+    letterSpacing: -0.5,
   },
   mechanicFinalHeading: {
-    width: 340,
-    fontSize: 24,
-    lineHeight: 32.5,
-    letterSpacing: -0.65,
-    fontWeight: "800",
+    fontSize: normalizeText(25),
+    letterSpacing: -0.5,
   },
   mechanicSub: {
     width: "100%",
-    color: "#2C2F35",
-    fontSize: 14,
-    lineHeight: 19,
-    fontWeight: "500",
-    marginBottom: 14,
+    color: "#475569",
+    fontSize: normalizeText(14),
+    lineHeight: normalizeText(22),
+    fontWeight: "600",
+    marginBottom: 16,
   },
   mechanicStep3Sub: {
-    width: 342,
-    lineHeight: 19.5,
+    lineHeight: normalizeText(22),
   },
   mechanicFinalSub: {
-    width: 340,
-    lineHeight: 17.88,
+    lineHeight: normalizeText(22),
   },
   requiredHelper: {
-    color: "#2C2F35",
-    fontSize: 11,
-    lineHeight: 15,
-    fontWeight: "600",
-    marginTop: -9,
-    marginBottom: 8,
+    color: "#475569",
+    fontSize: normalizeText(13),
+    fontWeight: "700",
+    marginTop: -4,
+    marginBottom: 12,
   },
   errorMessage: {
-    color: "#B42318",
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 4,
+    color: "#EF4444",
+    fontSize: normalizeText(13),
+    marginTop: 6,
   },
   info: {
     color: colors.success,
-    fontSize: 13,
+    fontSize: normalizeText(14),
     marginBottom: spacing.md,
   },
   successButton: {
@@ -766,18 +766,18 @@ const styles = StyleSheet.create({
   successButtonText: {
     color: colors.bg,
     fontWeight: "700",
-    fontSize: 15,
+    fontSize: normalizeText(15),
   },
   reviewTitle: {
     color: colors.success,
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "800",
     marginBottom: spacing.sm,
   },
   reviewText: {
     color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(22),
   },
   almostDone: {
     flex: 1,
@@ -786,35 +786,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   almostDoneTitle: {
-    width: 289,
+    width: 320,
     color: "#1E3A8A",
-    fontSize: 24,
-    lineHeight: 32.5,
-    letterSpacing: -0.65,
+    fontSize: normalizeText(28),
     fontWeight: "800",
     textAlign: "center",
   },
   almostDoneText: {
-    color: "#2C2F35",
-    width: 291,
-    fontSize: 13,
-    lineHeight: 17.88,
-    fontWeight: "500",
+    color: "#0F172A",
+    width: 320,
+    fontSize: normalizeText(16),
+    lineHeight: normalizeText(24),
+    fontWeight: "600",
     textAlign: "center",
-    marginTop: 3,
+    marginTop: 6,
   },
   almostDoneActions: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
+    gap: 12,
     marginTop: 44,
   },
   almostDoneBack: {
-    minHeight: 36,
-    minWidth: 86,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    minHeight: 46,
+    minWidth: 96,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E0E5F0",
     alignItems: "center",
@@ -822,40 +820,39 @@ const styles = StyleSheet.create({
   },
   almostDoneBackText: {
     color: "#4B5568",
-    fontSize: 12,
+    fontSize: normalizeText(14),
     fontWeight: "700",
   },
   almostDoneProceed: {
-    width: 145,
-    minHeight: 36,
-    borderRadius: 10,
+    width: 160,
+    minHeight: 46,
+    borderRadius: 12,
     backgroundColor: "#24439A",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    shadowColor: "#132D73",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
+    shadowColor: "#D97706",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
     shadowRadius: 5,
     elevation: 3,
   },
   almostDoneProceedText: {
     color: "#FFFFFF",
-    fontSize: 12,
-    lineHeight: 20,
+    fontSize: normalizeText(15),
     fontWeight: "700",
   },
   almostDoneArrow: {
     color: "#FFFFFF",
-    fontSize: 16,
-    marginLeft: 6,
+    fontSize: normalizeText(20),
+    marginLeft: 8,
   },
   stepHeader: {
-    marginBottom: 10,
+    marginBottom: 12,
   },
   stepLabel: {
     color: colors.amber,
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "800",
     textTransform: "uppercase",
     letterSpacing: 1,
@@ -864,47 +861,38 @@ const styles = StyleSheet.create({
   mechanicStepLabel: {
     color: "#D97706",
     width: "100%",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: normalizeText(13),
     letterSpacing: 0.6,
-    marginBottom: 3,
+    marginBottom: 4,
   },
   mechanicStep3Label: {
-    width: 342,
   },
   stepTitle: {
     color: colors.text,
-    fontSize: 19,
+    fontSize: normalizeText(20),
     fontWeight: "800",
   },
   mechanicStepTitle: {
-    color: "#2C2F35",
+    color: "#0F172A",
     width: "100%",
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: "700",
+    fontSize: normalizeText(18),
+    fontWeight: "800",
     marginBottom: 0,
   },
   mechanicStep3Title: {
-    width: 342,
-    fontSize: 15,
-    lineHeight: 23.38,
-    fontWeight: "700",
+    fontSize: normalizeText(16),
   },
   mechanicFinalStepTitle: {
-    width: 340,
-    fontSize: 19,
-    lineHeight: 28.5,
-    fontWeight: "700",
+    fontSize: normalizeText(20),
   },
   helperText: {
     color: colors.textMuted,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(22),
     marginBottom: spacing.md,
   },
   photoButton: {
-    minHeight: 78,
+    minHeight: 82,
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
@@ -915,13 +903,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   photoPreview: {
-    width: 58,
-    height: 58,
+    width: 64,
+    height: 64,
     borderRadius: radii.md,
   },
   photoIconSlot: {
-    width: 58,
-    height: 58,
+    width: 64,
+    height: 64,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -931,23 +919,23 @@ const styles = StyleSheet.create({
   },
   photoLabel: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "700",
-    marginBottom: 3,
+    marginBottom: 4,
   },
   photoHint: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: normalizeText(13),
   },
   textArea: {
-    minHeight: 130,
+    minHeight: 140,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.md,
     backgroundColor: colors.bg,
     color: colors.text,
     padding: spacing.md,
-    fontSize: 14,
+    fontSize: normalizeText(15),
     marginBottom: spacing.md,
   },
   stepActions: {
@@ -955,18 +943,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-end",
     gap: spacing.sm,
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
   },
   mechanicStepActions: {
-    marginTop: 4,
+    marginTop: 8,
     justifyContent: "flex-start",
-    gap: 14,
+    gap: 16,
   },
   backStepButton: {
-    minHeight: 42,
-    minWidth: 76,
+    minHeight: 46,
+    minWidth: 84,
     paddingHorizontal: 16,
-    borderRadius: 11,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: "center",
@@ -975,7 +963,7 @@ const styles = StyleSheet.create({
   },
   backStepText: {
     color: colors.textMuted,
-    fontSize: 13,
+    fontSize: normalizeText(14),
     fontWeight: "700",
   },
   rolePickerOverlay: {
@@ -996,13 +984,13 @@ const styles = StyleSheet.create({
   },
   roleModal: {
     width: "100%",
-    maxWidth: 358,
-    minHeight: 326,
+    maxWidth: 380,
+    minHeight: 340,
     alignSelf: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 24,
-    marginTop: 70,
+    borderRadius: 20,
+    padding: 28,
+    marginTop: 80,
     borderWidth: 1,
     borderColor: "#DCE3EF",
     shadowColor: "#17213D",
@@ -1013,31 +1001,30 @@ const styles = StyleSheet.create({
   },
   roleBackButton: {
     position: "absolute",
-    top: 62,
-    left: 4,
+    top: 66,
+    left: 8,
     zIndex: 2,
   },
   modalTitle: {
-    color: "#2C2F35",
-    fontSize: 22,
-    fontWeight: "600",
-    lineHeight: 29,
+    color: "#0F172A",
+    fontSize: normalizeText(24),
+    fontWeight: "800",
   },
   modalText: {
-    color: "#2C2F35",
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 20,
-    marginBottom: 12,
+    color: "#334155",
+    fontSize: normalizeText(15),
+    fontWeight: "600",
+    marginBottom: 16,
+    marginTop: 6,
   },
   roleOption: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 72,
-    borderRadius: 12,
+    minHeight: 76,
+    borderRadius: 14,
     backgroundColor: "#F1F2FF",
     paddingHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   roleOptionSelected: {
     backgroundColor: "#F1F2FF",
@@ -1046,24 +1033,24 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   roleOptionMotorist: {
-    marginTop: 8,
+    marginTop: 10,
   },
   roleOptionMechanic: {
-    minHeight: 72,
+    minHeight: 76,
     marginTop: 0,
   },
   roleIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
+    width: 52,
+    height: 52,
+    borderRadius: 12,
     backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 14,
+    marginRight: 16,
   },
   roleIconImage: {
-    width: 38,
-    height: 38,
+    width: 42,
+    height: 42,
     resizeMode: "contain",
   },
   roleCopy: {
@@ -1071,60 +1058,58 @@ const styles = StyleSheet.create({
   },
   roleTitle: {
     color: "#1E3A8A",
-    fontSize: 15,
-    fontWeight: "600",
-    lineHeight: 21,
-    letterSpacing: 0.14,
+    fontSize: normalizeText(17),
+    fontWeight: "800",
+    letterSpacing: 0.1,
   },
   roleTitleMechanic: {
     color: "#D97706",
   },
   roleDescription: {
-    color: "#2C2F35",
-    fontSize: 12,
-    fontWeight: "500",
-    lineHeight: 18,
+    color: "#334155",
+    fontSize: normalizeText(13),
+    fontWeight: "600",
+    marginTop: 2,
   },
   checkbox: {
-    width: 19,
-    height: 19,
-    borderRadius: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: "#1E3A8A",
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 12,
-    marginRight: 10,
+    marginLeft: 14,
+    marginRight: 8,
   },
   checkboxSelected: {
     backgroundColor: "#1E3A8A",
   },
   roleBottom: {
     marginTop: "auto",
-    paddingHorizontal: 5,
+    paddingHorizontal: 10,
     paddingBottom: 140,
     alignItems: "center",
   },
   rolePrompt: {
-    color: "#2C2F35",
-    fontSize: 14,
-    fontWeight: "500",
-    lineHeight: 21,
+    color: "#0F172A",
+    fontSize: normalizeText(15),
+    fontWeight: "700",
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   roleProceedButton: {
     alignSelf: "stretch",
-    minHeight: 56,
-    borderRadius: 12,
+    minHeight: 60,
+    borderRadius: 14,
     backgroundColor: "#24439A",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     shadowColor: "#132D73",
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
-    shadowRadius: 5,
+    shadowRadius: 6,
     elevation: 3,
   },
   roleProceedButtonDisabled: {
@@ -1138,15 +1123,13 @@ const styles = StyleSheet.create({
   },
   roleProceedText: {
     color: "#FFFFFF",
-    fontSize: 19,
-    fontWeight: "600",
-    lineHeight: 22,
+    fontSize: normalizeText(20),
+    fontWeight: "700",
   },
   roleProceedArrow: {
     color: "#FFFFFF",
-    fontSize: 23,
-    lineHeight: 23,
-    marginLeft: 9,
+    fontSize: normalizeText(26),
+    marginLeft: 10,
     marginTop: -2,
   },
   modalBackButton: {
@@ -1156,7 +1139,7 @@ const styles = StyleSheet.create({
   },
   modalBackText: {
     color: colors.textMuted,
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "700",
   },
 });

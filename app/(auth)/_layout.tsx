@@ -23,7 +23,7 @@ export default function AuthLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: colors.bg },
+        contentStyle: { backgroundColor: "#F8FAFC" }, // Explicit light bg for auth flow
         animation: 'none',
       }}
     />
@@ -33,7 +33,7 @@ export default function AuthLayout() {
 const styles = StyleSheet.create({
   boot: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: "#F8FAFC",
     alignItems: 'center',
     justifyContent: 'center',
   },

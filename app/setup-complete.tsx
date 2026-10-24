@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { normalizeText } from "@/lib/typography";
 
 export default function SetupCompleteScreen() {
   const { back } = useLocalSearchParams<{ back?: string }>();
@@ -198,9 +199,8 @@ const styles = StyleSheet.create({
   },
   skip: {
     color: "#1E3A8A",
-    fontFamily: "sans-serif",
-    fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(15),
   },
   backButton: {
     alignSelf: "flex-start",
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   },
   centerContent: {
     alignItems: "center",
-    marginTop: 54,
+    marginTop: 64,
   },
   setupImage: {
     width: 170,
@@ -216,19 +216,17 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#1E3A8A",
-    fontFamily: "sans-serif",
-    fontSize: 28,
-    fontWeight: "800",
-    letterSpacing: -0.4,
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(26),
+    letterSpacing: -0.2,
     textAlign: "center",
     marginTop: 32,
   },
   subtitle: {
     color: "#0F172A",
-    fontFamily: "sans-serif",
-    fontSize: 16,
-    fontWeight: "600",
-    lineHeight: 24,
+    fontFamily: "PlusJakartaSans",
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(24),
     letterSpacing: 0.1,
     textAlign: "center",
     marginTop: 12,
@@ -239,9 +237,8 @@ const styles = StyleSheet.create({
   },
   description: {
     color: "#334155",
-    fontFamily: "sans-serif",
-    fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans",
+    fontSize: normalizeText(14),
     letterSpacing: 0.1,
     textAlign: "center",
     marginBottom: 20,
@@ -266,14 +263,13 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: "#FFFFFF",
-    fontFamily: "sans-serif",
-    fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSansBold",
+    fontSize: normalizeText(17),
     letterSpacing: 0.3,
   },
   arrow: {
     color: "#FFFFFF",
-    fontSize: 24,
+    fontSize: normalizeText(24),
     marginLeft: 10,
     marginTop: -2,
   },

@@ -83,7 +83,7 @@ export const supabase = createClient(
     auth: {
       storage: LargeSecureStore,
       autoRefreshToken: true,
-      persistSession: false,
+      persistSession: true,
       detectSessionInUrl: false,
     },
   },
