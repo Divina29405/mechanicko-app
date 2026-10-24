@@ -133,7 +133,7 @@ export default function Index() {
 
   return (
     <LinearGradient
-      colors={["#F5F7FA", "#F5F7FA"]}
+      colors={["#F8FAFC", "#F1F5F9"]}
       style={styles.screen}
     >
       <SafeAreaView style={styles.safeArea}>
@@ -151,6 +151,8 @@ export default function Index() {
             />
           </Animated.View>
 
+          <View style={styles.spacer} />
+
           <Animated.View style={[styles.message, contentAnimatedStyle]}>
             <Text style={styles.title}>YOUR HELP IS ON THE WAY.</Text>
             <Text style={styles.description}>
@@ -159,6 +161,8 @@ export default function Index() {
               away!
             </Text>
           </Animated.View>
+
+          <View style={styles.bottomSpacer} />
 
           <Pressable
             accessibilityRole="button"
@@ -188,88 +192,87 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     alignItems: "center",
-    paddingHorizontal: 18,
-    paddingTop: 130,
+    paddingHorizontal: 22,
+    paddingTop: 100,
     paddingBottom: 48,
   },
   brand: {
     alignItems: "center",
   },
   logo: {
-    width: 82,
-    height: 83,
+    width: 90,
+    height: 90,
   },
   wordmark: {
-    width: 207,
-    height: 33,
-    marginTop: 22,
+    width: 220,
+    height: 36,
+    marginTop: 24,
+  },
+  spacer: {
+    flex: 1,
+    minHeight: 40,
   },
   message: {
     width: "100%",
     alignItems: "center",
-    marginTop: 72,
   },
   title: {
-    color: "#20439B",
+    color: "#1E3A8A",
     fontFamily: "sans-serif",
-    width: 276,
-    height: 20,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "900",
-    lineHeight: 20,
-    letterSpacing: 0.14,
+    letterSpacing: 0.5,
     textAlign: "center",
-    textShadowColor: "#20439B",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 0.55,
   },
   description: {
-    color: "#272B34",
+    color: "#0F172A",
     fontFamily: "sans-serif",
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: "500",
-    lineHeight: 20,
-    letterSpacing: 0.14,
-    maxWidth: 330,
-    marginTop: 170,
+    lineHeight: 26,
+    letterSpacing: 0.1,
+    maxWidth: 320,
+    marginTop: 24,
     textAlign: "center",
+  },
+  bottomSpacer: {
+    flex: 1,
+    minHeight: 40,
   },
   button: {
     alignSelf: "stretch",
-    minHeight: 52,
-    borderRadius: 11,
+    minHeight: 56,
+    borderRadius: 14,
     backgroundColor: "#24439A",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    marginTop: 44,
     shadowColor: "#132D73",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   buttonPressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.99 }],
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
   },
   buttonText: {
     color: "#FFFFFF",
     fontFamily: "sans-serif",
     fontSize: 18,
-    fontWeight: "600",
-    lineHeight: 20,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
   arrow: {
     color: "#FFFFFF",
-    fontSize: 23,
-    lineHeight: 23,
-    marginLeft: 9,
+    fontSize: 24,
+    marginLeft: 10,
     marginTop: -2,
   },
   boot: {
     flex: 1,
-    backgroundColor: "#F5F7FA",
+    backgroundColor: "#F8FAFC",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -278,23 +281,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   bootLogo: {
-    width: 112,
-    height: 112,
+    width: 120,
+    height: 120,
   },
   bootWordmark: {
-    marginTop: 18,
-    color: "#24439A",
-    fontSize: 22,
+    marginTop: 24,
+    color: "#1E3A8A",
+    fontSize: 24,
     fontWeight: "900",
-    letterSpacing: 1.8,
+    letterSpacing: 2,
   },
   bootProgressTrack: {
     width: 180,
-    height: 5,
-    marginTop: 28,
+    height: 6,
+    marginTop: 32,
     overflow: "hidden",
     borderRadius: 3,
-    backgroundColor: "#DCE3EF",
+    backgroundColor: "#E2E8F0",
   },
   bootProgressFill: {
     height: "100%",
@@ -302,9 +305,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#24439A",
   },
   bootPercent: {
-    marginTop: 10,
-    color: "#667085",
-    fontSize: 12,
+    marginTop: 12,
+    color: "#475569",
+    fontSize: 13,
     fontWeight: "700",
   },
 });

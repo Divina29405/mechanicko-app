@@ -120,6 +120,7 @@ export default function MotoristMap() {
   const [location, setLocation] = useState<Location.LocationObject | null>(
     cachedDeviceLocation,
   );
+  const [heading, setHeading] = useState(0);
   const [locationLabel, setLocationLabel] = useState("Current location");
   const [liveMechanics, setLiveMechanics] = useState<any[]>([]);
   const [searchRadius, setSearchRadius] = useState(10);
@@ -635,6 +636,7 @@ export default function MotoristMap() {
   useEffect(() => {
     let active = true;
     let locationSubscription: Location.LocationSubscription | null = null;
+    let headingSubscription: Location.LocationSubscription | null = null;
 
     (async () => {
       if (Platform.OS === "web") {
@@ -693,6 +695,7 @@ export default function MotoristMap() {
           currentLoc.coords.latitude,
           currentLoc.coords.longitude,
         );
+        
         locationSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Highest,
@@ -704,8 +707,15 @@ export default function MotoristMap() {
             cachedDeviceLocation = nextLocation;
             setLocation(nextLocation);
             void updateLocationLabel(nextLocation);
-          },
+          }
         );
+
+        // This activates the device compass
+        headingSubscription = await Location.watchHeadingAsync((headingData) => {
+          if (!active) return;
+          setHeading(headingData.trueHeading >= 0 ? headingData.trueHeading : headingData.magHeading);
+        });
+
       } else if (active) {
         Alert.alert(
           "Location permission required",
@@ -716,6 +726,7 @@ export default function MotoristMap() {
     return () => {
       active = false;
       locationSubscription?.remove();
+      headingSubscription?.remove();
     };
   }, []);
 
@@ -1126,10 +1137,11 @@ export default function MotoristMap() {
     if (!location || !mapRef.current) return;
     const latitude = location.coords.latitude;
     const longitude = location.coords.longitude;
+    // Pass the heading into the updateUserLocation function
     mapRef.current.injectJavaScript(
-      `if (window.updateUserLocation) { window.updateUserLocation(${latitude}, ${longitude}); } true;`,
+      `if (window.updateUserLocation) { window.updateUserLocation(${latitude}, ${longitude}, ${heading}); } true;`,
     );
-  }, [location]);
+  }, [location, heading]);
 
   const activeRequestStatus = String(activeRequest?.status ?? "")
     .trim()
@@ -1192,22 +1204,32 @@ export default function MotoristMap() {
             bearing: 0
           }).setView([${initialMapLocation.coords.latitude}, ${initialMapLocation.coords.longitude}], 15);
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+          
           var userIcon = L.divIcon({
-            html: '<div class="user-marker-wrap"><div class="user-location-card"><div class="user-location-title">${locationLabel} (You)</div><div class="user-location-subtitle">Current location</div></div><div class="user-pulse-ring"></div><div class="user-marker"><img class="user-nav-icon" src="${mapNavUri}" alt="Current heading" /></div></div>',
+            html: '<div class="user-marker-wrap"><div class="user-location-card"><div class="user-location-title">${locationLabel} (You)</div><div class="user-location-subtitle">Current location</div></div><div class="user-pulse-ring"></div><div class="user-marker"><div id="user-nav-compass" style="transform: rotate(0deg); transition: transform 0.2s ease-out; display: flex; align-items: center; justify-content: center;"><svg viewBox="0 0 24 24" width="22" height="22" fill="white"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg></div></div></div>',
             className: '',
             iconSize: [240, 135],
             iconAnchor: [120, 91]
           });
+          
           var userMarker = L.marker([${initialMapLocation.coords.latitude}, ${initialMapLocation.coords.longitude}], {icon: userIcon}).addTo(map);
           var hasCenteredOnLiveLocation = false;
-          window.updateUserLocation = function(lat, lng) {
+          
+          window.updateUserLocation = function(lat, lng, heading) {
             mapCenter = [lat, lng];
             userMarker.setLatLng(mapCenter);
             if (!hasCenteredOnLiveLocation) {
               map.setView(mapCenter, Math.max(map.getZoom(), 15), { animate: false });
               hasCenteredOnLiveLocation = true;
             }
+            if (heading !== undefined && heading !== null) {
+              var compass = document.getElementById('user-nav-compass');
+              if (compass) {
+                compass.style.transform = 'rotate(' + heading + 'deg)';
+              }
+            }
           };
+          
           function updateLocationCardVisibility() {
             var card = document.querySelector('.user-location-card');
             if (card) card.classList.toggle('visible', map.getZoom() >= 17);

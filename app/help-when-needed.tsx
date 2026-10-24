@@ -5,14 +5,14 @@ export default function HelpWhenNeededScreen() {
     <OnboardingInfoScreen
       activeSteps={4}
       title="Help When You Need It"
-      titleWidth={195}
-      titleFontSize={21}
+      titleWidth={240}
+      titleFontSize={24}
       body={
         "Book a regular service, schedule an\nappointment, or use the SOS feature to\nrequest emergency roadside assistance\nwhen your vehicle encounters trouble."
       }
-      bodyWidth={297}
-      bodyFontSize={15}
-      bodyLineHeight={24}
+      bodyWidth={320}
+      bodyFontSize={16}
+      bodyLineHeight={26}
       largeText
       nextRoute="/choose-service"
     />

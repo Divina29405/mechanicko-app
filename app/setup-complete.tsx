@@ -79,82 +79,82 @@ export default function SetupCompleteScreen() {
         options={{
           animation: isBackNavigation ? "slide_from_left" : "slide_from_right",
           gestureEnabled: false,
-          contentStyle: { backgroundColor: "#F5F7FA" },
+          contentStyle: { backgroundColor: "#F8FAFC" },
         }}
       />
       <LinearGradient
-          colors={["#F5F7FA", "#F5F7FA"]}
-          style={styles.screen}
+        colors={["#F8FAFC", "#F1F5F9"]}
+        style={styles.screen}
       >
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.content}>
-          <View style={styles.topBar}>
-            <View style={styles.progress}>
-              {Array.from({ length: 6 }, (_, index) => (
-                <View
-                  key={index}
-                  style={[styles.progressItem, styles.progressItemActive]}
-                />
-              ))}
+            <View style={styles.topBar}>
+              <View style={styles.progress}>
+                {Array.from({ length: 6 }, (_, index) => (
+                  <View
+                    key={index}
+                    style={[styles.progressItem, styles.progressItemActive]}
+                  />
+                ))}
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Skip onboarding"
+                hitSlop={12}
+                onPress={() => router.replace("/(auth)/login")}
+              >
+                <Text style={styles.skip}>Skip</Text>
+              </Pressable>
             </View>
+
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Skip onboarding"
+              accessibilityLabel="Go back"
               hitSlop={12}
-              onPress={() => router.replace("/(auth)/login")}
+              onPress={() =>
+                router.replace({
+                  pathname: "/choose-service",
+                  params: { back: "1" },
+                })
+              }
+              style={styles.backButton}
             >
-              <Text style={styles.skip}>Skip</Text>
+              <Ionicons name="arrow-back" size={28} color="#0F172A" />
             </Pressable>
-          </View>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            hitSlop={12}
-            onPress={() =>
-              router.replace({
-                pathname: "/choose-service",
-                params: { back: "1" },
-              })
-            }
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={26} color="#000000" />
-          </Pressable>
-
-          <Animated.View
-            style={[styles.centerContent, centerAnimatedStyle]}
-          >
-            <Animated.Image
-              source={require("../assets/images/setupcomplete.png")}
-              resizeMode="contain"
-              style={[styles.setupImage, iconAnimatedStyle]}
-            />
-            <Animated.Text style={[styles.title, titleAnimatedStyle]}>
-              You&apos;re All Set!
-            </Animated.Text>
-            <Animated.Text style={[styles.subtitle, subtitleAnimatedStyle]}>
-              You can now continue creating your account.
-            </Animated.Text>
-          </Animated.View>
-
-          <View style={styles.bottomContent}>
-            <Text style={styles.description}>
-              Click to proceed to continue.
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Proceed to sign up"
-              onPress={() => router.push("/(auth)/signup")}
-              style={({ pressed }) => [
-                styles.button,
-                pressed && styles.buttonPressed,
-              ]}
+            <Animated.View
+              style={[styles.centerContent, centerAnimatedStyle]}
             >
-              <Text style={styles.buttonText}>Proceed</Text>
-              <Text style={styles.arrow}>→</Text>
-            </Pressable>
-          </View>
+              <Animated.Image
+                source={require("../assets/images/setupcomplete.png")}
+                resizeMode="contain"
+                style={[styles.setupImage, iconAnimatedStyle]}
+              />
+              <Animated.Text style={[styles.title, titleAnimatedStyle]}>
+                You&apos;re All Set!
+              </Animated.Text>
+              <Animated.Text style={[styles.subtitle, subtitleAnimatedStyle]}>
+                You can now continue creating your account.
+              </Animated.Text>
+            </Animated.View>
+
+            <View style={styles.bottomContent}>
+              <Text style={styles.description}>
+                Click proceed to continue.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Proceed to sign up"
+                onPress={() => router.push("/(auth)/signup")}
+                style={({ pressed }) => [
+                  styles.button,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.buttonText}>Proceed</Text>
+                <Text style={styles.arrow}>→</Text>
+              </Pressable>
+            </View>
           </View>
         </SafeAreaView>
       </LinearGradient>
@@ -171,39 +171,36 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 18,
+    paddingHorizontal: 22,
     paddingTop: 25,
-    paddingBottom: 76,
+    paddingBottom: 48,
   },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     width: "100%",
-    paddingHorizontal: 18,
   },
   progress: {
     width: 260,
-    height: 10,
+    height: 8,
     flexDirection: "row",
-    gap: 10,
+    gap: 8,
   },
   progressItem: {
     flex: 1,
-    height: 10,
+    height: 8,
     borderRadius: 4,
-    backgroundColor: "#E8E8E8",
+    backgroundColor: "#E2E8F0",
   },
   progressItemActive: {
     backgroundColor: "#24439A",
-    borderWidth: 1,
-    borderColor: "#FFFFFF",
   },
   skip: {
-    color: "#24439A",
+    color: "#1E3A8A",
     fontFamily: "sans-serif",
     fontSize: 16,
-    fontWeight: "400",
+    fontWeight: "600",
   },
   backButton: {
     alignSelf: "flex-start",
@@ -211,75 +208,73 @@ const styles = StyleSheet.create({
   },
   centerContent: {
     alignItems: "center",
-    marginTop: 43,
+    marginTop: 54,
   },
   setupImage: {
-    width: 159,
-    height: 99,
+    width: 170,
+    height: 110,
   },
   title: {
-    color: "#20439B",
+    color: "#1E3A8A",
     fontFamily: "sans-serif",
-    width: 159,
-    height: 32,
-    fontSize: 24,
-    fontWeight: "700",
-    lineHeight: 32,
-    letterSpacing: -0.24,
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.4,
     textAlign: "center",
-    marginTop: 24,
+    marginTop: 32,
   },
   subtitle: {
-    color: "#272B34",
+    color: "#0F172A",
     fontFamily: "sans-serif",
-    width: 308,
-    height: 20,
-    fontSize: 13,
-    fontWeight: "500",
-    lineHeight: 20,
-    letterSpacing: 0.14,
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 24,
+    letterSpacing: 0.1,
     textAlign: "center",
-    marginTop: 8,
+    marginTop: 12,
   },
   bottomContent: {
     marginTop: "auto",
     alignItems: "center",
   },
   description: {
-    color: "#272B34",
+    color: "#334155",
     fontFamily: "sans-serif",
     fontSize: 15,
-    fontWeight: "500",
-    lineHeight: 22,
-    letterSpacing: 0.14,
+    fontWeight: "600",
+    letterSpacing: 0.1,
     textAlign: "center",
     marginBottom: 20,
   },
   button: {
     alignSelf: "stretch",
-    minHeight: 52,
-    borderRadius: 11,
+    minHeight: 56,
+    borderRadius: 14,
     backgroundColor: "#24439A",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
+    shadowColor: "#132D73",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   buttonPressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.99 }],
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
   },
   buttonText: {
     color: "#FFFFFF",
     fontFamily: "sans-serif",
     fontSize: 18,
-    fontWeight: "600",
-    lineHeight: 20,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
   arrow: {
     color: "#FFFFFF",
-    fontSize: 23,
-    lineHeight: 23,
-    marginLeft: 9,
+    fontSize: 24,
+    marginLeft: 10,
     marginTop: -2,
   },
 });
