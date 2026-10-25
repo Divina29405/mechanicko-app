@@ -219,7 +219,28 @@ export function useSignupForm() {
     setConfirmError(null);
     setFormError(null);
     setInfo(null);
-    setShowAlmostDone(true);
+    setLoading(true);
+    try {
+      const { error } = await signUp(
+        email,
+        password,
+        fullName,
+        "customer",
+        undefined,
+        mobileNumber,
+      );
+      if (error) {
+        setFormError(error);
+        return;
+      }
+      setShowAlmostDone(true);
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : "Could not create account.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return {
