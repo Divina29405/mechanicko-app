@@ -8,7 +8,7 @@ import { AuthScreenShell } from "@/components/auth/AuthScreenShell";
 import { ErrorBanner } from "@/components/auth/ErrorBanner";
 import { PrimaryButton } from "@/components/auth/PrimaryButton";
 import { useAuth } from "@/contexts/AuthContext";
-import { colors, spacing } from "@/lib/theme";
+import { colors } from "@/lib/theme";
 import { validateEmail, validatePassword } from "@/lib/validation";
 import { normalizeText } from "@/lib/typography";
 
@@ -244,7 +244,8 @@ const styles = StyleSheet.create({
   brandLogo: {
     width: 80,
     height: 80,
-    marginBottom: 12
+    marginBottom: 12,
+    transform: [{ translateY: -8 }],
   },
   brandText: {
     width: 170,
@@ -272,7 +273,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 14,
     elevation: 4,
-    marginTop: -40,
     width: "100%",
   },
   heading: {

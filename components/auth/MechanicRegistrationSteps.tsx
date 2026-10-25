@@ -12,7 +12,6 @@ import Animated, {
 import { AuthInput } from "@/components/auth/AuthInput";
 import { PrimaryButton } from "@/components/auth/PrimaryButton";
 import { colors } from "@/lib/theme";
-import { normalizeText } from "@/lib/typography";
 import {
   validateConfirmPassword,
   validateEmail,

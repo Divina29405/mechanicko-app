@@ -1,4 +1,4 @@
-import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { MotoristHomeHeader } from "@/components/MotoristHomeHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { getSharedAvatarUrl, subscribeToSharedAvatar } from "@/lib/avatarStore";
@@ -32,10 +32,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { normalizeText } from "@/lib/typography";
 import { MapWebView, type MapWebViewHandle } from "@/components/MapWebView";
+import EmergencyChecklistScreen from "./emergency-checklist";
 
 const bikeIcon = require("../../assets/images/bike.png");
 const motoristCallIcon = require("../../assets/images/motorist-call.png");
-const appLogo = require("../../assets/images/mechanichome.png");
 const recenterIcon = require("../../assets/images/recenter.png");
 const mapOrientationIcon = require("../../assets/images/maporientation.png");
 const clockIcon = require("../../assets/images/clock.png");
@@ -112,9 +112,20 @@ const webLocation = {
 
 export default function MotoristMap() {
   const router = useRouter();
-  const { bookingId } = useLocalSearchParams<{ bookingId?: string }>();
+  const { bookingId, mechanicId } = useLocalSearchParams<{
+    bookingId?: string;
+    mechanicId?: string;
+  }>();
   const { session } = useAuth();
   const { colors, isDarkMode } = useAppTheme();
+  const bookingSosColors = {
+    background: "#F8F8FC",
+    card: "#FFFFFF",
+    text: "#30323D",
+    muted: "#7D8295",
+    border: "#E4E5EC",
+    primary: "#24439A",
+  };
   const motoristId = session?.user.id;
 
   const [location, setLocation] = useState<Location.LocationObject | null>(
@@ -135,10 +146,15 @@ export default function MotoristMap() {
   const [loadingMechanicReviews, setLoadingMechanicReviews] = useState(false);
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
   const [bookingReceiptVisible, setBookingReceiptVisible] = useState(false);
+  const [emergencyChecklistVisible, setEmergencyChecklistVisible] =
+    useState(false);
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
+  const [bookingNotes, setBookingNotes] = useState("");
   const [vehicleType, setVehicleType] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
   const [primaryVehicle, setPrimaryVehicle] = useState<Vehicle | null>(null);
+  const [availableVehicles, setAvailableVehicles] = useState<Vehicle[]>([]);
+  const [vehiclePickerVisible, setVehiclePickerVisible] = useState(false);
   const [bookingDate, setBookingDate] = useState(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -152,6 +168,7 @@ export default function MotoristMap() {
   const [activeRequest, setActiveRequest] = useState<any>(null);
   const [acceptedSuccessVisible, setAcceptedSuccessVisible] = useState(false);
   const handledBookAgainId = useRef<string | null>(null);
+  const handledMechanicId = useRef<string | null>(null);
   const [bookingTransition] = useState(() => new Animated.Value(1));
   const [acceptedBookingExpanded, setAcceptedBookingExpanded] = useState(true);
   const [acceptedBookingAnimation] = useState(() => new Animated.Value(1));
@@ -198,12 +215,31 @@ export default function MotoristMap() {
   const previousBookingStatus = useRef<string | null>(null);
   const [radarRotation] = useState(() => new Animated.Value(0));
   const motoristAvatarPath = useRef<string | null>(null);
-  const motoristName =
-    typeof session?.user.user_metadata?.full_name === "string"
-      ? session.user.user_metadata.full_name
-      : session?.user.email?.split("@")[0] || "Motorist";
-
   useEffect(() => subscribeToSharedAvatar(setMotoristAvatarUrl), []);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setDisplayedMechanic(null);
+        setSelectedMechanic(null);
+        setShowServices(false);
+        setPriceComparisonVisible(false);
+        setMechanicProfileVisible(false);
+        setNearbyMechanicsVisible(false);
+        setBookingModalVisible(false);
+        setVehiclePickerVisible(false);
+      };
+    }, [
+      setBookingModalVisible,
+      setDisplayedMechanic,
+      setMechanicProfileVisible,
+      setNearbyMechanicsVisible,
+      setPriceComparisonVisible,
+      setSelectedMechanic,
+      setShowServices,
+      setVehiclePickerVisible,
+    ]),
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -215,7 +251,8 @@ export default function MotoristMap() {
           console.warn("Unable to load primary vehicle:", error);
           return;
         }
-        setPrimaryVehicle(data.find((vehicle) => vehicle.is_primary) ?? null);
+        setAvailableVehicles(data);
+        setPrimaryVehicle(data.find((vehicle) => vehicle.is_primary) ?? data[0] ?? null);
       });
       return () => {
         active = false;
@@ -394,41 +431,44 @@ export default function MotoristMap() {
   const [cancelSuccessVisible, setCancelSuccessVisible] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const fetchLiveMechanics = async (userLat: number, userLng: number) => {
-    const { data, error } = await supabase.rpc("get_nearby_mechanics", {
-      p_latitude: userLat,
-      p_longitude: userLng,
-      p_radius_km: searchRadius,
-    });
-    if (error) {
-      console.warn("Nearby mechanics unavailable:", error.message);
-      setLiveMechanics([]);
-      return;
-    }
-    const formattedMechanics = (data ?? []).map((mech: any) => ({
-      id: mech.id,
-      name: mech.full_name || "Unnamed Mechanic",
-      mobileNumber: mech.mobile_number || null,
-      isOnline: mech.is_online !== false,
-      rating: Number(mech.average_rating) || 5,
-      price: Number(mech.base_price) || 500,
-      latitude: mech.home_latitude,
-      longitude: mech.home_longitude,
-      avatarUrl: mech.avatar_path
-        ? supabase.storage
-            .from("mechanic-avatars")
-            .getPublicUrl(mech.avatar_path).data.publicUrl
-        : null,
-      skills: mech.skills || "General motorcycle service",
-      experience: mech.experience || null,
-      services: Array.isArray(mech.maintenance_pricing)
-        ? mech.maintenance_pricing
-        : [],
-      distanceKm: Number(mech.distance_km) || 0,
-      distance: `${Number(mech.distance_km).toFixed(1)} km`,
-    }));
-    setLiveMechanics(formattedMechanics);
-  };
+  const fetchLiveMechanics = useCallback(
+    async (userLat: number, userLng: number) => {
+      const { data, error } = await supabase.rpc("get_nearby_mechanics", {
+        p_latitude: userLat,
+        p_longitude: userLng,
+        p_radius_km: searchRadius,
+      });
+      if (error) {
+        console.warn("Nearby mechanics unavailable:", error.message);
+        setLiveMechanics([]);
+        return;
+      }
+      const formattedMechanics = (data ?? []).map((mech: any) => ({
+        id: mech.id,
+        name: mech.full_name || "Unnamed Mechanic",
+        mobileNumber: mech.mobile_number || null,
+        isOnline: mech.is_online !== false,
+        rating: Number(mech.average_rating) || 5,
+        price: Number(mech.base_price) || 500,
+        latitude: mech.home_latitude,
+        longitude: mech.home_longitude,
+        avatarUrl: mech.avatar_path
+          ? supabase.storage
+              .from("mechanic-avatars")
+              .getPublicUrl(mech.avatar_path).data.publicUrl
+          : null,
+        skills: mech.skills || "General motorcycle service",
+        experience: mech.experience || null,
+        services: Array.isArray(mech.maintenance_pricing)
+          ? mech.maintenance_pricing
+          : [],
+        distanceKm: Number(mech.distance_km) || 0,
+        distance: `${Number(mech.distance_km).toFixed(1)} km`,
+      }));
+      setLiveMechanics(formattedMechanics);
+    },
+    [searchRadius],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -451,7 +491,7 @@ export default function MotoristMap() {
       void fetchLiveMechanics(location.coords.latitude, location.coords.longitude);
     }, 0);
     return () => clearTimeout(refreshTimer);
-  }, [location, searchRadius]);
+  }, [fetchLiveMechanics, location]);
 
   useEffect(() => {
     if (
@@ -570,6 +610,51 @@ export default function MotoristMap() {
       active = false;
     };
   }, [bookingId, liveMechanics, primaryVehicle, session?.user.id]);
+
+  useEffect(() => {
+    if (
+      !mechanicId ||
+      handledMechanicId.current === mechanicId ||
+      !liveMechanics.length
+    ) {
+      return;
+    }
+    const mechanic = liveMechanics.find((item) => item.id === mechanicId);
+    if (!mechanic) return;
+    if (!mechanic.services?.length) {
+      Alert.alert(
+        "No services available",
+        "This mechanic has not listed any service offerings yet.",
+      );
+      handledMechanicId.current = mechanicId;
+      return;
+    }
+    if (activeRequest && ACTIVE_BOOKING_STATUSES.includes(String(activeRequest.status).toLowerCase())) {
+      Alert.alert(
+        "Booking in progress",
+        "You already have an ongoing booking. Please wait until it is completed.",
+      );
+      handledMechanicId.current = mechanicId;
+      return;
+    }
+    const openTimer = setTimeout(() => {
+      setSelectedMechanic(mechanic);
+      setDisplayedMechanic(mechanic);
+      setSelectedServices([]);
+      setBookingNotes("");
+      setVehicleType(
+        primaryVehicle ? `${primaryVehicle.make} ${primaryVehicle.model}`.trim() : "",
+      );
+      setPlateNumber(primaryVehicle?.plate_number ?? "");
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(9, 0, 0, 0);
+      setBookingDate(tomorrow);
+      setBookingModalVisible(true);
+      handledMechanicId.current = mechanicId;
+    }, 0);
+    return () => clearTimeout(openTimer);
+  }, [activeRequest, liveMechanics, mechanicId, primaryVehicle]);
 
   const comparisonResults = useMemo(() => {
     const query = priceSearch.trim().toLowerCase();
@@ -727,25 +812,32 @@ export default function MotoristMap() {
       locationSubscription?.remove();
       headingSubscription?.remove();
     };
-  }, []);
+  }, [fetchLiveMechanics]);
 
   const handleEmergencySOS = () => {
-    if (activeRequest && !["completed", "closed", "cancelled", "canceled"].includes(activeRequestStatus)) {
+    const hasActiveBooking = [
+      "pending",
+      "scheduled",
+      "accepted",
+      "in_transit",
+      "arrived",
+      "in_progress",
+    ].includes(activeRequestStatus);
+    if (activeRequest && hasActiveBooking) {
       Alert.alert(
         "Ongoing order in progress",
         "You cannot send a new Emergency SOS while you have an ongoing order. Please use your current booking or wait until it is finished.",
       );
       return;
     }
-    if (!location)
+    const sosLocation =
+      location ?? (Platform.OS === "web" ? webLocation : null);
+    if (!sosLocation)
       return Alert.alert(
         "Location Required",
         "Please wait while we pinpoint your location.",
       );
-    router.push({
-      pathname: "/emergency-checklist",
-      params: { lat: location.coords.latitude, lng: location.coords.longitude },
-    });
+    setEmergencyChecklistVisible(true);
   };
 
   const handleRecenterLocation = async () => {
@@ -842,6 +934,7 @@ export default function MotoristMap() {
       return;
     }
     setSelectedServices([]);
+    setBookingNotes("");
     setVehicleType(`${primaryVehicle.make} ${primaryVehicle.model}`.trim());
     setPlateNumber(primaryVehicle.plate_number);
     const tomorrow = new Date();
@@ -849,6 +942,23 @@ export default function MotoristMap() {
     tomorrow.setHours(9, 0, 0, 0);
     setBookingDate(tomorrow);
     setBookingModalVisible(true);
+  };
+
+  const chooseBookingVehicle = () => {
+    if (availableVehicles.length < 2) {
+      Alert.alert(
+        "No other vehicles",
+        "Add another vehicle in Profile > My Garage to switch vehicles.",
+      );
+      return;
+    }
+    setVehiclePickerVisible(true);
+  };
+
+  const selectBookingVehicle = (vehicle: Vehicle) => {
+    setVehicleType(`${vehicle.make} ${vehicle.model}`.trim());
+    setPlateNumber(vehicle.plate_number);
+    setVehiclePickerVisible(false);
   };
 
   const handleBookNow = async () => {
@@ -937,7 +1047,9 @@ export default function MotoristMap() {
           service_price: servicePrice,
           delivery_fee: deliveryFee,
           estimated_total: totalPrice,
-          vehicle_issue: serviceNames,
+          vehicle_issue: bookingNotes.trim()
+            ? `${serviceNames}\nNotes: ${bookingNotes.trim()}`
+            : serviceNames,
         },
       ])
       .select()
@@ -1290,56 +1402,28 @@ export default function MotoristMap() {
         }}
       />
 
-      <View
-        style={[
-          styles.topContainer,
-          {
-            top: 0,
-            paddingTop: Platform.OS === "ios" ? 58 : 44,
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-          },
-        ]}
+      <MotoristHomeHeader title="Home" floating />
+      <Modal
+        visible={emergencyChecklistVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setEmergencyChecklistVisible(false)}
       >
-        <View style={styles.headerRow}>
-          <Image source={appLogo} resizeMode="contain" style={styles.appLogo} />
-          <Text style={[styles.screenTitle, { color: colors.text }]}>Home</Text>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.activityButton}
-              onPress={() => router.push("/notifications")}
-              accessibilityLabel="Open notifications"
-            >
-              <Ionicons
-                name="notifications-outline"
-                size={28}
-                color={colors.text}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.iconCircle,
-                { backgroundColor: "#FFF1D6", borderColor: "#F0A202" },
-              ]}
-              onPress={() => router.push("/motorist-profile")}
-              accessibilityLabel="Open motorist profile"
-            >
-              <ProfileAvatar
-                uri={motoristAvatarUrl}
-                name={motoristName}
-                size={52}
-                backgroundColor="#FFF1D6"
-                borderColor="#F0A202"
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
+        <EmergencyChecklistScreen
+          embedded
+          initialLocation={{
+            lat: (location ?? webLocation).coords.latitude,
+            lng: (location ?? webLocation).coords.longitude,
+          }}
+          initialVehicle={primaryVehicle}
+          onClose={() => setEmergencyChecklistVisible(false)}
+        />
+      </Modal>
       <TouchableOpacity
         onPress={() => setNearbyMechanicsVisible(true)}
         style={[
           styles.nearbyMechanicsSummary,
-          { top: Platform.OS === "ios" ? 132 : 118 },
+          { top: Platform.OS === "ios" ? 106 : 92 },
         ]}
         accessibilityLabel="Show mechanics near you"
       >
@@ -1392,6 +1476,7 @@ export default function MotoristMap() {
             style={[styles.sosButton, hasOngoingOrder && styles.sosButtonDisabled]}
             onPress={handleEmergencySOS}
             accessibilityState={{ disabled: hasOngoingOrder }}
+            hitSlop={12}
           >
             <View style={styles.sosContent}>
               <Image source={motoristCallIcon} style={styles.sosImage} />
@@ -1508,7 +1593,7 @@ export default function MotoristMap() {
                 <Text
                   style={[
                     styles.nearbyMechanicsSheetSubtitle,
-                    { color: colors.textMuted },
+                    { color: bookingSosColors.muted },
                   ]}
                 >
                   {liveMechanics.length} mechanic
@@ -1805,8 +1890,8 @@ export default function MotoristMap() {
                   style={[
                     styles.trackingStatusCard,
                     {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
+                      backgroundColor: bookingSosColors.card,
+                      borderColor: bookingSosColors.border,
                     },
                   ]}
                 >
@@ -2026,7 +2111,7 @@ export default function MotoristMap() {
                   <Ionicons
                     name="pricetag-outline"
                     size={21}
-                    color={colors.primary}
+                    color={bookingSosColors.primary}
                   />
                   <Text style={[styles.detailRowText, { color: colors.text }]}>
                     Offered Services & Base Prices
@@ -2503,93 +2588,68 @@ export default function MotoristMap() {
         onRequestClose={() => setBookingModalVisible(false)}
       >
         <SafeAreaView
-          style={[styles.bookingScreen, { backgroundColor: colors.bg }]
+          style={[styles.bookingScreen, { backgroundColor: bookingSosColors.background }]
           }
           edges={["top", "bottom"]}
         >
-          <View
-            style={[
-              styles.bookingHeader,
-              {
-                backgroundColor: colors.card,
-                borderBottomColor: colors.border,
-              },
-            ]}
-          >
-            <View>
-              <Text style={[styles.bookingTitle, { color: colors.text }]}>
-                Choose a service
-              </Text>
-              <Text
-                style={[styles.bookingSubtitle, { color: colors.textMuted }]}
-              >
-                {selectedMechanic?.name}
-              </Text>
-            </View>
+          <View style={styles.bookingTitleRow}>
             <TouchableOpacity
               onPress={() => setBookingModalVisible(false)}
-              style={styles.servicesBackButton}
-              accessibilityLabel="Close booking"
+              style={styles.bookingBackButton}
+              accessibilityLabel="Go back"
             >
-              <Ionicons name="close" size={26} color={colors.text} />
+              <Ionicons name="arrow-back" size={24} color={bookingSosColors.text} />
             </TouchableOpacity>
-          </View>
-          <View style={styles.bookingContent}>
-            <Text style={[styles.bookingSectionTitle, { color: colors.text }]}>
-              Vehicle details
-            </Text>
-            <Text
-              style={[styles.primaryVehicleNotice, { color: colors.textMuted }]}
-            >
-              Using your primary vehicle from Profile &gt; My Garage
-            </Text>
-            <View style={styles.bookingVehicleRow}>
-              <TextInput
-                style={[
-                  styles.bookingVehicleInput,
-                  {
-                    backgroundColor: colors.card,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                placeholder="Vehicle model"
-                placeholderTextColor={colors.textMuted}
-                value={vehicleType}
-                editable={false}
-              />
-              <TextInput
-                style={[
-                  styles.bookingVehicleInput,
-                  {
-                    backgroundColor: colors.card,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                placeholder="e.g. ABC 1234"
-                placeholderTextColor={colors.textMuted}
-                value={plateNumber}
-                autoCapitalize="characters"
-                maxLength={15}
-                editable={false}
-              />
+            <View style={styles.bookingTitleCopy}>
+              <Text style={[styles.bookingTitle, { color: bookingSosColors.text }]}>
+                BOOKING FORM
+              </Text>
             </View>
-            <Text style={[styles.bookingSectionTitle, { color: colors.text }]}>
-              Service offerings
+          </View>
+          <ScrollView
+            style={styles.bookingContent}
+            contentContainerStyle={styles.bookingContentContainer}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={[styles.bookingSectionTitle, { color: bookingSosColors.text }]}>
+              YOUR VEHICLE
             </Text>
-            <View
+            <TouchableOpacity
               style={[
-                styles.bookingServices,
-                { backgroundColor: colors.card, borderColor: colors.border },
+                styles.bookingVehicleCard,
+                { backgroundColor: bookingSosColors.card, borderColor: bookingSosColors.border },
               ]}
+              onPress={chooseBookingVehicle}
+              activeOpacity={0.8}
             >
-              <ScrollView
-                nestedScrollEnabled
-                showsVerticalScrollIndicator
-                contentContainerStyle={styles.bookingServicesContent}
-              >
-                {selectedMechanic?.services.map(
+              <View style={styles.bookingVehicleIcon}>
+                <Ionicons name="car" size={23} color={bookingSosColors.primary} />
+              </View>
+              <View style={styles.bookingVehicleCopy}>
+                <Text style={[styles.bookingVehicleLabel, { color: bookingSosColors.muted }]}>
+                  PRIMARY VEHICLE
+                </Text>
+                <Text style={[styles.bookingVehicleName, { color: bookingSosColors.text }]}>
+                  {vehicleType || "Primary vehicle not set"}
+                </Text>
+                <Text style={[styles.bookingVehiclePlate, { color: bookingSosColors.muted }]}>
+                  PLATE: {plateNumber || "NOT SET"}
+                </Text>
+              </View>
+              <Ionicons name="checkmark-circle" size={22} color={bookingSosColors.primary} />
+            </TouchableOpacity>
+
+            <View style={styles.bookingSectionHeading}>
+              <Text style={[styles.bookingSectionTitle, { color: bookingSosColors.text }]}>
+                CHOOSE A SERVICE
+              </Text>
+              <Text style={[styles.bookingSelectionHint, { color: bookingSosColors.muted }]}>
+                Select one or more services
+              </Text>
+            </View>
+            <View style={styles.bookingServicesGrid}>
+              {selectedMechanic?.services.map(
                   (service: any, index: number) => {
                     const selected = selectedServices.some(
                       (item) =>
@@ -2600,10 +2660,12 @@ export default function MotoristMap() {
                       <TouchableOpacity
                         key={`${service.service}-${index}`}
                         style={[
-                          styles.bookingServiceRow,
-                          { borderBottomColor: colors.border },
+                          styles.bookingServiceCard,
+                          { backgroundColor: bookingSosColors.card, borderColor: bookingSosColors.border },
                           selected && {
-                            backgroundColor: "rgba(255, 107, 0, 0.08)",
+                            backgroundColor: bookingSosColors.background,
+                            borderLeftColor: bookingSosColors.primary,
+                            borderLeftWidth: 3,
                           },
                         ]}
                         onPress={() =>
@@ -2618,48 +2680,36 @@ export default function MotoristMap() {
                           )
                         }
                       >
-                        <View
-                          style={[
-                            styles.bookingRadio,
-                            {
-                              borderColor: selected
-                                ? colors.primary
-                                : colors.border,
-                            },
-                          ]}
-                        >
-                          {selected ? (
-                            <View
-                              style={[
-                                styles.bookingRadioDot,
-                                { backgroundColor: colors.primary },
-                              ]}
-                            />
-                          ) : null}
+                        <View style={styles.bookingServiceCardTop}>
+                          <View style={[styles.bookingServiceIcon, { backgroundColor: selected ? bookingSosColors.primary : bookingSosColors.background }]}>
+                            <Ionicons name="construct-outline" size={19} color={selected ? "#FFFFFF" : bookingSosColors.primary} />
+                          </View>
+                          <Ionicons
+                            name={selected ? "checkmark-circle" : "ellipse-outline"}
+                            size={22}
+                            color={selected ? bookingSosColors.primary : bookingSosColors.muted}
+                          />
                         </View>
-                        <Text
-                          style={[
-                            styles.bookingServiceName,
-                            { color: colors.text },
-                          ]}
-                        >
+                        <Text style={[styles.bookingServiceName, { color: selected ? bookingSosColors.primary : bookingSosColors.text }]}>
                           {service.service}
                         </Text>
-                        <Text
-                          style={[
-                            styles.bookingServicePrice,
-                            { color: colors.primary },
-                          ]}
-                        >
-                          {service.price}
-                        </Text>
+                        <View style={styles.bookingServiceBottom}>
+                          <Text style={[styles.bookingServiceCaption, { color: bookingSosColors.muted }]}>
+                            {selected ? "Added to booking" : "Tap to select"}
+                          </Text>
+                          <Text style={[styles.bookingServicePrice, { color: bookingSosColors.primary }]}>
+                            {service.price}
+                          </Text>
+                        </View>
                       </TouchableOpacity>
                     );
                   },
                 )}
-              </ScrollView>
             </View>
 
+            <Text style={[styles.bookingSectionTitle, styles.bookingScheduleHeading, { color: colors.text }]}>
+              SCHEDULE YOUR VISIT
+            </Text>
             <View style={styles.bookingScheduleRow}>
               <View style={styles.bookingScheduleField}>
                 <Text
@@ -2674,8 +2724,8 @@ export default function MotoristMap() {
                   style={[
                     styles.bookingDateButton,
                     {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
+                      backgroundColor: bookingSosColors.card,
+                      borderColor: bookingSosColors.border,
                     },
                   ]}
                   onPress={() => setShowBookingDatePicker(true)}
@@ -2683,11 +2733,11 @@ export default function MotoristMap() {
                   <Ionicons
                     name="calendar-outline"
                     size={20}
-                    color={colors.primary}
+                    color={bookingSosColors.primary}
                   />
                   <Text
                     numberOfLines={1}
-                    style={[styles.bookingDateText, { color: colors.text }]}
+                    style={[styles.bookingDateText, { color: bookingSosColors.text }]}
                   >
                     {bookingDate.toLocaleDateString([], {
                       year: "numeric",
@@ -2722,7 +2772,7 @@ export default function MotoristMap() {
                 <Text
                   style={[
                     styles.bookingScheduleLabel,
-                    { color: colors.textMuted },
+                    { color: bookingSosColors.muted },
                   ]}
                 >
                   Time
@@ -2731,8 +2781,8 @@ export default function MotoristMap() {
                   style={[
                     styles.bookingDateButton,
                     {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
+                      backgroundColor: bookingSosColors.card,
+                      borderColor: bookingSosColors.border,
                     },
                   ]}
                   onPress={() => setShowBookingTimePicker(true)}
@@ -2740,11 +2790,11 @@ export default function MotoristMap() {
                   <Ionicons
                     name="time-outline"
                     size={20}
-                    color={colors.primary}
+                    color={bookingSosColors.primary}
                   />
                   <Text
                     numberOfLines={1}
-                    style={[styles.bookingDateText, { color: colors.text }]}
+                    style={[styles.bookingDateText, { color: bookingSosColors.text }]}
                   >
                     {bookingDate.toLocaleTimeString([], {
                       hour: "numeric",
@@ -2776,19 +2826,48 @@ export default function MotoristMap() {
               ) : null}
             </View>
 
+            <Text style={[styles.bookingSectionTitle, styles.bookingNotesHeading, { color: "#30323D" }]}>
+              ADDITIONAL NOTES
+            </Text>
+            <Text style={styles.bookingNotesHint}>
+              Share anything the mechanic should know before the visit.
+            </Text>
+            <View style={styles.bookingNotesCard}>
+              <Ionicons name="create-outline" size={20} color="#24439A" style={styles.bookingNotesIcon} />
+              <TextInput
+                style={styles.bookingNotesInput}
+                placeholder="e.g., Please bring a replacement battery..."
+                placeholderTextColor="#7D8295"
+                multiline
+                textAlignVertical="top"
+                maxLength={500}
+                value={bookingNotes}
+                onChangeText={setBookingNotes}
+              />
+            </View>
+            <Text style={styles.bookingNotesCount}>{bookingNotes.length}/500</Text>
+
             <View
               style={[
                 styles.priceSummary,
-                { backgroundColor: colors.card, borderColor: colors.border },
+                { backgroundColor: bookingSosColors.card, borderColor: bookingSosColors.border },
               ]}
             >
+              <View style={styles.priceSummaryHeader}>
+                <Text style={[styles.priceSummaryTitle, { color: bookingSosColors.text }]}>
+                  <Ionicons name="shield-checkmark-outline" size={18} color={bookingSosColors.primary} /> Service estimate
+                </Text>
+                <Text style={[styles.priceSummaryBadge, { color: bookingSosColors.primary }]}>
+                  ESTIMATED
+                </Text>
+              </View>
               <View style={styles.summaryRow}>
                 <Text
-                  style={[styles.summaryLabel, { color: colors.textMuted }]}
+                  style={[styles.summaryLabel, { color: bookingSosColors.muted }]}
                 >
                   Services
                 </Text>
-                <Text style={[styles.summaryValue, { color: colors.text }]}>
+                <Text style={[styles.summaryValue, { color: bookingSosColors.text }]}>
                   {selectedServices.length
                     ? `₱${selectedServices.reduce(
                         (total, service) =>
@@ -2803,11 +2882,11 @@ export default function MotoristMap() {
               </View>
               <View style={styles.summaryRow}>
                 <Text
-                  style={[styles.summaryLabel, { color: colors.textMuted }]}
+                  style={[styles.summaryLabel, { color: bookingSosColors.muted }]}
                 >
                   Delivery fee ({selectedMechanic?.distance})
                 </Text>
-                <Text style={[styles.summaryValue, { color: colors.text }]}>
+                <Text style={[styles.summaryValue, { color: bookingSosColors.text }]}>
                   ₱
                   {selectedMechanic
                     ? deliveryFeeFor(selectedMechanic.distanceKm)
@@ -2815,12 +2894,12 @@ export default function MotoristMap() {
                 </Text>
               </View>
               <View
-                style={[styles.totalRow, { borderTopColor: colors.border }]}
+                style={[styles.totalRow, { borderTopColor: bookingSosColors.border }]}
               >
-                <Text style={[styles.totalLabel, { color: colors.text }]}>
+                <Text style={[styles.totalLabel, { color: bookingSosColors.text }]}>
                   Estimated total
                 </Text>
-                <Text style={[styles.totalValue, { color: colors.primary }]}>
+                <Text style={[styles.totalValue, { color: bookingSosColors.primary }]}>
                   ₱
                   {selectedServices.length && selectedMechanic
                     ? selectedServices.reduce(
@@ -2847,10 +2926,10 @@ export default function MotoristMap() {
               <Ionicons
                 name="information-circle-outline"
                 size={22}
-                color={colors.primary}
+                color={bookingSosColors.primary}
               />
               <Text
-                style={[styles.fareNoticeText, { color: colors.textMuted }]}
+                style={[styles.fareNoticeText, { color: bookingSosColors.muted }]}
               >
                 This is an estimated fare. The price may increase if the
                 mechanic finds additional motorcycle issues that require extra
@@ -2860,7 +2939,7 @@ export default function MotoristMap() {
             <TouchableOpacity
               style={[
                 styles.confirmBookingButton,
-                { backgroundColor: colors.primary },
+                { backgroundColor: bookingSosColors.primary },
                 (!selectedServices.length || submittingBooking) &&
                   styles.disabledButton,
               ]}
@@ -2871,8 +2950,89 @@ export default function MotoristMap() {
                 {submittingBooking ? "Booking..." : "Confirm booking"}
               </Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      <Modal
+        visible={vehiclePickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setVehiclePickerVisible(false)}
+      >
+        <View style={styles.vehiclePickerOverlay}>
+          <View style={[styles.vehiclePickerCard, { backgroundColor: bookingSosColors.card }]}>
+            <View style={styles.vehiclePickerHeader}>
+              <View style={styles.vehiclePickerTitleCopy}>
+                <Text style={[styles.vehiclePickerTitle, { color: bookingSosColors.text }]}>
+                  Choose a vehicle
+                </Text>
+                <Text style={[styles.vehiclePickerSubtitle, { color: bookingSosColors.muted }]}>
+                  Select the vehicle for this booking
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setVehiclePickerVisible(false)}
+                style={styles.vehiclePickerClose}
+                accessibilityLabel="Close vehicle picker"
+              >
+                <Ionicons name="close" size={22} color={bookingSosColors.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {availableVehicles.map((vehicle) => {
+                const isSelected =
+                  vehicleType === `${vehicle.make} ${vehicle.model}`.trim() &&
+                  plateNumber === vehicle.plate_number;
+                return (
+                  <TouchableOpacity
+                    key={vehicle.id}
+                    style={[
+                      styles.vehiclePickerOption,
+                      {
+                        backgroundColor: isSelected
+                          ? "#F0F3FF"
+                          : bookingSosColors.card,
+                        borderColor: isSelected
+                          ? bookingSosColors.primary
+                          : bookingSosColors.border,
+                      },
+                    ]}
+                    onPress={() => selectBookingVehicle(vehicle)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.vehiclePickerIcon}>
+                      <Ionicons name="car" size={22} color={bookingSosColors.primary} />
+                    </View>
+                    <View style={styles.vehiclePickerOptionCopy}>
+                      <View style={styles.vehiclePickerMeta}>
+                        <Text style={[styles.vehiclePickerBadge, { color: bookingSosColors.primary }]}>
+                          {vehicle.is_primary ? "PRIMARY" : "GARAGE"}
+                        </Text>
+                        {vehicle.is_primary ? (
+                          <Text style={[styles.vehiclePickerDefault, { color: bookingSosColors.muted }]}>
+                            Garage default
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Text style={[styles.vehiclePickerName, { color: bookingSosColors.text }]}>
+                        {vehicle.make} {vehicle.model}
+                      </Text>
+                      <Text style={[styles.vehiclePickerPlate, { color: bookingSosColors.muted }]}>
+                        PLATE: {vehicle.plate_number}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={isSelected ? "checkmark-circle" : "ellipse-outline"}
+                      size={23}
+                      color={isSelected ? bookingSosColors.primary : bookingSosColors.muted}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       <Modal
@@ -3435,8 +3595,9 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: 5,
     backgroundColor: "transparent",
-    elevation: 0,
+    elevation: 20,
     shadowOpacity: 0,
+    zIndex: 20,
   },
   mechanicOverlay: {
     bottom: 0,
@@ -4030,19 +4191,43 @@ const styles = StyleSheet.create({
   mechanicReviewStars: { fontSize: normalizeText(17), letterSpacing: 1, marginBottom: 6 },
   mechanicReviewText: { fontSize: normalizeText(15), lineHeight: normalizeText(22) },
   bookingScreen: { flex: 1 },
-  bookingHeader: {
-    minHeight: 64,
-    paddingHorizontal: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-  },
-  bookingTitle: { fontSize: normalizeText(20), fontWeight: "800" },
+  bookingTitleRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingTop: 16, marginBottom: 24 },
+  bookingBackButton: { width: 34, height: 34, alignItems: "center", justifyContent: "center", marginRight: 10 },
+  bookingTitleCopy: { flex: 1 },
+  bookingTitle: { fontSize: normalizeText(19), fontWeight: "900", letterSpacing: 0.5 },
   bookingSubtitle: { fontSize: normalizeText(13), marginTop: 2 },
-  bookingContent: { flex: 1, padding: 18 },
-  bookingSectionTitle: { fontSize: normalizeText(15), fontWeight: "800", marginBottom: 8 },
+  bookingContent: { flex: 1 },
+  bookingContentContainer: { padding: 16, paddingBottom: 28 },
+  bookingIntro: { borderRadius: 18, padding: 16, flexDirection: "row", alignItems: "center", marginBottom: 24 },
+  bookingIntroIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", marginRight: 12 },
+  bookingIntroCopy: { flex: 1 },
+  bookingIntroTitle: { color: "#FFFFFF", fontSize: normalizeText(16), fontWeight: "900", marginBottom: 4 },
+  bookingIntroText: { color: "#E8EEFF", fontSize: normalizeText(12), lineHeight: normalizeText(17) },
+  bookingSectionHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 10 },
+  bookingSectionTitle: { fontSize: normalizeText(13), fontWeight: "900", letterSpacing: 0.8, marginBottom: 8 },
+  bookingSelectionHint: { fontSize: normalizeText(12), marginBottom: 8 },
   primaryVehicleNotice: { fontSize: normalizeText(13), marginTop: -4, marginBottom: 10 },
+  bookingVehicleCard: { minHeight: 86, borderRadius: 16, padding: 16, flexDirection: "row", alignItems: "center", marginTop: 2, marginBottom: 24, borderWidth: 1 },
+  bookingVehicleIcon: { width: 54, height: 54, borderRadius: 12, backgroundColor: "#E8ECFF", alignItems: "center", justifyContent: "center", marginRight: 13 },
+  bookingVehicleCopy: { flex: 1 },
+  bookingVehicleLabel: { fontSize: normalizeText(10), fontWeight: "900", letterSpacing: 0.6, marginBottom: 5 },
+  bookingVehicleName: { fontSize: normalizeText(18), fontWeight: "900" },
+  bookingVehiclePlate: { fontSize: normalizeText(12), fontWeight: "700", letterSpacing: 0.7, marginTop: 3 },
+  vehiclePickerOverlay: { flex: 1, backgroundColor: "rgba(15, 23, 50, 0.45)", justifyContent: "flex-end" },
+  vehiclePickerCard: { maxHeight: "82%", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: Platform.OS === "ios" ? 30 : 20 },
+  vehiclePickerHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18 },
+  vehiclePickerTitleCopy: { flex: 1 },
+  vehiclePickerTitle: { fontSize: normalizeText(20), fontWeight: "900" },
+  vehiclePickerSubtitle: { fontSize: normalizeText(13), marginTop: 4 },
+  vehiclePickerClose: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "#F0F2F8" },
+  vehiclePickerOption: { minHeight: 88, borderWidth: 1, borderRadius: 16, padding: 13, flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  vehiclePickerIcon: { width: 46, height: 46, borderRadius: 13, backgroundColor: "#E8ECFF", alignItems: "center", justifyContent: "center", marginRight: 12 },
+  vehiclePickerOptionCopy: { flex: 1 },
+  vehiclePickerMeta: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 3 },
+  vehiclePickerBadge: { fontSize: normalizeText(10), fontWeight: "900", letterSpacing: 0.6 },
+  vehiclePickerDefault: { fontSize: normalizeText(11) },
+  vehiclePickerName: { fontSize: normalizeText(16), fontWeight: "900" },
+  vehiclePickerPlate: { fontSize: normalizeText(11), fontWeight: "700", letterSpacing: 0.7, marginTop: 3 },
   bookingVehicleRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
   bookingVehicleInput: {
     flex: 1,
@@ -4052,20 +4237,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: normalizeText(14),
   },
-  bookingServices: {
-    height: 200,
+  bookingServicesGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 22 },
+  bookingServiceCard: {
+    width: "48.5%",
+    minHeight: 132,
+    justifyContent: "space-between",
+    padding: 14,
     borderWidth: 1,
-    borderRadius: 14,
-    overflow: "hidden",
+    borderRadius: 15,
+    marginBottom: 10,
   },
-  bookingServicesContent: { flexGrow: 1 },
-  bookingServiceRow: {
-    minHeight: 52,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
-  },
+  bookingServiceCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  bookingServiceIcon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   bookingRadio: {
     width: 24,
     height: 24,
@@ -4076,8 +4259,17 @@ const styles = StyleSheet.create({
     marginRight: 14,
   },
   bookingRadioDot: { width: 12, height: 12, borderRadius: 6 },
-  bookingServiceName: { flex: 1, fontSize: normalizeText(15), fontWeight: "700" },
-  bookingServicePrice: { fontSize: normalizeText(15), fontWeight: "800", marginLeft: 14 },
+  bookingServiceName: { fontSize: normalizeText(14), lineHeight: normalizeText(18), fontWeight: "800", marginBottom: 6 },
+  bookingServiceBottom: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", gap: 6 },
+  bookingServiceCaption: { flex: 1, fontSize: normalizeText(10), lineHeight: normalizeText(13) },
+  bookingServicePrice: { fontSize: normalizeText(13), fontWeight: "900" },
+  bookingScheduleHeading: { marginTop: 2, marginBottom: 10 },
+  bookingNotesHeading: { marginTop: 4, marginBottom: 4 },
+  bookingNotesHint: { color: "#7D8295", fontSize: normalizeText(12), lineHeight: normalizeText(17), marginBottom: 10 },
+  bookingNotesCard: { minHeight: 112, flexDirection: "row", alignItems: "flex-start", padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "#E4E5EC", backgroundColor: "#FFFFFF" },
+  bookingNotesIcon: { marginTop: 2, marginRight: 10 },
+  bookingNotesInput: { flex: 1, minHeight: 82, padding: 0, color: "#30323D", fontSize: normalizeText(14), lineHeight: normalizeText(20) },
+  bookingNotesCount: { color: "#7D8295", textAlign: "right", fontSize: normalizeText(11), marginTop: 6, marginBottom: 12 },
   bookingScheduleRow: {
     flexDirection: "row",
     gap: 10,
@@ -4101,10 +4293,14 @@ const styles = StyleSheet.create({
   priceSummary: {
     marginTop: 8,
     borderWidth: 1,
-    borderRadius: 14,
+    borderRadius: 16,
     minHeight: 106,
     padding: 12,
+    marginBottom: 10,
   },
+  priceSummaryHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 },
+  priceSummaryTitle: { fontSize: normalizeText(14), fontWeight: "900", flex: 1 },
+  priceSummaryBadge: { backgroundColor: "#C7D4FF", paddingHorizontal: 7, paddingVertical: 5, borderRadius: 5, fontSize: normalizeText(10), fontWeight: "900" },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",

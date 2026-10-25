@@ -243,25 +243,25 @@ export default function AppLayout() {
   const { colors } = useAppTheme();
 
   const [role, setRole] = useState<string | null>(null);
-  const [fetchingRole, setFetchingRole] = useState(true);
+  const [roleSessionId, setRoleSessionId] = useState<string | null>(
+    "__unresolved__",
+  );
 
   useEffect(() => {
     let active = true;
-    setRole(null);
-    setFetchingRole(true);
 
     async function fetchRole() {
       if (!session?.user?.id) {
         if (active) {
           setRole(null);
-          setFetchingRole(false);
+          setRoleSessionId(null);
         }
         return;
       }
 
       if (!isSupabaseConfigured) {
         if (active) setRole("customer");
-        if (active) setFetchingRole(false);
+        if (active) setRoleSessionId(session.user.id);
         return;
       }
 
@@ -283,7 +283,7 @@ export default function AppLayout() {
       } else {
         setRole("customer");
       }
-      setFetchingRole(false);
+      setRoleSessionId(session.user.id);
     }
 
     void fetchRole();
@@ -292,6 +292,9 @@ export default function AppLayout() {
       active = false;
     };
   }, [session]);
+
+  const fetchingRole =
+    roleSessionId !== (session?.user?.id ?? null);
 
   if (loading || fetchingRole) {
     return (

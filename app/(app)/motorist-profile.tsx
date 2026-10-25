@@ -53,6 +53,7 @@ export default function MotoristProfileScreen() {
   const [vehicleYear, setVehicleYear] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [savingVehicle, setSavingVehicle] = useState(false);
+  const [vehicleLimitVisible, setVehicleLimitVisible] = useState(false);
   const [logoutConfirmationVisible, setLogoutConfirmationVisible] =
     useState(false);
   const avatarRequestId = useRef(0);
@@ -109,7 +110,7 @@ export default function MotoristProfileScreen() {
 
   const saveVehicle = async () => {
     if (motoristVehicles.length >= 2) {
-      Alert.alert('Vehicle limit reached', 'You can add up to 2 vehicles only.');
+      setVehicleLimitVisible(true);
       return;
     }
     if (!session?.user.id || !vehicleMake.trim() || !vehicleModel.trim() || !vehicleYear.trim() || !vehiclePlate.trim()) {
@@ -157,7 +158,7 @@ export default function MotoristProfileScreen() {
 
   const openAddVehicleForm = () => {
     if (motoristVehicles.length >= 2) {
-      Alert.alert('Vehicle limit reached', 'You can add up to 2 vehicles only.');
+      setVehicleLimitVisible(true);
       return;
     }
     setAddVehicleVisible(true);
@@ -468,6 +469,44 @@ export default function MotoristProfileScreen() {
           <Text style={styles.logoutButtonText}>Log Out of Mechanic Ko</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal
+        visible={vehicleLimitVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVehicleLimitVisible(false)}
+      >
+        <View style={styles.vehicleLimitOverlay}>
+          <View style={[styles.vehicleLimitCard, { backgroundColor: colors.card }]}>
+            <View style={styles.vehicleLimitIcon}>
+              <Ionicons name="car-outline" size={30} color="#24439A" />
+            </View>
+            <Text style={[styles.vehicleLimitTitle, { color: colors.text }]}>
+              Vehicle limit reached
+            </Text>
+            <Text style={[styles.vehicleLimitMessage, { color: colors.textMuted }]}>
+              Your garage can hold up to two vehicles. Remove an existing vehicle
+              before adding a new one.
+            </Text>
+            <View style={[styles.vehicleLimitProgressTrack, { backgroundColor: colors.border }]}>
+              <View style={styles.vehicleLimitProgressFill} />
+            </View>
+            <View style={styles.vehicleLimitProgressLabels}>
+              <Text style={[styles.vehicleLimitProgressText, { color: colors.textMuted }]}>
+                Garage capacity
+              </Text>
+              <Text style={styles.vehicleLimitProgressValue}>2 / 2</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.vehicleLimitButton}
+              onPress={() => setVehicleLimitVisible(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.vehicleLimitButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={logoutConfirmationVisible}
@@ -817,6 +856,18 @@ const styles = StyleSheet.create({
   vehicleCardCopy: { flex: 1, marginLeft: 16 },
   vehicleName: { fontSize: normalizeText(18), fontWeight: '800' },
   vehiclePlate: { fontSize: normalizeText(13), marginTop: 4 },
+  vehicleLimitOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: 'rgba(15, 23, 42, 0.48)' },
+  vehicleLimitCard: { width: '100%', maxWidth: 380, borderRadius: 22, padding: 26, alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
+  vehicleLimitIcon: { width: 66, height: 66, borderRadius: 33, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8ECFF', marginBottom: 16 },
+  vehicleLimitTitle: { fontSize: normalizeText(22), fontWeight: '900', textAlign: 'center', marginBottom: 8 },
+  vehicleLimitMessage: { fontSize: normalizeText(15), lineHeight: normalizeText(22), textAlign: 'center', marginBottom: 22 },
+  vehicleLimitProgressTrack: { width: '100%', height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: 8 },
+  vehicleLimitProgressFill: { width: '100%', height: '100%', borderRadius: 4, backgroundColor: '#24439A' },
+  vehicleLimitProgressLabels: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 },
+  vehicleLimitProgressText: { fontSize: normalizeText(12), fontWeight: '700' },
+  vehicleLimitProgressValue: { color: '#24439A', fontSize: normalizeText(13), fontWeight: '900' },
+  vehicleLimitButton: { width: '100%', minHeight: 50, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: '#24439A' },
+  vehicleLimitButtonText: { color: '#FFFFFF', fontSize: normalizeText(16), fontWeight: '900' },
   primaryVehicleButton: { alignSelf: 'flex-start', minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingHorizontal: 10, borderRadius: 7, borderWidth: 1 },
   primaryVehicleText: { fontSize: normalizeText(13), fontWeight: '800' },
   deleteVehicleButton: { width: 44, height: 44, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8ECFF', marginLeft: 10 },

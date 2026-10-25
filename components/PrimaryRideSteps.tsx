@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image, Pressable, Text, TextInput, View, type ImageStyle, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
 import type { Dispatch, SetStateAction } from "react";
-import { normalizeText } from "@/lib/typography";
 
 export type RideStepStyles = Record<
   string,

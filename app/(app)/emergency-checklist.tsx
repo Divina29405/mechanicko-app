@@ -30,14 +30,47 @@ const SYMPTOM_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Others: 'ellipsis-horizontal-circle-outline',
 };
 
-export default function EmergencyChecklistScreen() {
+type EmergencyChecklistProps = {
+  embedded?: boolean;
+  initialLocation?: { lat: number; lng: number };
+  initialVehicle?: Vehicle | null;
+  onClose?: () => void;
+};
+
+export default function EmergencyChecklistScreen({
+  embedded = false,
+  initialLocation,
+  initialVehicle,
+  onClose,
+}: EmergencyChecklistProps = {}) {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { colors } = useAppTheme();
+  const closeScreen = () => {
+    if (embedded) {
+      onClose?.();
+      return;
+    }
+    router.back();
+  };
+  const locationParams = {
+    lat: initialLocation?.lat ?? (Number(params.lat) || 14.5794),
+    lng: initialLocation?.lng ?? (Number(params.lng) || 121.0359),
+  };
 
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
-  const [vehicleType, setVehicleType] = useState('');
-  const [plateNumber, setPlateNumber] = useState('');
+  const [vehicleType, setVehicleType] = useState(
+    initialVehicle
+      ? `${initialVehicle.make} ${initialVehicle.model}`.trim()
+      : "",
+  );
+  const [plateNumber, setPlateNumber] = useState(
+    initialVehicle?.plate_number ?? "",
+  );
+  const [availableVehicles, setAvailableVehicles] = useState<Vehicle[]>(
+    initialVehicle ? [initialVehicle] : [],
+  );
+  const [vehiclePickerVisible, setVehiclePickerVisible] = useState(false);
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [notesDraft, setNotesDraft] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
@@ -52,13 +85,15 @@ export default function EmergencyChecklistScreen() {
         Alert.alert('Unable to load vehicle', error);
         return;
       }
-      const primaryVehicle: Vehicle | undefined = data.find((vehicle) => vehicle.is_primary);
+      setAvailableVehicles(data);
+      if (initialVehicle) return;
+      const primaryVehicle: Vehicle | undefined = data.find((vehicle) => vehicle.is_primary) ?? data[0];
       if (!primaryVehicle) return;
       setVehicleType(`${primaryVehicle.make} ${primaryVehicle.model}`.trim());
       setPlateNumber(primaryVehicle.plate_number);
     };
     void loadPrimaryVehicle();
-  }, []);
+  }, [initialVehicle]);
 
   const openNotesEditor = () => {
     setNotesDraft(additionalNotes);
@@ -68,6 +103,23 @@ export default function EmergencyChecklistScreen() {
   const saveNotesDraft = () => {
     setAdditionalNotes(notesDraft.trim());
     setIsEditingNotes(false);
+  };
+
+  const chooseVehicle = () => {
+    if (availableVehicles.length < 2) {
+      Alert.alert(
+        "No other vehicles",
+        "Add another vehicle in Profile > My Garage to switch vehicles.",
+      );
+      return;
+    }
+    setVehiclePickerVisible(true);
+  };
+
+  const selectVehicle = (vehicle: Vehicle) => {
+    setVehicleType(`${vehicle.make} ${vehicle.model}`.trim());
+    setPlateNumber(vehicle.plate_number);
+    setVehiclePickerVisible(false);
   };
 
   const toggleSymptom = (symptom: string) => {
@@ -131,8 +183,8 @@ export default function EmergencyChecklistScreen() {
       .from('service_requests')
       .insert([{ 
           motorist_id: userId,
-          latitude: parseFloat(params.lat as string) || 14.5794, 
-          longitude: parseFloat(params.lng as string) || 121.0359,
+          latitude: locationParams.lat,
+          longitude: locationParams.lng,
           status: 'pending',
           request_type: 'emergency',
           search_radius_km: 5,
@@ -151,7 +203,7 @@ export default function EmergencyChecklistScreen() {
       Alert.alert("Dispatch Error", error.message);
     } else {
       Alert.alert("SOS Sent!", "Your emergency request has been dispatched.", [
-        { text: "View Map", onPress: () => router.back() }
+        { text: "View Map",         onPress: closeScreen }
       ]);
     }
   };
@@ -161,14 +213,14 @@ export default function EmergencyChecklistScreen() {
       <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.titleRow}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.titleBackButton} accessibilityLabel="Go back">
+            <TouchableOpacity onPress={closeScreen} style={styles.titleBackButton} accessibilityLabel="Go back">
               <Ionicons name="arrow-back" size={24} color="#30323D" />
             </TouchableOpacity>
             <Text style={styles.pageTitle}>EMERGENCY SOS FORM</Text>
           </View>
 
           <Text style={styles.sectionTitle}>YOUR VEHICLE</Text>
-          <View style={styles.vehicleCard}>
+          <TouchableOpacity style={styles.vehicleCard} onPress={chooseVehicle} activeOpacity={0.8}>
             <View style={styles.vehicleIcon}><Ionicons name="car" size={25} color="#24439A" /></View>
             <View style={styles.vehicleCopy}>
               <View style={styles.vehicleMetaRow}>
@@ -179,7 +231,7 @@ export default function EmergencyChecklistScreen() {
               <Text style={styles.vehiclePlate}>PLATE: {plateNumber || 'NOT SET'}</Text>
             </View>
             <Ionicons name="checkmark-circle" size={23} color="#24439A" />
-          </View>
+          </TouchableOpacity>
 
           <View style={styles.issueHeading}>
             <Text style={styles.sectionTitle}>SELECT VEHICLE ISSUE</Text>
@@ -214,7 +266,7 @@ export default function EmergencyChecklistScreen() {
           </View>
 
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.backAction} onPress={() => router.back()}><Text style={styles.backActionText}>Back</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.backAction} onPress={closeScreen}><Text style={styles.backActionText}>Back</Text></TouchableOpacity>
             <TouchableOpacity style={[styles.submitAction, isSubmitting && styles.disabledButton]} onPress={handleSubmitEmergency} disabled={isSubmitting}><Text style={styles.submitActionText}>{isSubmitting ? 'Dispatching...' : 'Submit Dispatch'}</Text><Ionicons name="arrow-forward-circle-outline" size={21} color="#FFFFFF" /></TouchableOpacity>
           </View>
         </ScrollView>
@@ -228,26 +280,127 @@ export default function EmergencyChecklistScreen() {
       >
         <KeyboardAvoidingView style={[styles.modalContainer, { backgroundColor: colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Your Location & Situation</Text>
-            <TouchableOpacity onPress={saveNotesDraft}>
-              <Text style={[styles.modalCloseText, { color: colors.primary }]}>Save</Text>
+            <TouchableOpacity onPress={saveNotesDraft} style={styles.modalCloseButton} accessibilityLabel="Close location editor">
+              <Ionicons name="close" size={22} color={colors.text} />
             </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Your location & situation</Text>
+            <View style={styles.modalHeaderSpacer} />
           </View>
-          
-          <TextInput
-            style={[styles.fullScreenInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
-            placeholder="e.g., Parked on the right shoulder before the overpass..."
-            placeholderTextColor={colors.textMuted}
-            multiline
-            autoFocus={true}
-            value={notesDraft}
-            onChangeText={setNotesDraft}
-          />
-          
-          <TouchableOpacity style={[styles.modalSaveButton, { backgroundColor: colors.primary }]} onPress={saveNotesDraft}>
-            <Text style={styles.modalSaveButtonText}>Save Details</Text>
+
+          <ScrollView
+            contentContainerStyle={styles.notesEditorContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[styles.notesIntro, { backgroundColor: colors.primary }]}>
+              <View style={styles.notesIntroIcon}>
+                <Ionicons name="location" size={22} color={colors.primary} />
+              </View>
+              <View style={styles.notesIntroCopy}>
+                <Text style={styles.notesIntroTitle}>Help us find you faster</Text>
+                <Text style={styles.notesIntroText}>
+                  Tell the mechanic where you are and what is happening.
+                </Text>
+              </View>
+            </View>
+
+            <Text style={[styles.notesLabel, { color: colors.text }]}>LOCATION & SITUATION</Text>
+            <Text style={[styles.notesHint, { color: colors.textMuted }]}>
+              Include a landmark, road direction, and the issue you are experiencing.
+            </Text>
+            <View style={[styles.notesInputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Ionicons name="create-outline" size={20} color={colors.primary} style={styles.notesInputIcon} />
+              <TextInput
+                style={[styles.fullScreenInput, { color: colors.text }]}
+                placeholder="Example: Parked on the right shoulder before the overpass. The engine will not start."
+                placeholderTextColor={colors.textMuted}
+                multiline
+                autoFocus={true}
+                textAlignVertical="top"
+                value={notesDraft}
+                onChangeText={setNotesDraft}
+              />
+            </View>
+            <Text style={[styles.notesCharacterHint, { color: colors.textMuted }]}>
+              {notesDraft.length} characters
+            </Text>
+          </ScrollView>
+
+          <TouchableOpacity style={[styles.modalSaveButton, { backgroundColor: colors.primary }]} onPress={saveNotesDraft} activeOpacity={0.85}>
+            <Ionicons name="checkmark-circle-outline" size={21} color="#FFFFFF" />
+            <Text style={styles.modalSaveButtonText}>Save details</Text>
           </TouchableOpacity>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={vehiclePickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setVehiclePickerVisible(false)}
+      >
+        <View style={styles.vehiclePickerOverlay}>
+          <View style={styles.vehiclePickerCard}>
+            <View style={styles.vehiclePickerHeader}>
+              <View style={styles.vehiclePickerTitleCopy}>
+                <Text style={styles.vehiclePickerTitle}>Choose a vehicle</Text>
+                <Text style={styles.vehiclePickerSubtitle}>
+                  Select the vehicle for this emergency request
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setVehiclePickerVisible(false)}
+                style={styles.vehiclePickerClose}
+                accessibilityLabel="Close vehicle picker"
+              >
+                <Ionicons name="close" size={22} color="#30323D" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {availableVehicles.map((vehicle) => {
+                const isSelected =
+                  vehicleType === `${vehicle.make} ${vehicle.model}`.trim() &&
+                  plateNumber === vehicle.plate_number;
+                return (
+                  <TouchableOpacity
+                    key={vehicle.id}
+                    style={[
+                      styles.vehiclePickerOption,
+                      isSelected && styles.vehiclePickerOptionSelected,
+                    ]}
+                    onPress={() => selectVehicle(vehicle)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.vehiclePickerIcon}>
+                      <Ionicons name="car" size={22} color="#24439A" />
+                    </View>
+                    <View style={styles.vehiclePickerOptionCopy}>
+                      <View style={styles.vehiclePickerMeta}>
+                        <Text style={styles.vehiclePickerBadge}>
+                          {vehicle.is_primary ? "PRIMARY" : "GARAGE"}
+                        </Text>
+                        {vehicle.is_primary ? (
+                          <Text style={styles.vehiclePickerDefault}>Garage default</Text>
+                        ) : null}
+                      </View>
+                      <Text style={styles.vehiclePickerName}>
+                        {vehicle.make} {vehicle.model}
+                      </Text>
+                      <Text style={styles.vehiclePickerPlate}>
+                        PLATE: {vehicle.plate_number}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name={isSelected ? "checkmark-circle" : "ellipse-outline"}
+                      size={23}
+                      color={isSelected ? "#24439A" : "#7D8295"}
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -268,11 +421,27 @@ const styles = StyleSheet.create({
   vehicleYear: { color: '#7D8295', fontSize: 12, fontWeight: '700' },
   vehicleName: { color: '#192038', fontSize: 18, fontWeight: '900' },
   vehiclePlate: { color: '#7D8295', fontSize: 12, fontWeight: '700', marginTop: 3, letterSpacing: 0.7 },
+  vehiclePickerOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 50, 0.45)', justifyContent: 'flex-end' },
+  vehiclePickerCard: { maxHeight: '82%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: Platform.OS === 'ios' ? 30 : 20 },
+  vehiclePickerHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 },
+  vehiclePickerTitleCopy: { flex: 1 },
+  vehiclePickerTitle: { color: '#30323D', fontSize: 20, fontWeight: '900' },
+  vehiclePickerSubtitle: { color: '#7D8295', fontSize: 13, marginTop: 4 },
+  vehiclePickerClose: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0F2F8' },
+  vehiclePickerOption: { minHeight: 88, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E4E5EC', borderRadius: 16, padding: 13, flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  vehiclePickerOptionSelected: { backgroundColor: '#F0F3FF', borderColor: '#24439A', borderLeftWidth: 4 },
+  vehiclePickerIcon: { width: 46, height: 46, borderRadius: 13, backgroundColor: '#E8ECFF', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  vehiclePickerOptionCopy: { flex: 1 },
+  vehiclePickerMeta: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 3 },
+  vehiclePickerBadge: { color: '#24439A', fontSize: 10, fontWeight: '900', letterSpacing: 0.6 },
+  vehiclePickerDefault: { color: '#7D8295', fontSize: 11 },
+  vehiclePickerName: { color: '#30323D', fontSize: 16, fontWeight: '900' },
+  vehiclePickerPlate: { color: '#7D8295', fontSize: 11, fontWeight: '700', letterSpacing: 0.7, marginTop: 3 },
   issueHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   dispatchHint: { color: '#C44A00', fontSize: 11, fontWeight: '900' },
   issueGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
-  issueCard: { width: '48.5%', minHeight: 132, backgroundColor: '#EEF0FF', borderRadius: 15, padding: 14, justifyContent: 'space-between', borderWidth: 1, borderColor: '#DCE1FA', shadowColor: '#172B66', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
-  issueCardSelected: { backgroundColor: '#D8E1FF', borderColor: '#24439A', borderWidth: 2 },
+  issueCard: { width: '48.5%', minHeight: 132, backgroundColor: '#FFFFFF', borderRadius: 15, padding: 14, justifyContent: 'space-between', borderWidth: 1, borderColor: '#E4E5EC', shadowColor: '#172B66', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+  issueCardSelected: { backgroundColor: '#FFFFFF', borderColor: '#E4E5EC', borderLeftColor: '#24439A', borderLeftWidth: 4 },
   issueCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   issueTitle: { color: '#20263C', fontSize: 14, lineHeight: 18, fontWeight: '800' },
   issueTitleSelected: { color: '#24439A' },
@@ -321,10 +490,23 @@ const styles = StyleSheet.create({
   disabledButton: { opacity: 0.65 },
   confirmButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
   modalContainer: { flex: 1, padding: 20, paddingTop: Platform.OS === 'ios' ? 24 : 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 16, marginBottom: 16, borderBottomWidth: 1 },
-  modalTitle: { fontSize: 19, fontWeight: '800' },
+  modalHeader: { minHeight: 52, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 14, marginBottom: 18, borderBottomWidth: 1 },
+  modalCloseButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  modalHeaderSpacer: { width: 36 },
+  modalTitle: { fontSize: 18, fontWeight: '900', textTransform: 'capitalize' },
   modalCloseText: { fontSize: 15, fontWeight: '800' },
-  fullScreenInput: { flex: 1, padding: 16, borderRadius: 12, fontSize: 16, lineHeight: 24, textAlignVertical: 'top', borderWidth: 1, marginBottom: 16 },
-  modalSaveButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: Platform.OS === 'ios' ? 20 : 0 },
+  notesEditorContent: { paddingBottom: 20 },
+  notesIntro: { borderRadius: 18, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 26 },
+  notesIntroIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  notesIntroCopy: { flex: 1 },
+  notesIntroTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '900', marginBottom: 4 },
+  notesIntroText: { color: '#E8EEFF', fontSize: 12, lineHeight: 17 },
+  notesLabel: { fontSize: 13, fontWeight: '900', letterSpacing: 0.8, marginBottom: 6 },
+  notesHint: { fontSize: 13, lineHeight: 19, marginBottom: 12 },
+  notesInputCard: { minHeight: 210, borderRadius: 16, borderWidth: 1, padding: 14, flexDirection: 'row', alignItems: 'flex-start' },
+  notesInputIcon: { marginTop: 2, marginRight: 10 },
+  fullScreenInput: { flex: 1, minHeight: 180, padding: 0, fontSize: 15, lineHeight: 22 },
+  notesCharacterHint: { textAlign: 'right', fontSize: 11, marginTop: 7 },
+  modalSaveButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginBottom: Platform.OS === 'ios' ? 20 : 0 },
   modalSaveButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
 });

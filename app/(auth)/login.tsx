@@ -9,7 +9,7 @@ import { ErrorBanner } from "@/components/auth/ErrorBanner";
 import { PrimaryButton } from "@/components/auth/PrimaryButton";
 import { ComingSoonModal } from "@/components/ComingSoonModal";
 import { useAuth } from "@/contexts/AuthContext";
-import { colors, spacing } from "@/lib/theme";
+import { colors } from "@/lib/theme";
 import { validateEmail, validatePassword } from "@/lib/validation";
 import { normalizeText } from "@/lib/typography";
 

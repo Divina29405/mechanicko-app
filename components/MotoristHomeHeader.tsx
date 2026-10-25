@@ -24,7 +24,15 @@ import { normalizeText } from "@/lib/typography";
 
 const appLogo = require("../assets/images/mechanichome.png");
 
-export function MotoristHomeHeader() {
+type MotoristHomeHeaderProps = {
+  title?: string;
+  floating?: boolean;
+};
+
+export function MotoristHomeHeader({
+  title,
+  floating = false,
+}: MotoristHomeHeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
@@ -45,15 +53,17 @@ export function MotoristHomeHeader() {
       ? session.user.user_metadata.full_name
       : session?.user.email?.split("@")[0] || "Motorist";
       
-  const screenTitle = pathname.includes("motorist-profile")
-    ? "Profile"
-    : pathname.includes("messages")
-      ? "Messages"
-      : pathname.includes("motorist-activity")
-        ? "Bookings"
-        : pathname.includes("help-center")
-          ? "Activity"
-          : "Home";
+  const screenTitle =
+    title ??
+    (pathname.includes("motorist-profile")
+      ? "Profile"
+      : pathname.includes("messages")
+        ? "Messages"
+        : pathname.includes("motorist-activity")
+          ? "Bookings"
+          : pathname.includes("help-center")
+            ? "Activity"
+            : "Home");
 
   useEffect(() => {
     titleAnimation.setValue(0);
@@ -94,8 +104,15 @@ export function MotoristHomeHeader() {
     <View
       style={[
         styles.topContainer,
+        floating && styles.floatingTopContainer,
         {
-          paddingTop: Platform.OS === 'android' ? Math.max(insets.top, 8) : Math.max(insets.top, 12),
+          paddingTop: floating
+            ? Platform.OS === "ios"
+              ? Math.max(insets.top, 58)
+              : Math.max(insets.top, 44)
+            : Platform.OS === "android"
+              ? Math.max(insets.top, 8)
+              : Math.max(insets.top, 12),
           backgroundColor: colors.card,
           borderColor: colors.border,
         },
@@ -130,7 +147,7 @@ export function MotoristHomeHeader() {
           >
             <Ionicons
               name="notifications-outline"
-              size={22} 
+              size={22}
               color={colors.text}
             />
           </TouchableOpacity>
@@ -145,7 +162,7 @@ export function MotoristHomeHeader() {
             <ProfileAvatar
               uri={avatarUrl}
               name={name}
-              size={32} 
+              size={32}
               backgroundColor="#FFF1D6"
               borderColor="#F0A202"
             />
@@ -173,6 +190,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
+  },
+  floatingTopContainer: {
+    position: "absolute",
+    borderRadius: 0,
+    zIndex: 10,
+    elevation: 7,
+    shadowOpacity: 0.14,
+    shadowRadius: 7,
   },
   headerRow: { 
     minHeight: 36, 

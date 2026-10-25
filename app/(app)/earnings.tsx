@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { MechanicScreen } from "@/components/mechanic/MechanicScreen";
@@ -23,13 +23,13 @@ export default function EarningsScreen() {
     completedToday,
     completedThisWeek,
     completedThisMonth,
-    payouts,
     refreshEarnings,
   } = useMechanic();
   const [period, setPeriod] = useState<EarningsPeriod>("today");
 
   useFocusEffect(
     useCallback(() => {
+      setPeriod("today");
       void refreshEarnings();
     }, [refreshEarnings]),
   );
@@ -47,25 +47,6 @@ export default function EarningsScreen() {
       label: "This Month",
     },
   }[period];
-
-  const visiblePayouts = useMemo(() => {
-    const now = new Date();
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
-    const startOfWeek = new Date(startOfToday);
-    startOfWeek.setDate(startOfWeek.getDate() - now.getDay());
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const start =
-      period === "today"
-        ? startOfToday
-        : period === "week"
-          ? startOfWeek
-          : startOfMonth;
-    return payouts.filter((payout) => new Date(payout.date) >= start);
-  }, [payouts, period]);
 
   return (
     <MechanicScreen back title="Earnings" profileHeader>
