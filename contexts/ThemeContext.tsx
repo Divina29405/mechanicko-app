@@ -3,26 +3,32 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 export const lightTheme = {
   bg: '#F9FAFB',
   card: '#FFFFFF',
+  input: '#F3F4F6',
+  softCard: '#EEF2FF',
   text: '#111827',
   textMuted: '#6B7280',
   border: '#E5E7EB',
   primary: '#FF6B00',
-  btnSecondary: '#F3F4F6'
+  btnSecondary: '#F3F4F6',
+  overlay: 'rgba(15, 23, 42, 0.48)',
 };
 
 export const darkTheme = {
-  bg: '#121212',
-  card: '#1C1C1E',
-  text: '#FFFFFF',
-  textMuted: '#8E8E93',
-  border: '#2C2C2E',
+  bg: '#0B1220',
+  card: '#111827',
+  input: '#1E293B',
+  softCard: '#172554',
+  text: '#F8FAFC',
+  textMuted: '#A8B3C7',
+  border: '#293548',
   primary: '#FF6B00',
-  btnSecondary: '#2C2C2E'
+  btnSecondary: '#1E293B',
+  overlay: 'rgba(2, 6, 23, 0.72)',
 };
 
 type ThemeContextType = {
   isDarkMode: boolean;
-  colors: typeof lightTheme;
+  colors: typeof lightTheme | typeof darkTheme;
   toggleTheme: () => void;
 };
 

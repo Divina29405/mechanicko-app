@@ -209,64 +209,64 @@ export default function EmergencyChecklistScreen({
   };
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: '#F8F8FC' }]} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: colors.bg }]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.titleRow}>
             <TouchableOpacity onPress={closeScreen} style={styles.titleBackButton} accessibilityLabel="Go back">
-              <Ionicons name="arrow-back" size={24} color="#30323D" />
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.pageTitle}>EMERGENCY SOS FORM</Text>
+            <Text style={[styles.pageTitle, { color: colors.text }]}>EMERGENCY SOS FORM</Text>
           </View>
 
-          <Text style={styles.sectionTitle}>YOUR VEHICLE</Text>
-          <TouchableOpacity style={styles.vehicleCard} onPress={chooseVehicle} activeOpacity={0.8}>
-            <View style={styles.vehicleIcon}><Ionicons name="car" size={25} color="#24439A" /></View>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>YOUR VEHICLE</Text>
+          <TouchableOpacity style={[styles.vehicleCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={chooseVehicle} activeOpacity={0.8}>
+            <View style={[styles.vehicleIcon, { backgroundColor: colors.softCard }]}><Ionicons name="car" size={25} color={colors.primary} /></View>
             <View style={styles.vehicleCopy}>
               <View style={styles.vehicleMetaRow}>
-                <Text style={styles.vehicleBadge}>GARAGE DEFAULT</Text>
-                <Text style={styles.vehicleYear}>Primary vehicle</Text>
+                <Text style={[styles.vehicleBadge, { color: colors.primary, backgroundColor: colors.softCard }]}>GARAGE DEFAULT</Text>
+                <Text style={[styles.vehicleYear, { color: colors.textMuted }]}>Primary vehicle</Text>
               </View>
-              <Text style={styles.vehicleName}>{vehicleType || 'Primary vehicle not set'}</Text>
-              <Text style={styles.vehiclePlate}>PLATE: {plateNumber || 'NOT SET'}</Text>
+              <Text style={[styles.vehicleName, { color: colors.text }]}>{vehicleType || 'Primary vehicle not set'}</Text>
+              <Text style={[styles.vehiclePlate, { color: colors.textMuted }]}>PLATE: {plateNumber || 'NOT SET'}</Text>
             </View>
-            <Ionicons name="checkmark-circle" size={23} color="#24439A" />
+            <Ionicons name="checkmark-circle" size={23} color={colors.primary} />
           </TouchableOpacity>
 
           <View style={styles.issueHeading}>
-            <Text style={styles.sectionTitle}>SELECT VEHICLE ISSUE</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>SELECT VEHICLE ISSUE</Text>
             <Text style={styles.dispatchHint}>1-TAP FAST DISPATCH</Text>
           </View>
           <View style={styles.issueGrid}>
             {COMMON_SYMPTOMS.map((symptom) => {
               const isSelected = selectedSymptoms.includes(symptom);
               return (
-                <TouchableOpacity key={symptom} style={[styles.issueCard, isSelected && styles.issueCardSelected]} onPress={() => toggleSymptom(symptom)} activeOpacity={0.8}>
+                <TouchableOpacity key={symptom} style={[styles.issueCard, { backgroundColor: colors.card, borderColor: colors.border }, isSelected && { borderColor: colors.primary, borderLeftColor: colors.primary, backgroundColor: colors.softCard }]} onPress={() => toggleSymptom(symptom)} activeOpacity={0.8}>
                   <View style={styles.issueCardTop}>
-                    <Ionicons name={SYMPTOM_ICONS[symptom]} size={23} color={isSelected ? '#24439A' : '#7D8295'} />
-                    <Ionicons name={isSelected ? 'checkmark-circle' : 'ellipse-outline'} size={23} color={isSelected ? '#24439A' : '#C5C8D5'} />
+                    <Ionicons name={SYMPTOM_ICONS[symptom]} size={23} color={isSelected ? colors.primary : colors.textMuted} />
+                    <Ionicons name={isSelected ? 'checkmark-circle' : 'ellipse-outline'} size={23} color={isSelected ? colors.primary : colors.border} />
                   </View>
-                  <Text style={[styles.issueTitle, isSelected && styles.issueTitleSelected]}>{symptom.replace(' / ', ' /\\n')}</Text>
-                  <Text style={styles.issueSubtitle}>{isSelected ? 'Selected for dispatch' : 'Tap to select'}</Text>
+                  <Text style={[styles.issueTitle, { color: isSelected ? colors.primary : colors.text }]}>{symptom.replace(' / ', ' /\\n')}</Text>
+                  <Text style={[styles.issueSubtitle, { color: colors.textMuted }]}>{isSelected ? 'Selected for dispatch' : 'Tap to select'}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          <TouchableOpacity style={styles.locationCard} onPress={openNotesEditor} activeOpacity={0.8}>
-            <Ionicons name="location-outline" size={22} color="#24439A" />
-            <View style={styles.locationCopy}><Text style={styles.locationTitle}>BREAKDOWN LOCATION & DETAILS</Text><Text style={styles.locationValue}>{additionalNotes || 'Add your exact location and what you need help with'}</Text></View>
-            <Ionicons name="chevron-forward" size={20} color="#7D8295" />
+          <TouchableOpacity style={[styles.locationCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={openNotesEditor} activeOpacity={0.8}>
+            <Ionicons name="location-outline" size={22} color={colors.primary} />
+            <View style={styles.locationCopy}><Text style={[styles.locationTitle, { color: colors.text }]}>BREAKDOWN LOCATION & DETAILS</Text><Text style={[styles.locationValue, { color: colors.textMuted }]}>{additionalNotes || 'Add your exact location and what you need help with'}</Text></View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <View style={styles.feeCard}>
-            <View style={styles.feeHeader}><Text style={styles.feeTitle}><Ionicons name="shield-checkmark-outline" size={19} color="#24439A" /> Standard Roadside Guarantee</Text><Text style={styles.fixedBadge}>FIXED DISPATCH</Text></View>
-            <View style={styles.feeRow}><View><Text style={styles.feeAmount}>₱350.00</Text><Text style={styles.feeCaption}>Base emergency dispatch fee</Text></View><View><Text style={styles.cashText}>Cash</Text><Text style={styles.feeCaption}>Paid directly upon arrival</Text></View></View>
-            <Text style={styles.feeNote}><Ionicons name="information-circle-outline" size={16} color="#F08A00" /> Parts and replacement labor are assessed & approved on-site before work begins.</Text>
+          <View style={[styles.feeCard, { backgroundColor: colors.softCard }]}>
+            <View style={styles.feeHeader}><Text style={[styles.feeTitle, { color: colors.text }]}><Ionicons name="shield-checkmark-outline" size={19} color={colors.primary} /> Standard Roadside Guarantee</Text><Text style={[styles.fixedBadge, { color: colors.primary, backgroundColor: colors.btnSecondary }]}>FIXED DISPATCH</Text></View>
+            <View style={styles.feeRow}><View><Text style={[styles.feeAmount, { color: colors.text }]}>₱350.00</Text><Text style={[styles.feeCaption, { color: colors.textMuted }]}>Base emergency dispatch fee</Text></View><View><Text style={[styles.cashText, { color: colors.primary }]}>Cash</Text><Text style={[styles.feeCaption, { color: colors.textMuted }]}>Paid directly upon arrival</Text></View></View>
+            <Text style={[styles.feeNote, { color: colors.textMuted }]}><Ionicons name="information-circle-outline" size={16} color="#F08A00" /> Parts and replacement labor are assessed & approved on-site before work begins.</Text>
           </View>
 
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.backAction} onPress={closeScreen}><Text style={styles.backActionText}>Back</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.backAction, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={closeScreen}><Text style={[styles.backActionText, { color: colors.textMuted }]}>Back</Text></TouchableOpacity>
             <TouchableOpacity style={[styles.submitAction, isSubmitting && styles.disabledButton]} onPress={handleSubmitEmergency} disabled={isSubmitting}><Text style={styles.submitActionText}>{isSubmitting ? 'Dispatching...' : 'Submit Dispatch'}</Text><Ionicons name="arrow-forward-circle-outline" size={21} color="#FFFFFF" /></TouchableOpacity>
           </View>
         </ScrollView>
@@ -340,20 +340,20 @@ export default function EmergencyChecklistScreen({
         onRequestClose={() => setVehiclePickerVisible(false)}
       >
         <View style={styles.vehiclePickerOverlay}>
-          <View style={styles.vehiclePickerCard}>
+          <View style={[styles.vehiclePickerCard, { backgroundColor: colors.card }]}>
             <View style={styles.vehiclePickerHeader}>
               <View style={styles.vehiclePickerTitleCopy}>
-                <Text style={styles.vehiclePickerTitle}>Choose a vehicle</Text>
-                <Text style={styles.vehiclePickerSubtitle}>
+                <Text style={[styles.vehiclePickerTitle, { color: colors.text }]}>Choose a vehicle</Text>
+                <Text style={[styles.vehiclePickerSubtitle, { color: colors.textMuted }]}>
                   Select the vehicle for this emergency request
                 </Text>
               </View>
               <TouchableOpacity
                 onPress={() => setVehiclePickerVisible(false)}
-                style={styles.vehiclePickerClose}
+                style={[styles.vehiclePickerClose, { backgroundColor: colors.btnSecondary }]}
                 accessibilityLabel="Close vehicle picker"
               >
-                <Ionicons name="close" size={22} color="#30323D" />
+                <Ionicons name="close" size={22} color={colors.text} />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -366,34 +366,34 @@ export default function EmergencyChecklistScreen({
                     key={vehicle.id}
                     style={[
                       styles.vehiclePickerOption,
-                      isSelected && styles.vehiclePickerOptionSelected,
+                      { backgroundColor: isSelected ? colors.softCard : colors.card, borderColor: isSelected ? colors.primary : colors.border },
                     ]}
                     onPress={() => selectVehicle(vehicle)}
                     activeOpacity={0.8}
                   >
-                    <View style={styles.vehiclePickerIcon}>
-                      <Ionicons name="car" size={22} color="#24439A" />
+                    <View style={[styles.vehiclePickerIcon, { backgroundColor: colors.softCard }]}>
+                      <Ionicons name="car" size={22} color={colors.primary} />
                     </View>
                     <View style={styles.vehiclePickerOptionCopy}>
                       <View style={styles.vehiclePickerMeta}>
-                        <Text style={styles.vehiclePickerBadge}>
+                        <Text style={[styles.vehiclePickerBadge, { color: colors.primary }]}>
                           {vehicle.is_primary ? "PRIMARY" : "GARAGE"}
                         </Text>
                         {vehicle.is_primary ? (
-                          <Text style={styles.vehiclePickerDefault}>Garage default</Text>
+                          <Text style={[styles.vehiclePickerDefault, { color: colors.textMuted }]}>Garage default</Text>
                         ) : null}
                       </View>
-                      <Text style={styles.vehiclePickerName}>
+                      <Text style={[styles.vehiclePickerName, { color: colors.text }]}>
                         {vehicle.make} {vehicle.model}
                       </Text>
-                      <Text style={styles.vehiclePickerPlate}>
+                      <Text style={[styles.vehiclePickerPlate, { color: colors.textMuted }]}>
                         PLATE: {vehicle.plate_number}
                       </Text>
                     </View>
                     <Ionicons
                       name={isSelected ? "checkmark-circle" : "ellipse-outline"}
                       size={23}
-                      color={isSelected ? "#24439A" : "#7D8295"}
+                      color={isSelected ? colors.primary : colors.textMuted}
                     />
                   </TouchableOpacity>
                 );

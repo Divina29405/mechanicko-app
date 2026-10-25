@@ -1,6 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
+import { setCachedActiveBooking } from "@/lib/activeBookingStore";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Location from "expo-location";
@@ -1005,15 +1006,20 @@ export default function MotoristActivityScreen() {
     if (error) {
       Alert.alert("Unable to cancel booking", error.message);
     } else if (
+      session?.user.id
+    ) {
+      setCachedActiveBooking(session.user.id, null);
+      if (
       selectedReason === "Issue was resolved locally" ||
       selectedReason === "Other"
-    ) {
+      ) {
       Alert.alert(
         "Warning Recorded",
         "Cancelling because the issue was resolved locally wastes the dispatched mechanic's time and fuel. Repeated cancellations will result in a temporary account suspension.",
       );
-    } else {
+      } else {
       setCancelSuccessVisible(true);
+      }
     }
 
     setCancelModalVisible(false);
@@ -1151,7 +1157,9 @@ export default function MotoristActivityScreen() {
     );
     const serviceNames = scheduleSelected.map((service) => service.name).join(", ");
     const deliveryFee = 100 + Math.max(0, Math.ceil(scheduleMechanic.distanceKm) - 1) * 10;
-    const { error } = await supabase.from("service_requests").insert({
+    const { data: createdBooking, error } = await supabase
+      .from("service_requests")
+      .insert({
       motorist_id: session.user.id,
       mechanic_id: scheduleMechanic.id,
       latitude: location.coords.latitude,
@@ -1168,11 +1176,16 @@ export default function MotoristActivityScreen() {
       vehicle_issue: scheduleNotes.trim()
         ? `${serviceNames}\nNotes: ${scheduleNotes.trim()}`
         : serviceNames,
-    });
+      })
+      .select("*")
+      .single();
     setSubmittingSchedule(false);
     if (error) {
       Alert.alert("Booking failed", error.message);
       return;
+    }
+    if (createdBooking) {
+      setCachedActiveBooking(session.user.id, createdBooking);
     }
     setScheduleMechanic(null);
     await fetchMyOrders();
@@ -1287,7 +1300,7 @@ export default function MotoristActivityScreen() {
         onRequestClose={() => setServicesMechanic(null)}
       >
         <Pressable
-          style={styles.servicesModalOverlay}
+          style={[styles.servicesModalOverlay, { backgroundColor: colors.overlay }]}
           onPress={() => setServicesMechanic(null)}
         >
           <SafeAreaView
@@ -1295,26 +1308,26 @@ export default function MotoristActivityScreen() {
             edges={[]}
             onStartShouldSetResponder={() => true}
           >
-            <View style={styles.servicesSheetHeader}>
+            <View style={[styles.servicesSheetHeader, { borderBottomColor: colors.border }]}>
               <TouchableOpacity
                 style={styles.servicesBackButton}
                 onPress={() => setServicesMechanic(null)}
                 accessibilityLabel="Back to mechanic services"
               >
-                <Ionicons name="arrow-back" size={24} color="#172033" />
+                <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
               <View style={styles.servicesSheetTitleRow}>
-                <Ionicons name="settings" size={14} color="#0037B0" />
-                <Text style={styles.servicesSheetTitle}>
+                <Ionicons name="settings" size={14} color={colors.primary} />
+                <Text style={[styles.servicesSheetTitle, { color: colors.primary }]}>
                   OFFERED SERVICES &amp; BASE PRICES
                 </Text>
               </View>
               <TouchableOpacity
-                style={styles.servicesCloseButton}
+                style={[styles.servicesCloseButton, { backgroundColor: colors.btnSecondary }]}
                 onPress={() => setServicesMechanic(null)}
                 accessibilityLabel="Close service offerings"
               >
-                <Ionicons name="close" size={19} color="#536078" />
+                <Ionicons name="close" size={19} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
             <ScrollView
@@ -1327,10 +1340,13 @@ export default function MotoristActivityScreen() {
                 servicesMechanic.services.map((service, index) => (
                   <View
                     key={`${service.name}-${index}`}
-                    style={styles.fullServiceItem}
+                    style={[
+                      styles.fullServiceItem,
+                      { backgroundColor: colors.softCard },
+                    ]}
                   >
                     <View style={styles.fullServiceName}>
-                      <View style={styles.serviceIconBox}>
+                      <View style={[styles.serviceIconBox, { backgroundColor: colors.card }]}>
                         <Ionicons
                           name="construct-outline"
                           size={19}
@@ -1343,7 +1359,7 @@ export default function MotoristActivityScreen() {
                         >
                           {service.name}
                         </Text>
-                        <Text style={styles.serviceDescription}>
+                        <Text style={[styles.serviceDescription, { color: colors.textMuted }]}>
                           {service.description || "Available from this mechanic"}
                         </Text>
                       </View>
@@ -1356,7 +1372,7 @@ export default function MotoristActivityScreen() {
                           ? `₱${service.price.toLocaleString("en-PH")}`
                           : "Contact"}
                       </Text>
-                      <Text style={styles.baseRateLabel}>Base rate</Text>
+                      <Text style={[styles.baseRateLabel, { color: colors.textMuted }]}>Base rate</Text>
                     </View>
                   </View>
                 ))
@@ -1375,7 +1391,10 @@ export default function MotoristActivityScreen() {
         animationType="slide"
         onRequestClose={() => setScheduleMechanic(null)}
       >
-        <SafeAreaView style={styles.scheduleScreen} edges={["top", "bottom"]}>
+        <SafeAreaView
+          style={[styles.scheduleScreen, { backgroundColor: colors.bg }]}
+          edges={["top", "bottom"]}
+        >
           <ScrollView
             contentContainerStyle={styles.scheduleContent}
             keyboardShouldPersistTaps="handled"
@@ -1386,14 +1405,14 @@ export default function MotoristActivityScreen() {
                 onPress={() => setScheduleMechanic(null)}
                 style={styles.scheduleBackButton}
               >
-                <Ionicons name="arrow-back" size={24} color="#30323D" />
+                <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
-              <Text style={styles.scheduleTitle}>BOOKING FORM</Text>
+              <Text style={[styles.scheduleTitle, { color: colors.text }]}>BOOKING FORM</Text>
             </View>
 
-            <Text style={styles.scheduleSectionTitle}>YOUR VEHICLE</Text>
+            <Text style={[styles.scheduleSectionTitle, { color: colors.text }]}>YOUR VEHICLE</Text>
             <TouchableOpacity
-              style={styles.scheduleVehicleCard}
+              style={[styles.scheduleVehicleCard, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => {
                 setScheduleVehiclePickerVisible((visible) => !visible);
               }}
@@ -1403,21 +1422,21 @@ export default function MotoristActivityScreen() {
                 <Ionicons name="car" size={23} color="#24439A" />
               </View>
               <View style={styles.scheduleVehicleCopy}>
-                <Text style={styles.scheduleVehicleLabel}>PRIMARY VEHICLE</Text>
-                <Text style={styles.scheduleVehicleName}>
+                <Text style={[styles.scheduleVehicleLabel, { color: colors.textMuted }]}>PRIMARY VEHICLE</Text>
+                <Text style={[styles.scheduleVehicleName, { color: colors.text }]}>
                   {scheduleVehicle
                     ? `${scheduleVehicle.make} ${scheduleVehicle.model}`
                     : "Vehicle not set"}
                 </Text>
-                <Text style={styles.scheduleVehiclePlate}>
+                <Text style={[styles.scheduleVehiclePlate, { color: colors.textMuted }]}>
                   PLATE: {scheduleVehicle?.plate_number ?? "NOT SET"}
                 </Text>
               </View>
               <Ionicons name="checkmark-circle" size={22} color="#24439A" />
             </TouchableOpacity>
             <View style={styles.scheduleHeading}>
-              <Text style={styles.scheduleSectionTitle}>CHOOSE A SERVICE</Text>
-              <Text style={styles.scheduleHint}>Select one or more services</Text>
+              <Text style={[styles.scheduleSectionTitle, { color: colors.text }]}>CHOOSE A SERVICE</Text>
+              <Text style={[styles.scheduleHint, { color: colors.textMuted }]}>Select one or more services</Text>
             </View>
             <View style={styles.scheduleGrid}>
               {scheduleServices.map((service, index) => {
@@ -1429,7 +1448,7 @@ export default function MotoristActivityScreen() {
                     key={`${service.name}-${index}`}
                     style={[
                       styles.scheduleServiceCard,
-                      selected && styles.scheduleServiceSelected,
+                      { backgroundColor: colors.card, borderColor: selected ? colors.primary : colors.border },
                     ]}
                     onPress={() =>
                       setScheduleSelected((current) =>
@@ -1453,8 +1472,8 @@ export default function MotoristActivityScreen() {
                         color={selected ? "#24439A" : "#7D8295"}
                       />
                     </View>
-                    <Text style={styles.scheduleServiceName}>{service.name}</Text>
-                    <Text style={styles.scheduleServicePrice}>
+                    <Text style={[styles.scheduleServiceName, { color: colors.text }]}>{service.name}</Text>
+                    <Text style={[styles.scheduleServicePrice, { color: colors.primary }]}>
                       ₱{Number(service.price || 0).toLocaleString("en-PH")}
                     </Text>
                   </TouchableOpacity>
@@ -1462,15 +1481,15 @@ export default function MotoristActivityScreen() {
               })}
             </View>
 
-            <Text style={styles.scheduleSectionTitle}>SCHEDULE YOUR VISIT</Text>
+            <Text style={[styles.scheduleSectionTitle, { color: colors.text }]}>SCHEDULE YOUR VISIT</Text>
             <View style={styles.scheduleDateRow}>
               {(["date", "time"] as const).map((kind) => (
                 <View style={styles.scheduleDateField} key={kind}>
-                  <Text style={styles.scheduleDateLabel}>
+                  <Text style={[styles.scheduleDateLabel, { color: colors.textMuted }]}>
                     {kind === "date" ? "Date" : "Time"}
                   </Text>
                   <TouchableOpacity
-                    style={styles.scheduleDateButton}
+                    style={[styles.scheduleDateButton, { backgroundColor: colors.card, borderColor: colors.border }]}
                     onPress={() => setSchedulePicker(kind)}
                   >
                     <Ionicons
@@ -1478,7 +1497,7 @@ export default function MotoristActivityScreen() {
                       size={20}
                       color="#24439A"
                     />
-                    <Text style={styles.scheduleDateText}>
+                    <Text style={[styles.scheduleDateText, { color: colors.text }]}>
                       {kind === "date"
                         ? scheduleDate.toLocaleDateString([], {
                             year: "numeric",
@@ -1514,34 +1533,34 @@ export default function MotoristActivityScreen() {
               />
             ) : null}
 
-            <Text style={styles.scheduleSectionTitle}>ADDITIONAL NOTES</Text>
+            <Text style={[styles.scheduleSectionTitle, { color: colors.text }]}>ADDITIONAL NOTES</Text>
             <TextInput
-              style={styles.scheduleNotesInput}
+              style={[styles.scheduleNotesInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
               placeholder="Share anything the mechanic should know..."
-              placeholderTextColor="#7D8295"
+              placeholderTextColor={colors.textMuted}
               multiline
               textAlignVertical="top"
               value={scheduleNotes}
               onChangeText={setScheduleNotes}
             />
-            <View style={styles.scheduleEstimateCard}>
+            <View style={[styles.scheduleEstimateCard, { backgroundColor: colors.softCard }]}>
               <View style={styles.scheduleEstimateHeader}>
-                <Text style={styles.scheduleEstimateTitle}>Service estimate</Text>
+                <Text style={[styles.scheduleEstimateTitle, { color: colors.text }]}>Service estimate</Text>
                 <Text style={styles.scheduleEstimateBadge}>ESTIMATED</Text>
               </View>
               <View style={styles.scheduleEstimateRow}>
-                <Text style={styles.scheduleEstimateLabel}>Services</Text>
-                <Text style={styles.scheduleEstimateValue}>
+                <Text style={[styles.scheduleEstimateLabel, { color: colors.textMuted }]}>Services</Text>
+                <Text style={[styles.scheduleEstimateValue, { color: colors.primary }]}>
                   ₱{scheduleSelected
                     .reduce((sum, service) => sum + Number(service.price || 0), 0)
                     .toLocaleString("en-PH")}
                 </Text>
               </View>
               <View style={styles.scheduleEstimateRow}>
-                <Text style={styles.scheduleEstimateLabel}>
+                <Text style={[styles.scheduleEstimateLabel, { color: colors.textMuted }]}>
                   Delivery fee ({scheduleMechanic?.distance})
                 </Text>
-                <Text style={styles.scheduleEstimateValue}>
+                <Text style={[styles.scheduleEstimateValue, { color: colors.primary }]}>
                   ₱{(scheduleMechanic
                     ? 100 + Math.max(0, Math.ceil(scheduleMechanic.distanceKm) - 1) * 10
                     : 100
@@ -1549,8 +1568,8 @@ export default function MotoristActivityScreen() {
                 </Text>
               </View>
               <View style={styles.scheduleEstimateTotal}>
-                <Text style={styles.scheduleEstimateTotalLabel}>Estimated total</Text>
-                <Text style={styles.scheduleEstimateTotalValue}>
+                <Text style={[styles.scheduleEstimateTotalLabel, { color: colors.text }]}>Estimated total</Text>
+                <Text style={[styles.scheduleEstimateTotalValue, { color: colors.primary }]}>
                   ₱{(
                     scheduleSelected.reduce(
                       (sum, service) => sum + Number(service.price || 0),
@@ -1592,7 +1611,7 @@ export default function MotoristActivityScreen() {
                   style={styles.scheduleVehiclePickerBack}
                   accessibilityLabel="Back to booking form"
                 >
-                  <Ionicons name="arrow-back" size={23} color="#30323D" />
+                  <Ionicons name="arrow-back" size={23} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={styles.scheduleVehiclePickerTitle}>
                   CHOOSE A VEHICLE

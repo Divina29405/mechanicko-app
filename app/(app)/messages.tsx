@@ -441,12 +441,12 @@ export default function MessagesScreen() {
         <View style={styles.filterRow}>
           <Pressable
             onPress={() => setMessageFilter('all')}
-            style={[styles.filterPill, { backgroundColor: messageFilter === 'all' ? colors.primary : '#E8ECFF' }]}
+            style={[styles.filterPill, { backgroundColor: messageFilter === 'all' ? colors.primary : colors.btnSecondary }]}
             accessibilityRole="button"
             accessibilityState={{ selected: messageFilter === 'all' }}
           >
-            <Text style={[styles.activeFilterText, messageFilter === 'all' && styles.selectedFilterText]}>All</Text>
-            <Text style={[styles.activeFilterCount, messageFilter === 'all' && styles.selectedFilterText]}>
+            <Text style={[styles.activeFilterText, { color: messageFilter === 'all' ? "#FFFFFF" : colors.text } ]}>All</Text>
+            <Text style={[styles.activeFilterCount, { color: messageFilter === 'all' ? "#FFFFFF" : colors.textMuted }]}>
               {conversation ? '1' : '0'}
             </Text>
           </Pressable>
@@ -454,17 +454,16 @@ export default function MessagesScreen() {
             onPress={() => setMessageFilter('active')}
             style={[
               styles.filterPill,
-              styles.serviceFilterPill,
-              messageFilter === 'active' && styles.selectedServiceFilter,
+              { backgroundColor: messageFilter === 'active' ? colors.primary : colors.btnSecondary },
             ]}
             accessibilityRole="button"
             accessibilityState={{ selected: messageFilter === 'active' }}
           >
             <View style={[styles.greenDot, messageFilter === 'active' && styles.selectedGreenDot]} />
-            <Text style={[styles.serviceFilterText, messageFilter === 'active' && styles.selectedServiceFilterText]}>
+            <Text style={[styles.serviceFilterText, { color: messageFilter === 'active' ? "#FFFFFF" : colors.text }]}>
               Active Service
             </Text>
-            <Text style={[styles.serviceFilterCount, messageFilter === 'active' && styles.selectedServiceFilterText]}>
+            <Text style={[styles.serviceFilterCount, { color: messageFilter === 'active' ? "#FFFFFF" : colors.textMuted }]}>
               {conversation ? '1' : '0'}
             </Text>
           </Pressable>

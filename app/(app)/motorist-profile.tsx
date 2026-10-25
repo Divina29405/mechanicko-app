@@ -380,7 +380,7 @@ export default function MotoristProfileScreen() {
             <Text style={[styles.meta, { color: colors.textMuted }]}>{mobileNumber || '09232124501'}</Text>
             <Text style={[styles.meta, { color: colors.textMuted }]}>{email}</Text>
           </View>
-          <View style={styles.editProfileContainer}>
+          <View style={[styles.editProfileContainer, { backgroundColor: colors.softCard }]}>
             <TouchableOpacity
               onPress={() => {
                 setEditableEmail(email);
@@ -388,8 +388,8 @@ export default function MotoristProfileScreen() {
               }}
               style={[styles.editProfileButton, { backgroundColor: colors.card }]}
             >
-              <Text style={styles.editProfileText}>Edit Profile</Text>
-              <Ionicons name="chevron-forward" size={18} color="#0037B0" />
+              <Text style={[styles.editProfileText, { color: colors.primary }]}>Edit Profile</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.primary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -401,7 +401,7 @@ export default function MotoristProfileScreen() {
           </View>
           <TouchableOpacity
             onPress={openAddVehicleForm}
-            style={[styles.addVehicleButton, { backgroundColor: '#0037B0' }]}
+            style={[styles.addVehicleButton, { backgroundColor: colors.primary }]}
           >
             <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
             <Text style={styles.addVehicleText}>Add Vehicle</Text>
@@ -421,7 +421,7 @@ export default function MotoristProfileScreen() {
               <Image
                 source={vehicle.type === 'car' ? carIcon : motorcycleIcon}
                 resizeMode="contain"
-                style={[styles.vehicleIconImage, { tintColor: "#0037B0" }]} 
+                style={[styles.vehicleIconImage, { tintColor: colors.primary }]} 
               />
             </View>
             <View style={styles.vehicleCardCopy}>
@@ -436,8 +436,8 @@ export default function MotoristProfileScreen() {
                 style={[
                   styles.primaryVehicleButton,
                   {
-                    backgroundColor: vehicle.is_primary ? '#E8ECFF' : colors.card,
-                    borderColor: vehicle.is_primary ? '#0037B0' : colors.border,
+                    backgroundColor: vehicle.is_primary ? colors.softCard : colors.card,
+                    borderColor: vehicle.is_primary ? colors.primary : colors.border,
                   },
                 ]}
                 disabled={vehicle.is_primary}
@@ -445,16 +445,16 @@ export default function MotoristProfileScreen() {
                 <Ionicons
                   name={vehicle.is_primary ? 'checkmark-circle' : 'radio-button-off-outline'}
                   size={16}
-                  color="#0037B0"
+                  color={colors.primary}
                 />
-                <Text style={[styles.primaryVehicleText, { color: '#0037B0' }]}>
+                <Text style={[styles.primaryVehicleText, { color: colors.primary }]}>
                   {vehicle.is_primary ? 'Primary vehicle' : 'Set as primary'}
                 </Text>
               </TouchableOpacity>
             </View>
             <TouchableOpacity
               onPress={() => confirmDeleteVehicle(vehicle)}
-              style={styles.deleteVehicleButton}
+              style={[styles.deleteVehicleButton, { backgroundColor: colors.btnSecondary }]}
               accessibilityLabel={`Delete ${vehicle.make} ${vehicle.model}`}
             >
               <Image source={trashBinIcon} resizeMode="contain" style={styles.deleteVehicleIcon} />
@@ -472,7 +472,7 @@ export default function MotoristProfileScreen() {
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity onPress={handleLogout} style={[styles.logoutButton, { backgroundColor: '#FFF0F3' }]}>
+        <TouchableOpacity onPress={handleLogout} style={[styles.logoutButton, { backgroundColor: colors.btnSecondary }]}>
           <Ionicons name="log-out-outline" size={20} color="#D92D20" />
           <Text style={styles.logoutButtonText}>Log Out of Mechanic Ko</Text>
         </TouchableOpacity>
@@ -486,8 +486,8 @@ export default function MotoristProfileScreen() {
       >
         <View style={styles.vehicleLimitOverlay}>
           <View style={[styles.vehicleLimitCard, { backgroundColor: colors.card }]}>
-            <View style={styles.vehicleLimitIcon}>
-              <Ionicons name="car-outline" size={30} color="#24439A" />
+            <View style={[styles.vehicleLimitIcon, { backgroundColor: colors.softCard }]}>
+              <Ionicons name="car-outline" size={30} color={colors.primary} />
             </View>
             <Text style={[styles.vehicleLimitTitle, { color: colors.text }]}>
               Vehicle limit reached
@@ -503,10 +503,10 @@ export default function MotoristProfileScreen() {
               <Text style={[styles.vehicleLimitProgressText, { color: colors.textMuted }]}>
                 Garage capacity
               </Text>
-              <Text style={styles.vehicleLimitProgressValue}>2 / 2</Text>
+              <Text style={[styles.vehicleLimitProgressValue, { color: colors.primary }]}>2 / 2</Text>
             </View>
             <TouchableOpacity
-              style={styles.vehicleLimitButton}
+              style={[styles.vehicleLimitButton, { backgroundColor: colors.primary }]}
               onPress={() => setVehicleLimitVisible(false)}
               activeOpacity={0.85}
             >
@@ -524,7 +524,7 @@ export default function MotoristProfileScreen() {
       >
         <View style={styles.logoutModalOverlay}>
           <View style={[styles.logoutModalCard, { backgroundColor: colors.card }]}>
-            <View style={styles.logoutModalIcon}>
+            <View style={[styles.logoutModalIcon, { backgroundColor: colors.btnSecondary }]}>
               <Ionicons name="log-out-outline" size={30} color="#D92D20" />
             </View>
             <Text style={[styles.logoutModalTitle, { color: colors.text }]}>
@@ -564,7 +564,7 @@ export default function MotoristProfileScreen() {
         animationType="slide"
         onRequestClose={() => setAvatarPickerVisible(false)}
       >
-        <View style={styles.avatarPickerOverlay}>
+        <View style={[styles.avatarPickerOverlay, { backgroundColor: colors.overlay }]}>
           <View style={[styles.avatarPickerCard, { backgroundColor: colors.card }]}>
             <View style={styles.avatarPickerHandle} />
             <Text style={[styles.avatarPickerTitle, { color: colors.text }]}>Update Profile Photo</Text>
@@ -579,14 +579,14 @@ export default function MotoristProfileScreen() {
                   void changeAvatar('camera');
                 }}
               >
-                <View style={[styles.avatarPickerIcon, { backgroundColor: '#E8ECFF' }]}>
-                  <Ionicons name="camera-outline" size={26} color="#0037B0" />
+                <View style={[styles.avatarPickerIcon, { backgroundColor: colors.softCard }]}>
+                  <Ionicons name="camera-outline" size={26} color={colors.primary} />
                 </View>
                 <View style={styles.avatarPickerCopy}>
                   <Text style={[styles.avatarPickerOptionTitle, { color: colors.text }]}>Take a photo</Text>
                   <Text style={[styles.avatarPickerOptionText, { color: colors.textMuted }]}>Use your camera</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={22} color="#0037B0" />
+                <Ionicons name="chevron-forward" size={22} color={colors.primary} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.avatarPickerOption, { backgroundColor: colors.bg, borderColor: colors.border }]}
@@ -595,14 +595,14 @@ export default function MotoristProfileScreen() {
                   void changeAvatar('gallery');
                 }}
               >
-                <View style={[styles.avatarPickerIcon, { backgroundColor: '#E8ECFF' }]}>
-                  <Ionicons name="images-outline" size={26} color="#0037B0" />
+                <View style={[styles.avatarPickerIcon, { backgroundColor: colors.softCard }]}>
+                  <Ionicons name="images-outline" size={26} color={colors.primary} />
                 </View>
                 <View style={styles.avatarPickerCopy}>
                   <Text style={[styles.avatarPickerOptionTitle, { color: colors.text }]}>Choose from gallery</Text>
                   <Text style={[styles.avatarPickerOptionText, { color: colors.textMuted }]}>Select an existing photo</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={22} color="#0037B0" />
+                <Ionicons name="chevron-forward" size={22} color={colors.primary} />
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -645,7 +645,7 @@ export default function MotoristProfileScreen() {
                   onPress={() => setVehicleType(type)}
                   style={[
                     styles.vehicleTypeButton,
-                    { backgroundColor: vehicleType === type ? '#0037B0' : colors.card, borderColor: vehicleType === type ? '#0037B0' : colors.border },
+                    { backgroundColor: vehicleType === type ? colors.primary : colors.card, borderColor: vehicleType === type ? colors.primary : colors.border },
                   ]}
                 >
                   <Image
@@ -653,7 +653,7 @@ export default function MotoristProfileScreen() {
                     resizeMode="contain"
                     style={[
                       styles.vehicleTypeIcon,
-                      { opacity: vehicleType === type ? 1 : 0.7, tintColor: vehicleType === type ? '#FFFFFF' : '#0037B0' },
+                      { opacity: vehicleType === type ? 1 : 0.7, tintColor: vehicleType === type ? '#FFFFFF' : colors.primary },
                     ]}
                   />
                   <Text style={{ color: vehicleType === type ? '#FFFFFF' : colors.text, fontWeight: '700', fontSize: normalizeText(15) }}>
@@ -694,26 +694,26 @@ export default function MotoristProfileScreen() {
                 router.push('/payment-methods');
               }}
             >
-              <Ionicons name="card-outline" size={24} color="#0037B0" style={styles.settingsRowIcon} />
+              <Ionicons name="card-outline" size={24} color={colors.primary} style={styles.settingsRowIcon} />
               <View style={styles.settingsRowCopy}>
                 <Text style={[styles.settingsRowText, { color: colors.text }]}>Payment Method</Text>
               </View>
-              <Ionicons name="chevron-forward" size={21} color="#0037B0" />
+              <Ionicons name="chevron-forward" size={21} color={colors.primary} />
             </TouchableOpacity>
             <View style={styles.settingsRow}>
-              <Ionicons name="moon-outline" size={24} color="#0037B0" style={styles.settingsRowIcon} />
+              <Ionicons name="moon-outline" size={24} color={colors.primary} style={styles.settingsRowIcon} />
               <View style={styles.settingsRowCopy}>
                 <Text style={[styles.settingsRowText, { color: colors.text }]}>Dark Mode</Text>
               </View>
               <Switch
                 value={isDarkMode}
                 onValueChange={toggleTheme}
-                trackColor={{ false: '#D0D5DD', true: '#0037B0' }}
+                trackColor={{ false: colors.border, true: colors.primary }}
                 thumbColor="#FFFFFF"
               />
             </View>
             <View style={[styles.settingsRow, styles.radiusSettingsRow, { borderBottomColor: colors.border }]}>
-              <Ionicons name="radio-outline" size={24} color="#0037B0" style={styles.settingsRowIcon} />
+              <Ionicons name="radio-outline" size={24} color={colors.primary} style={styles.settingsRowIcon} />
               <View style={styles.settingsRowCopy}>
                 <Text style={[styles.settingsRowText, { color: colors.text }]}>Mechanic Search Radius</Text>
                 <Text style={[styles.settingsRowHint, { color: colors.textMuted }]}>

@@ -112,7 +112,7 @@ export default function ActivityScreen() {
   }, [filter, requests]);
 
   return (
-    <View style={[styles.root, { backgroundColor: "#F5F6F8" }]}>
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <MotoristHomeHeader />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.titleRow}>
@@ -155,21 +155,30 @@ export default function ActivityScreen() {
         <View style={styles.filterRow}>
           <Pressable
             onPress={() => setFilter("ongoing")}
-            style={[styles.filterPill, filter === "ongoing" && styles.filterPillActive]}
+            style={[
+              styles.filterPill,
+              { backgroundColor: filter === "ongoing" ? colors.primary : colors.btnSecondary },
+            ]}
           >
-            <Text style={[styles.filterText, filter === "ongoing" && styles.filterTextActive]}>On going</Text>
+            <Text style={[styles.filterText, { color: filter === "ongoing" ? "#FFFFFF" : colors.textMuted }]}>On going</Text>
           </Pressable>
           <Pressable
             onPress={() => setFilter("resolved")}
-            style={[styles.filterPill, filter === "resolved" && styles.filterPillActive]}
+            style={[
+              styles.filterPill,
+              { backgroundColor: filter === "resolved" ? colors.primary : colors.btnSecondary },
+            ]}
           >
-            <Text style={[styles.filterText, filter === "resolved" && styles.filterTextActive]}>Resolved</Text>
+            <Text style={[styles.filterText, { color: filter === "resolved" ? "#FFFFFF" : colors.textMuted }]}>Resolved</Text>
           </Pressable>
           <Pressable
             onPress={() => setFilter("revoked")}
-            style={[styles.filterPill, filter === "revoked" && styles.filterPillActive]}
+            style={[
+              styles.filterPill,
+              { backgroundColor: filter === "revoked" ? colors.primary : colors.btnSecondary },
+            ]}
           >
-            <Text style={[styles.filterText, filter === "revoked" && styles.filterTextActive]}>Revoked</Text>
+            <Text style={[styles.filterText, { color: filter === "revoked" ? "#FFFFFF" : colors.textMuted }]}>Revoked</Text>
           </Pressable>
         </View>
 
@@ -214,8 +223,8 @@ export default function ActivityScreen() {
                 <Text style={[styles.vehicleLine, { color: colors.textMuted }]}>
                   {item.vehicle_type || "Vehicle"} • {item.plate_number || "Plate unavailable"}
                 </Text>
-                <View style={styles.issueBox}>
-                  <Ionicons name="location-outline" size={15} color="#D92D20" />
+                <View style={[styles.issueBox, { backgroundColor: colors.softCard }]}>
+                  <Ionicons name="location-outline" size={15} color={colors.primary} />
                   <Text style={[styles.issueText, { color: colors.text }]}>
                     {item.vehicle_issue || "Emergency Alternator & Battery Jumpstart"}
                   </Text>
@@ -228,7 +237,7 @@ export default function ActivityScreen() {
                         params: { bookingId: item.id },
                       })
                     }
-                    style={styles.primaryButton}
+                    style={[styles.primaryButton, { backgroundColor: colors.primary }]}
                   >
                     <Text style={styles.primaryButtonText}>
                       {isCompleted ? "Book Again" : filter === "revoked" ? "Book Again" : "Track Mechanic"}
@@ -253,14 +262,14 @@ const styles = StyleSheet.create({
   summaryLabel: { fontSize: 12, fontWeight: "700" },
   summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8 },
   summaryValue: { fontSize: 21, fontWeight: "800" },
-  periodPill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#0037B0", borderRadius: 8, paddingHorizontal: 13, paddingVertical: 10 },
+  periodPill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#24439A", borderRadius: 8, paddingHorizontal: 13, paddingVertical: 10 },
   periodText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
   periodMenu: { position: "absolute", zIndex: 20, top: 46, right: 0, width: 125, borderWidth: 1, borderRadius: 9, paddingVertical: 4, elevation: 5 },
   periodOption: { paddingHorizontal: 12, paddingVertical: 10 },
   periodOptionText: { fontSize: 12, fontWeight: "700" },
   filterRow: { flexDirection: "row", gap: 10, marginBottom: 24 },
   filterPill: { borderRadius: 18, backgroundColor: "#E8ECFF", paddingHorizontal: 17, paddingVertical: 10 },
-  filterPillActive: { backgroundColor: "#0037B0" },
+  filterPillActive: { backgroundColor: "#24439A" },
   filterText: { color: "#667085", fontSize: 12, fontWeight: "800" },
   filterTextActive: { color: "#FFFFFF" },
   dateHeading: { fontSize: 10, fontWeight: "800", marginBottom: 8 },
@@ -284,7 +293,7 @@ const styles = StyleSheet.create({
   cashText: { fontSize: 11 },
   mechanicName: { fontSize: 17, fontWeight: "800", marginTop: 6 },
   vehicleLine: { fontSize: 12, marginTop: 3 },
-  issueBox: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#EEF0FF", borderRadius: 8, padding: 11, marginTop: 12 },
+  issueBox: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, padding: 11, marginTop: 12 },
   issueText: { flex: 1, fontSize: 12, lineHeight: 17, fontWeight: "600" },
   actionRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8, marginTop: 14 },
   primaryButton: { backgroundColor: "#0037B0", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 9 },

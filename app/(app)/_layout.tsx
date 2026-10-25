@@ -113,7 +113,7 @@ function MechanicTabs() {
 }
 
 function CustomerTabs() {
-  const { colors } = useAppTheme();
+  const { colors, isDarkMode } = useAppTheme();
   const segments = useSegments();
   const isEmergencyChecklist =
     String(segments[segments.length - 1]) === "emergency-checklist";
@@ -121,7 +121,10 @@ function CustomerTabs() {
     <Image
       source={source}
       resizeMode="contain"
-      style={{ width: size * 0.72, height: size * 0.72 }}
+      style={[
+        { width: size * 0.72, height: size * 0.72 },
+        isDarkMode ? { tintColor: colors.text } : null,
+      ]}
     />
   );
 
@@ -133,8 +136,8 @@ function CustomerTabs() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: "#FFFFFF",
-          borderTopColor: "#F5F4FA",
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
           borderTopWidth: 15,
           height: 112,
           paddingTop: 6,
@@ -172,7 +175,7 @@ function CustomerTabs() {
           title: "Home",
           tabBarIcon: ({ size }) =>
             motoristTabIcon(
-              require("../../assets/images/motorist-home.jpg"),
+              require("../../assets/images/motorist-home-transparent.png"),
               size,
             ),
         }}
@@ -183,7 +186,7 @@ function CustomerTabs() {
           title: "Bookings",
           tabBarIcon: ({ size }) =>
             motoristTabIcon(
-              require("../../assets/images/motorist-booking.jpg"),
+              require("../../assets/images/motorist-booking-transparent.png"),
               size,
             ),
         }}
@@ -205,7 +208,7 @@ function CustomerTabs() {
           title: "Messages",
           tabBarIcon: ({ size }) =>
             motoristTabIcon(
-              require("../../assets/images/motorist-message.jpg"),
+              require("../../assets/images/motorist-message-transparent.png"),
               size,
             ),
         }}

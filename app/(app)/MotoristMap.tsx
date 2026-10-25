@@ -3,6 +3,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { getSharedAvatarUrl, subscribeToSharedAvatar } from "@/lib/avatarStore";
 import { supabase } from "@/lib/supabase";
+import {
+  getCachedActiveBooking,
+  setCachedActiveBooking,
+  subscribeToActiveBooking,
+} from "@/lib/activeBookingStore";
 import { listVehicles } from "@/services/vehicleService";
 import type { Vehicle } from "@/types/vehicle";
 import { Ionicons } from "@expo/vector-icons";
@@ -40,6 +45,10 @@ const recenterIcon = require("../../assets/images/recenter.png");
 const mapOrientationIcon = require("../../assets/images/maporientation.png");
 const clockIcon = require("../../assets/images/clock.png");
 const MOTORIST_RADIUS_KEY = "motorist_search_radius_km";
+const MIN_LOCATION_ACCURACY_METERS = 100;
+const MIN_LOCATION_UPDATE_DISTANCE_METERS = 20;
+const LOCATION_UPDATE_INTERVAL_MS = 10000;
+const MAX_CACHED_LOCATION_AGE_MS = 5 * 60 * 1000;
 
 let cachedDeviceLocation: Location.LocationObject | null = null;
 const completedJobsCountCache = new Map<string, number>();
@@ -110,6 +119,45 @@ const webLocation = {
   timestamp: Date.now(),
 } as Location.LocationObject;
 
+function isUsableLocation(
+  nextLocation: Location.LocationObject,
+  previousLocation: Location.LocationObject | null,
+) {
+  const { accuracy } = nextLocation.coords;
+  if (
+    typeof accuracy === "number" &&
+    accuracy > MIN_LOCATION_ACCURACY_METERS
+  ) {
+    return false;
+  }
+
+  if (!previousLocation) return true;
+
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusMeters = 6371000;
+  const latitudeDelta = toRadians(
+    nextLocation.coords.latitude - previousLocation.coords.latitude,
+  );
+  const longitudeDelta = toRadians(
+    nextLocation.coords.longitude - previousLocation.coords.longitude,
+  );
+  const latitude1 = toRadians(previousLocation.coords.latitude);
+  const latitude2 = toRadians(nextLocation.coords.latitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.sin(longitudeDelta / 2) ** 2 * Math.cos(latitude1) * Math.cos(latitude2);
+  const distance = 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
+  return distance >= MIN_LOCATION_UPDATE_DISTANCE_METERS;
+}
+
+function isRecentLocation(location: Location.LocationObject) {
+  return (
+    Date.now() - location.timestamp <= MAX_CACHED_LOCATION_AGE_MS &&
+    (location.coords.accuracy === null ||
+      location.coords.accuracy <= MIN_LOCATION_ACCURACY_METERS)
+  );
+}
+
 export default function MotoristMap() {
   const router = useRouter();
   const { bookingId, mechanicId } = useLocalSearchParams<{
@@ -119,12 +167,12 @@ export default function MotoristMap() {
   const { session } = useAuth();
   const { colors, isDarkMode } = useAppTheme();
   const bookingSosColors = {
-    background: "#F8F8FC",
-    card: "#FFFFFF",
-    text: "#30323D",
-    muted: "#7D8295",
-    border: "#E4E5EC",
-    primary: "#24439A",
+    background: colors.bg,
+    card: colors.card,
+    text: colors.text,
+    muted: colors.textMuted,
+    border: colors.border,
+    primary: colors.primary,
   };
   const motoristId = session?.user.id;
 
@@ -132,7 +180,6 @@ export default function MotoristMap() {
     cachedDeviceLocation,
   );
   const [heading, setHeading] = useState(0);
-  const [locationLabel, setLocationLabel] = useState("Current location");
   const [liveMechanics, setLiveMechanics] = useState<any[]>([]);
   const [searchRadius, setSearchRadius] = useState(10);
   const [selectedMechanic, setSelectedMechanic] = useState<any>(null);
@@ -148,6 +195,7 @@ export default function MotoristMap() {
   const [bookingReceiptVisible, setBookingReceiptVisible] = useState(false);
   const [emergencyChecklistVisible, setEmergencyChecklistVisible] =
     useState(false);
+  const [activeRequestLoading, setActiveRequestLoading] = useState(true);
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [bookingNotes, setBookingNotes] = useState("");
   const [vehicleType, setVehicleType] = useState("");
@@ -165,7 +213,9 @@ export default function MotoristMap() {
   const [showBookingTimePicker, setShowBookingTimePicker] = useState(false);
   const [submittingBooking, setSubmittingBooking] = useState(false);
   const [mechanicPanelAnimation] = useState(() => new Animated.Value(0));
-  const [activeRequest, setActiveRequest] = useState<any>(null);
+  const [activeRequest, setActiveRequest] = useState<any>(() =>
+    motoristId ? getCachedActiveBooking(motoristId) : null,
+  );
   const [acceptedSuccessVisible, setAcceptedSuccessVisible] = useState(false);
   const handledBookAgainId = useRef<string | null>(null);
   const handledMechanicId = useRef<string | null>(null);
@@ -173,6 +223,14 @@ export default function MotoristMap() {
   const [acceptedBookingExpanded, setAcceptedBookingExpanded] = useState(true);
   const [acceptedBookingAnimation] = useState(() => new Animated.Value(1));
   const [waitingLineAnimation] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    if (!motoristId) return;
+    return subscribeToActiveBooking(motoristId, (booking) => {
+      setActiveRequest(booking);
+      setActiveRequestLoading(false);
+    });
+  }, [motoristId]);
   const acceptedBookingPanResponder = useMemo(
     () =>
       PanResponder.create({
@@ -259,23 +317,6 @@ export default function MotoristMap() {
       };
     }, [motoristId]),
   );
-
-  const updateLocationLabel = async (
-    currentLocation: Location.LocationObject,
-  ) => {
-    try {
-      const [address] = await Location.reverseGeocodeAsync({
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-      });
-      const street = [address?.street, address?.name].filter(Boolean).join(" ");
-      setLocationLabel(
-        street || address?.district || address?.city || "Current location",
-      );
-    } catch {
-      setLocationLabel("Current location");
-    }
-  };
 
   useEffect(() => {
     if (selectedMechanic) {
@@ -489,7 +530,7 @@ export default function MotoristMap() {
     if (!location) return;
     const refreshTimer = setTimeout(() => {
       void fetchLiveMechanics(location.coords.latitude, location.coords.longitude);
-    }, 0);
+    }, 500);
     return () => clearTimeout(refreshTimer);
   }, [fetchLiveMechanics, location]);
 
@@ -731,11 +772,25 @@ export default function MotoristMap() {
               accuracy: Location.Accuracy.High,
             });
             if (!active) return;
-            setLocation(currentLocation);
-            void updateLocationLabel(currentLocation);
-            void fetchLiveMechanics(
-              currentLocation.coords.latitude,
-              currentLocation.coords.longitude,
+            if (isRecentLocation(currentLocation)) {
+              setLocation(currentLocation);
+              void fetchLiveMechanics(
+                currentLocation.coords.latitude,
+                currentLocation.coords.longitude,
+              );
+            }
+            locationSubscription = await Location.watchPositionAsync(
+              {
+                accuracy: Location.Accuracy.Balanced,
+                distanceInterval: MIN_LOCATION_UPDATE_DISTANCE_METERS,
+                timeInterval: LOCATION_UPDATE_INTERVAL_MS,
+              },
+              (nextLocation) => {
+                if (!active || !isUsableLocation(nextLocation, currentLocation)) {
+                  return;
+                }
+                setLocation(nextLocation);
+              },
             );
             return;
           }
@@ -744,7 +799,6 @@ export default function MotoristMap() {
         }
         if (!active) return;
         setLocation(webLocation);
-        setLocationLabel("Default map location");
         void fetchLiveMechanics(
           webLocation.coords.latitude,
           webLocation.coords.longitude,
@@ -759,10 +813,9 @@ export default function MotoristMap() {
       }
       if (status === "granted") {
         const lastKnown = await Location.getLastKnownPositionAsync();
-        if (lastKnown && active) {
+        if (lastKnown && active && isRecentLocation(lastKnown)) {
           cachedDeviceLocation = lastKnown;
           setLocation(lastKnown);
-          void updateLocationLabel(lastKnown);
           void fetchLiveMechanics(
             lastKnown.coords.latitude,
             lastKnown.coords.longitude,
@@ -772,25 +825,26 @@ export default function MotoristMap() {
           accuracy: Location.Accuracy.Highest,
         });
         if (!active) return;
-        cachedDeviceLocation = currentLoc;
-        setLocation(currentLoc);
-        void updateLocationLabel(currentLoc);
-        void fetchLiveMechanics(
-          currentLoc.coords.latitude,
-          currentLoc.coords.longitude,
-        );
+        if (isRecentLocation(currentLoc)) {
+          cachedDeviceLocation = currentLoc;
+          setLocation(currentLoc);
+          void fetchLiveMechanics(
+            currentLoc.coords.latitude,
+            currentLoc.coords.longitude,
+          );
+        }
         
         locationSubscription = await Location.watchPositionAsync(
           {
-            accuracy: Location.Accuracy.Highest,
-            distanceInterval: 5,
-            timeInterval: 3000,
+            accuracy: Location.Accuracy.Balanced,
+            distanceInterval: MIN_LOCATION_UPDATE_DISTANCE_METERS,
+            timeInterval: LOCATION_UPDATE_INTERVAL_MS,
           },
           (nextLocation) => {
             if (!active) return;
+            if (!isUsableLocation(nextLocation, cachedDeviceLocation)) return;
             cachedDeviceLocation = nextLocation;
             setLocation(nextLocation);
-            void updateLocationLabel(nextLocation);
           }
         );
 
@@ -872,7 +926,6 @@ export default function MotoristMap() {
         accuracy: Location.Accuracy.Balanced,
       });
       setLocation(currentLocation);
-      void updateLocationLabel(currentLocation);
       recenterMap(currentLocation);
       void fetchLiveMechanics(
         currentLocation.coords.latitude,
@@ -1066,11 +1119,26 @@ export default function MotoristMap() {
     setBookingModalVisible(false);
   };
 
-  useEffect(() => {
-    if (!session?.user.id || activeRequest?.id) return;
+  useFocusEffect(
+    useCallback(() => {
+      if (!session?.user.id) {
+        setActiveRequestLoading(false);
+        return undefined;
+      }
+      if (activeRequest?.id) {
+        setActiveRequestLoading(false);
+        return undefined;
+      }
 
-    let active = true;
-    const loadActiveBooking = async () => {
+      let active = true;
+      const cachedBooking = getCachedActiveBooking(session.user.id);
+      if (cachedBooking) {
+        setActiveRequest(cachedBooking);
+        setActiveRequestLoading(false);
+        return undefined;
+      }
+      setActiveRequestLoading(true);
+      const loadActiveBooking = async () => {
       const { data: request, error } = await supabase
         .from("service_requests")
         .select("*")
@@ -1088,7 +1156,11 @@ export default function MotoristMap() {
         .limit(1)
         .maybeSingle();
 
-      if (!active || error || !request) return;
+      if (!active) return;
+      if (error || !request) {
+        setActiveRequestLoading(false);
+        return;
+      }
 
       const { data: mechanic } = await supabase
         .from("profiles")
@@ -1113,15 +1185,18 @@ export default function MotoristMap() {
           setCompletedJob(requestWithMechanic);
         } else {
           setActiveRequest(requestWithMechanic);
+          setCachedActiveBooking(session.user.id, requestWithMechanic);
         }
       }
-    };
+      setActiveRequestLoading(false);
+      };
 
-    void loadActiveBooking();
-    return () => {
-      active = false;
-    };
-  }, [activeRequest?.id, session?.user.id]);
+      void loadActiveBooking();
+      return () => {
+        active = false;
+      };
+    }, [activeRequest?.id, session]),
+  );
 
   const confirmCancel = async () => {
     if (!cancelReason) {
@@ -1155,6 +1230,9 @@ export default function MotoristMap() {
     }
 
     setActiveRequest(null);
+    if (session?.user.id) {
+      setCachedActiveBooking(session.user.id, null);
+    }
     setCancelModalVisible(false);
     setCancelReason("");
     setIsCancelling(false);
@@ -1178,6 +1256,9 @@ export default function MotoristMap() {
             const updatedRequest = { ...prev, ...payload.new };
             if (payload.new.status === "completed") {
               setCompletedJob(updatedRequest);
+              if (session?.user.id) {
+                setCachedActiveBooking(session.user.id, null);
+              }
               return null;
             }
             if (
@@ -1185,7 +1266,13 @@ export default function MotoristMap() {
                 String(payload.new.status ?? "").toLowerCase(),
               )
             ) {
+              if (session?.user.id) {
+                setCachedActiveBooking(session.user.id, null);
+              }
               return null;
+            }
+            if (session?.user.id) {
+              setCachedActiveBooking(session.user.id, updatedRequest);
             }
             return updatedRequest;
           });
@@ -1195,7 +1282,7 @@ export default function MotoristMap() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeRequest?.id]);
+  }, [activeRequest?.id, session?.user.id]);
 
   const handleCompleteJob = async () => {
     if (
@@ -1254,6 +1341,13 @@ export default function MotoristMap() {
     );
   }, [location, heading]);
 
+  useEffect(() => {
+    if (!mapRef.current) return;
+    mapRef.current.injectJavaScript(
+      `if (window.updateMechanics) { window.updateMechanics(${JSON.stringify(liveMechanics)}); } true;`,
+    );
+  }, [liveMechanics]);
+
   const activeRequestStatus = String(activeRequest?.status ?? "")
     .trim()
     .toLowerCase();
@@ -1292,7 +1386,7 @@ export default function MotoristMap() {
     animation.start();
     return () => animation.stop();
   }, [isWaitingForMechanic, waitingLineAnimation]);
-  const mapHtml = `
+  const mapHtml = useMemo(() => `
     <!DOCTYPE html>
     <html>
       <head>
@@ -1317,7 +1411,7 @@ export default function MotoristMap() {
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
           
           var userIcon = L.divIcon({
-            html: '<div class="user-marker-wrap"><div class="user-location-card"><div class="user-location-title">${locationLabel} (You)</div><div class="user-location-subtitle">Current location</div></div><div class="user-pulse-ring"></div><div class="user-marker"><div id="user-nav-compass" style="transform: rotate(0deg); transition: transform 0.2s ease-out; display: flex; align-items: center; justify-content: center;"><svg viewBox="0 0 24 24" width="22" height="22" fill="white"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg></div></div></div>',
+            html: '<div class="user-marker-wrap"><div class="user-location-card"><div class="user-location-title">Current location (You)</div><div class="user-location-subtitle">Current location</div></div><div class="user-pulse-ring"></div><div class="user-marker"><div id="user-nav-compass" style="transform: rotate(0deg); transition: transform 0.2s ease-out; display: flex; align-items: center; justify-content: center;"><svg viewBox="0 0 24 24" width="22" height="22" fill="white"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/></svg></div></div></div>',
             className: '',
             iconSize: [240, 135],
             iconAnchor: [120, 91]
@@ -1333,11 +1427,9 @@ export default function MotoristMap() {
               map.setView(mapCenter, Math.max(map.getZoom(), 15), { animate: false });
               hasCenteredOnLiveLocation = true;
             }
-            if (heading !== undefined && heading !== null) {
-              var compass = document.getElementById('user-nav-compass');
-              if (compass) {
-                compass.style.transform = 'rotate(' + heading + 'deg)';
-              }
+            var compass = document.getElementById('user-nav-compass');
+            if (compass) {
+              compass.style.transform = 'rotate(0deg)';
             }
           };
           
@@ -1348,21 +1440,25 @@ export default function MotoristMap() {
           updateLocationCardVisibility();
           map.on('zoomend', updateLocationCardVisibility);
 
-          var mechanics = ${JSON.stringify(liveMechanics)};
-          mechanics.forEach(function(mech) {
+          var mechanicLayer = L.layerGroup().addTo(map);
+          window.updateMechanics = function(mechanics) {
+            mechanicLayer.clearLayers();
+            mechanics.forEach(function(mech) {
             if (mech.latitude && mech.longitude) {
               var markerHtml = mech.avatarUrl
                 ? '<div class="mechanic-marker"><img src="' + mech.avatarUrl + '" onerror="this.parentElement.innerHTML=\\'<span class=&quot;mechanic-fallback&quot;></span>\\'"></div>'
                 : '<div class="mechanic-marker"><span class="mechanic-fallback"></span></div>';
               var mechIcon = L.divIcon({ html: markerHtml, className: '', iconSize: [42, 42], iconAnchor: [21, 21] });
-              var marker = L.marker([mech.latitude, mech.longitude], {icon: mechIcon}).addTo(map);
+              var marker = L.marker([mech.latitude, mech.longitude], {icon: mechIcon}).addTo(mechanicLayer);
               marker.on('click', function(event) {
                 L.DomEvent.stop(event);
                 map.setView([mech.latitude, mech.longitude], Math.max(map.getZoom(), 17), { animate: true, duration: 0.45 });
                 window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'MECHANIC_SELECTED', mechanic: mech }));
               });
             }
-          });
+            });
+          };
+          window.updateMechanics([]);
           map.on('click', function(event) {
             var target = event.originalEvent && event.originalEvent.target;
             if (target && target.closest && target.closest('.mechanic-marker')) return;
@@ -1371,7 +1467,7 @@ export default function MotoristMap() {
         </script>
       </body>
     </html>
-  `;
+  `, [colors.bg, initialMapLocation, isDarkMode]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
@@ -1381,9 +1477,11 @@ export default function MotoristMap() {
         style={styles.map}
         scrollEnabled={false}
         onLoad={() => {
-          if (!location) return;
+          const locationScript = location
+            ? `if (window.updateUserLocation) { window.updateUserLocation(${location.coords.latitude}, ${location.coords.longitude}, ${heading}); }`
+            : "";
           mapRef.current?.injectJavaScript(
-            `if (window.updateUserLocation) { window.updateUserLocation(${location.coords.latitude}, ${location.coords.longitude}); } true;`,
+            `${locationScript}; if (window.updateMechanics) { window.updateMechanics(${JSON.stringify(liveMechanics)}); } true;`,
           );
         }}
         onMessage={(event) => {
@@ -1470,7 +1568,7 @@ export default function MotoristMap() {
         </TouchableOpacity>
       </View>
 
-      {!displayedMechanic && !selectedMechanic ? (
+      {!activeRequestLoading && !displayedMechanic && !selectedMechanic ? (
         <View style={[styles.overlay, styles.sosOnlyOverlay]}>
           <TouchableOpacity
             style={[styles.sosButton, hasOngoingOrder && styles.sosButtonDisabled]}
@@ -2060,7 +2158,7 @@ export default function MotoristMap() {
                       >
                         {displayedMechanic.isOnline ? "Online" : "Offline"}
                       </Text>
-                      <Text style={styles.rating}>
+                      <Text style={[styles.rating, { color: colors.textMuted }]}>
                         ★ {displayedMechanic.rating.toFixed(1)}
                         {displayedMechanic.completedJobs !== undefined
                           ? ` • ${displayedMechanic.completedJobs} completed jobs`
@@ -2073,25 +2171,25 @@ export default function MotoristMap() {
                   style={styles.bookmarkButton}
                   accessibilityLabel="Save mechanic"
                 >
-                  <Ionicons name="bookmark-outline" size={22} color="#536078" />
+                  <Ionicons name="bookmark-outline" size={22} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
               <View style={styles.mechanicStatsRow}>
                 <View style={styles.mechanicStatBox}>
-                  <Text style={styles.mechanicStatLabel}>STATUS</Text>
-                  <Text style={styles.mechanicStatValue}>
+                  <Text style={[styles.mechanicStatLabel, { color: colors.textMuted }]}>STATUS</Text>
+                  <Text style={[styles.mechanicStatValue, { color: colors.primary }]}>
                     {displayedMechanic.isOnline ? "Online" : "Offline"}
                   </Text>
                 </View>
                 <View style={styles.mechanicStatBox}>
-                  <Text style={styles.mechanicStatLabel}>DISTANCE</Text>
-                  <Text style={styles.mechanicStatValue}>
+                  <Text style={[styles.mechanicStatLabel, { color: colors.textMuted }]}>DISTANCE</Text>
+                  <Text style={[styles.mechanicStatValue, { color: colors.primary }]}>
                     {displayedMechanic.distance}
                   </Text>
                 </View>
                 <View style={styles.mechanicStatBox}>
-                  <Text style={styles.mechanicStatLabel}>EST. ARRIVAL</Text>
-                  <Text style={styles.mechanicStatValue}>
+                  <Text style={[styles.mechanicStatLabel, { color: colors.textMuted }]}>EST. ARRIVAL</Text>
+                  <Text style={[styles.mechanicStatValue, { color: colors.primary }]}>
                     ~{Math.max(2, Math.ceil(displayedMechanic.distanceKm * 4))}{" "}
                     mins
                   </Text>
@@ -2118,7 +2216,7 @@ export default function MotoristMap() {
                   </Text>
                 </View>
                 {displayedMechanic.services?.[0] ? (
-                  <Text style={styles.basePrice}>
+                  <Text style={[styles.basePrice, { color: colors.primary }]}>
                     ₱
                     {Number(
                       String(displayedMechanic.services[0].price).replace(
@@ -2135,7 +2233,7 @@ export default function MotoristMap() {
                 />
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.requestServiceButton}
+                style={[styles.requestServiceButton, { backgroundColor: colors.primary }]}
                 onPress={openBooking}
               >
                 <Ionicons name="location-outline" size={19} color="#FFFFFF" />
@@ -2144,15 +2242,15 @@ export default function MotoristMap() {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.compareButton}
+                style={[styles.compareButton, { backgroundColor: colors.btnSecondary }]}
                 onPress={openPriceComparison}
               >
                 <Ionicons
                   name="swap-vertical-outline"
                   size={20}
-                  color="#172033"
+                  color={colors.text}
                 />
-                <Text style={styles.compareButtonText}>Compare Pricing</Text>
+                <Text style={[styles.compareButtonText, { color: colors.text }]}>Compare Pricing</Text>
               </TouchableOpacity>
             </Animated.View>
           ) : null}
@@ -2165,35 +2263,36 @@ export default function MotoristMap() {
         transparent
         onRequestClose={() => setShowServices(false)}
       >
-        <Pressable
-          style={styles.servicesModalOverlay}
-          onPress={() => setShowServices(false)}
-        >
+        <View style={[styles.servicesModalOverlay, { backgroundColor: colors.overlay }]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowServices(false)}
+            accessibilityLabel="Close service offerings"
+          />
           <SafeAreaView
             style={[styles.servicesSheet, { backgroundColor: colors.card }]}
             edges={[]}
-            onStartShouldSetResponder={() => true}
           >
-            <View style={styles.servicesSheetHeader}>
+            <View style={[styles.servicesSheetHeader, { borderBottomColor: colors.border }]}>
               <TouchableOpacity
                 style={styles.servicesBackButton}
                 onPress={() => setShowServices(false)}
                 accessibilityLabel="Back to mechanic details"
               >
-                <Ionicons name="arrow-back" size={24} color="#172033" />
+                <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
               <View style={styles.servicesSheetTitleRow}>
-                <Ionicons name="settings" size={14} color="#0037B0" />
-                <Text style={styles.servicesSheetTitle}>
+                <Ionicons name="settings" size={14} color={colors.primary} />
+                <Text style={[styles.servicesSheetTitle, { color: colors.primary }]}>
                   OFFERED SERVICES & BASE PRICES
                 </Text>
               </View>
               <TouchableOpacity
-                style={styles.servicesCloseButton}
+                style={[styles.servicesCloseButton, { backgroundColor: colors.btnSecondary }]}
                 onPress={() => setShowServices(false)}
                 accessibilityLabel="Close service offerings"
               >
-                <Ionicons name="close" size={19} color="#536078" />
+                <Ionicons name="close" size={19} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
             <ScrollView
@@ -2201,15 +2300,19 @@ export default function MotoristMap() {
               contentContainerStyle={styles.fullServicesContent}
               showsVerticalScrollIndicator={false}
               nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
             >
               {selectedMechanic?.services.length ? (
                 selectedMechanic.services.map((service: any, index: number) => (
                   <View
                     key={`${service.service}-${index}`}
-                    style={styles.fullServiceItem}
+                    style={[
+                      styles.fullServiceItem,
+                      { backgroundColor: colors.softCard },
+                    ]}
                   >
                     <View style={styles.fullServiceName}>
-                      <View style={styles.serviceIconBox}>
+                      <View style={[styles.serviceIconBox, { backgroundColor: colors.card }]}>
                         <Ionicons
                           name="construct-outline"
                           size={19}
@@ -2222,7 +2325,7 @@ export default function MotoristMap() {
                         >
                           {service.service}
                         </Text>
-                        <Text style={styles.serviceDescription}>
+                        <Text style={[styles.serviceDescription, { color: colors.textMuted }]}>
                           {service.description || service.details || ""}
                         </Text>
                       </View>
@@ -2233,7 +2336,7 @@ export default function MotoristMap() {
                       >
                         {service.price}
                       </Text>
-                      <Text style={styles.baseRateLabel}>Base rate</Text>
+                      <Text style={[styles.baseRateLabel, { color: colors.textMuted }]}>Base rate</Text>
                     </View>
                   </View>
                 ))
@@ -2244,7 +2347,7 @@ export default function MotoristMap() {
               )}
             </ScrollView>
           </SafeAreaView>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -2826,18 +2929,18 @@ export default function MotoristMap() {
               ) : null}
             </View>
 
-            <Text style={[styles.bookingSectionTitle, styles.bookingNotesHeading, { color: "#30323D" }]}>
+            <Text style={[styles.bookingSectionTitle, styles.bookingNotesHeading, { color: bookingSosColors.text }]}>
               ADDITIONAL NOTES
             </Text>
-            <Text style={styles.bookingNotesHint}>
+            <Text style={[styles.bookingNotesHint, { color: bookingSosColors.muted }]}>
               Share anything the mechanic should know before the visit.
             </Text>
-            <View style={styles.bookingNotesCard}>
-              <Ionicons name="create-outline" size={20} color="#24439A" style={styles.bookingNotesIcon} />
+            <View style={[styles.bookingNotesCard, { backgroundColor: bookingSosColors.card, borderColor: bookingSosColors.border }]}>
+              <Ionicons name="create-outline" size={20} color={bookingSosColors.primary} style={styles.bookingNotesIcon} />
               <TextInput
-                style={styles.bookingNotesInput}
+                style={[styles.bookingNotesInput, { color: bookingSosColors.text }]}
                 placeholder="e.g., Please bring a replacement battery..."
-                placeholderTextColor="#7D8295"
+                placeholderTextColor={bookingSosColors.muted}
                 multiline
                 textAlignVertical="top"
                 maxLength={500}
@@ -2845,7 +2948,7 @@ export default function MotoristMap() {
                 onChangeText={setBookingNotes}
               />
             </View>
-            <Text style={styles.bookingNotesCount}>{bookingNotes.length}/500</Text>
+            <Text style={[styles.bookingNotesCount, { color: bookingSosColors.muted }]}>{bookingNotes.length}/500</Text>
 
             <View
               style={[
@@ -3961,7 +4064,9 @@ const styles = StyleSheet.create({
   },
   servicesSheet: {
     width: 390,
-    height: 500,
+    height: "70%",
+    minHeight: 320,
+    maxHeight: 560,
     maxWidth: "100%",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,

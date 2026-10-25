@@ -52,11 +52,11 @@ export function MechanicScreen({
 
   return (
     <SafeAreaView
-      style={[styles.root, { backgroundColor: colors.white }]}
+      style={[styles.root, { backgroundColor: theme.colors.bg }]}
       edges={safeAreaTop ? ['top'] : []}
     >
       {profileHeader ? (
-        <View style={[styles.profileHeader, { backgroundColor: colors.white, paddingTop: Platform.OS === 'android' ? Math.max(insets.top, 12) : 10 }]}>
+        <View style={[styles.profileHeader, { backgroundColor: theme.colors.card, paddingTop: Platform.OS === 'android' ? Math.max(insets.top, 12) : 10 }]}>
           <Pressable
             style={styles.profileIdentity}
             onPress={() => router.push('./profile')}
@@ -106,7 +106,7 @@ export function MechanicScreen({
         </View>
       ) : null}
       {!hideHeader ? (
-        <View style={[styles.header, { backgroundColor: colors.white, borderBottomColor: theme.colors.border, paddingTop: Platform.OS === 'android' ? Math.max(insets.top, 12) : 0 }]}>
+        <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border, paddingTop: Platform.OS === 'android' ? Math.max(insets.top, 12) : 0 }]}>
           {back ? (
             <Pressable
               onPress={() => {
@@ -118,7 +118,7 @@ export function MechanicScreen({
               }}
               style={({ pressed }) => [styles.back, pressed && styles.pressed]}
               accessibilityLabel="Go back">
-              <Ionicons name="arrow-back" size={26} color="#000000" />
+              <Ionicons name="arrow-back" size={26} color={theme.colors.text} />
             </Pressable>
           ) : null}
           <View style={styles.headerText}>
