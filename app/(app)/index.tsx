@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ComingSoonModal } from "@/components/ComingSoonModal";
+import { NotificationBell } from "@/components/NotificationBell";
 import { MiniMapPreview } from "@/components/mechanic/MiniMapPreview";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { useAuth } from "@/contexts/AuthContext";
@@ -138,14 +139,14 @@ export default function MechanicHomeScreen() {
   const [sidebarProgress] = useState(() => new Animated.Value(0));
   const [availableJobs, setAvailableJobs] = useState<AvailableJob[]>([]);
   const [acceptingJobId, setAcceptingJobId] = useState<string | null>(null);
-  const [, setJobsError] = useState<string | null>(null);
+  const [jobsError, setJobsError] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<AvailableJob | null>(null);
   const [declineJobId, setDeclineJobId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [mechanicLocation, setMechanicLocation] = useState<Coordinates | null>(
     null,
   );
-  const [, setLocationError] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [comingSoonVisible, setComingSoonVisible] = useState(false);
   const [sliderActivated, setSliderActivated] = useState(false);
   const [slidePosition] = useState(() => new Animated.Value(0));
@@ -263,10 +264,22 @@ export default function MechanicHomeScreen() {
         setJobsError(error.message);
         return;
       }
-      const requests = (data ?? []) as Omit<
+      const { data: dismissals, error: dismissalsError } = await supabase
+        .from("mechanic_request_dismissals")
+        .select("request_id")
+        .eq("mechanic_id", session.user.id);
+      if (!active) return;
+      if (dismissalsError) {
+        setJobsError(dismissalsError.message);
+        return;
+      }
+      const dismissedRequestIds = new Set(
+        (dismissals ?? []).map((dismissal) => dismissal.request_id),
+      );
+      const requests = ((data ?? []) as Omit<
         AvailableJob,
         "customer_name" | "customer_contact"
-      >[];
+      >[]).filter((job) => !dismissedRequestIds.has(job.id));
       const motoristIds = [...new Set(requests.map((job) => job.motorist_id))];
       const profilesResult = motoristIds.length
         ? await supabase
@@ -363,14 +376,12 @@ export default function MechanicHomeScreen() {
     }
     setAcceptingJobId(id);
     const { error } = await supabase
-      .from("service_requests")
-      .update({
-        mechanic_id: null,
-        status: "declined",
-        decline_reason: reason,
+      .from("mechanic_request_dismissals")
+      .insert({
+        request_id: id,
+        mechanic_id: session.user.id,
+        reason,
       })
-      .eq("id", id)
-      .is("mechanic_id", null);
 
     if (error) {
       setJobsError(error.message);
@@ -379,6 +390,7 @@ export default function MechanicHomeScreen() {
       setSelectedJob(null);
       setDeclineJobId(null);
       setDeclineReason("");
+      setJobsError(null);
     }
     setAcceptingJobId(null);
   }
@@ -458,18 +470,10 @@ export default function MechanicHomeScreen() {
               <Ionicons name="star" size={20} color={colors.amber} />
               <Text style={styles.headerRatingValue}>{rating.toFixed(2)}</Text>
             </View>
-            <Pressable
+            <NotificationBell
+              color={colors.amber}
               style={styles.notificationButton}
-              onPress={() => router.push("./notifications")}
-              accessibilityRole="button"
-              accessibilityLabel="Open notifications"
-            >
-              <Ionicons
-                name="notifications-outline"
-                size={22}
-                color={colors.amber}
-              />
-            </Pressable>
+            />
           </View>
         </View>
         {online && sliderActivated ? (
@@ -541,6 +545,9 @@ export default function MechanicHomeScreen() {
         ) : null}
         {online && sliderActivated ? (
           <View style={styles.availableSection}>
+            {jobsError || locationError ? (
+              <Text style={styles.jobsError}>{jobsError ?? locationError}</Text>
+            ) : null}
             {availableJobs.length === 0 ? (
               <View style={styles.onlineEmptyState}>
                 <Image

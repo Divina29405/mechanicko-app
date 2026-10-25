@@ -1,4 +1,3 @@
-import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -12,6 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import {
@@ -140,17 +140,10 @@ export function MotoristHomeHeader({
           {screenTitle}
         </Animated.Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity
+          <NotificationBell
+            color={colors.text}
             style={styles.activityButton}
-            onPress={() => router.push("/notifications")}
-            accessibilityLabel="Open notifications"
-          >
-            <Ionicons
-              name="notifications-outline"
-              size={22}
-              color={colors.text}
-            />
-          </TouchableOpacity>
+          />
           <TouchableOpacity
             style={[
               styles.iconCircle,

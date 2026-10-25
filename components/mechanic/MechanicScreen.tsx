@@ -5,6 +5,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ProfileAvatar } from '@/components/ProfileAvatar';
+import { NotificationBell } from '@/components/NotificationBell';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMechanic } from '@/contexts/MechanicContext';
 import { colors, spacing } from '@/lib/theme';
@@ -94,14 +95,7 @@ export function MechanicScreen({
                 {rating.toFixed(2)}
               </Text>
             </View>
-            <Pressable
-              style={styles.profileNotification}
-              onPress={() => router.push('./notifications')}
-              accessibilityRole="button"
-              accessibilityLabel="Open notifications"
-            >
-              <Ionicons name="notifications-outline" size={22} color={colors.amber} />
-            </Pressable>
+            <NotificationBell color={colors.amber} style={styles.profileNotification} />
           </View>
         </View>
       ) : null}

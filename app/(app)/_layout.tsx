@@ -23,7 +23,10 @@ function MechanicTabs() {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
           borderTopWidth: 1,
+          width: "100%",
+          alignSelf: "stretch",
         },
+        tabBarItemStyle: { flex: 1 },
         tabBarLabelStyle: {
           fontSize: normalizeText(12),
           fontWeight: "700",

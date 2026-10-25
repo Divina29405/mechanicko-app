@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -41,6 +42,8 @@ type Conversation = {
   counterpartName: string;
   counterpartRole: string;
   counterpartAvatarUrl: string | null;
+  status: string;
+  createdAt: string;
 };
 
 type MessageFilter = 'all' | 'active';
@@ -55,10 +58,30 @@ const ACTIVE_STATUSES = [
   'ongoing',
 ];
 
+function formatChatDate(createdAt: string) {
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return 'Date unavailable';
+  return date.toLocaleDateString(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+function startsNewChatDate(messages: ChatMessage[], index: number) {
+  if (index === 0) return true;
+  return (
+    new Date(messages[index - 1].created_at).toDateString() !==
+    new Date(messages[index].created_at).toDateString()
+  );
+}
+
 export default function MessagesScreen() {
   const { session } = useAuth();
   const { colors } = useAppTheme();
   const { serviceRequestId } = useLocalSearchParams<{ serviceRequestId?: string }>();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
@@ -89,21 +112,46 @@ export default function MessagesScreen() {
     };
   }, []);
 
-  const conversationMatchesSearch = useMemo(() => {
+  const visibleConversations = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    return !normalizedQuery || Boolean(
-      conversation?.counterpartName.toLowerCase().includes(normalizedQuery),
-    );
-  }, [conversation?.counterpartName, searchQuery]);
+    return conversations.filter((item) => {
+      const matchesFilter =
+        messageFilter === 'all' || ACTIVE_STATUSES.includes(item.status.toLowerCase());
+      const matchesSearch =
+        !normalizedQuery ||
+        item.counterpartName.toLowerCase().includes(normalizedQuery);
+      return matchesFilter && matchesSearch;
+    });
+  }, [conversations, messageFilter, searchQuery]);
+
+  const activeConversationCount = useMemo(
+    () =>
+      conversations.filter((item) =>
+        ACTIVE_STATUSES.includes(item.status.toLowerCase()),
+      ).length,
+    [conversations],
+  );
+
+  const conversationIsActive = Boolean(
+    conversation && ACTIVE_STATUSES.includes(conversation.status.toLowerCase()),
+  );
+
+  const openConversation = (item: Conversation) => {
+    setConversation(item);
+    setConversationOpen(true);
+    setMessages([]);
+    setError(null);
+  };
 
   useEffect(() => {
     let active = true;
     const loadConversation = async () => {
       setIsMechanic(null);
       setLoading(true);
+      setConversation(null);
+      setConversations([]);
+      setMessages([]);
       if (!session?.user.id) {
-        setConversation(null);
-        setMessages([]);
         setLoading(false);
         return;
       }
@@ -116,7 +164,6 @@ export default function MessagesScreen() {
       if (!active) return;
       if (profileError) {
         setError(profileError.message);
-        setConversation(null);
         setLoading(false);
         return;
       }
@@ -124,67 +171,100 @@ export default function MessagesScreen() {
       const isMechanic = profile?.role?.toLowerCase() === 'mechanic';
       setIsMechanic(isMechanic);
       setError(null);
+      const counterpartColumn = isMechanic ? 'motorist_id' : 'mechanic_id';
       let requestQuery = supabase
         .from('service_requests')
-        .select('id,mechanic_id,motorist_id,status')
-        .eq(isMechanic ? 'mechanic_id' : 'motorist_id', session.user.id);
-      const { data: request, error: requestError } = serviceRequestId
-        ? await requestQuery
-            .eq('id', serviceRequestId)
-            .in('status', ACTIVE_STATUSES)
-            .maybeSingle()
-        : await requestQuery
-            .not(isMechanic ? 'motorist_id' : 'mechanic_id', 'is', null)
-            .in('status', ACTIVE_STATUSES)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+        .select('id,mechanic_id,motorist_id,status,created_at')
+        .eq(isMechanic ? 'mechanic_id' : 'motorist_id', session.user.id)
+        .not(counterpartColumn, 'is', null);
+      if (serviceRequestId) {
+        requestQuery = requestQuery.eq('id', serviceRequestId);
+      }
+      const { data: requests, error: requestError } = await requestQuery.order(
+        'created_at',
+        { ascending: false },
+      );
 
       if (!active) return;
       if (requestError) {
         setError(requestError.message);
-        setConversation(null);
         setLoading(false);
         return;
       }
-      const counterpartId = isMechanic ? request?.motorist_id : request?.mechanic_id;
-      if (!request || !counterpartId) {
-        setConversation(null);
-        setMessages([]);
+      const requestRows = requests ?? [];
+      const counterpartIds = [
+        ...new Set(
+          requestRows
+            .map((request) =>
+              isMechanic ? request.motorist_id : request.mechanic_id,
+            )
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      if (counterpartIds.length === 0) {
         setLoading(false);
         return;
       }
 
-      const { data: counterpart, error: mechanicError } = await supabase
+      const { data: counterparts, error: counterpartError } = await supabase
         .from('profiles')
-        .select('full_name,role,avatar_path')
-        .eq('id', counterpartId)
-        .maybeSingle();
-
+        .select('id,full_name,role,avatar_path')
+        .in('id', counterpartIds);
       if (!active) return;
-      if (mechanicError) {
-        setError(mechanicError.message);
-        setConversation(null);
+      if (counterpartError) {
+        setError(counterpartError.message);
         setLoading(false);
         return;
       }
-
-      let counterpartAvatarUrl: string | null = null;
-      if (counterpart?.avatar_path) {
-        const { data: signedAvatar } = await supabase.storage
-          .from('mechanic-avatars')
-          .createSignedUrl(counterpart.avatar_path, 60 * 60);
-        counterpartAvatarUrl = signedAvatar?.signedUrl ?? null;
-      }
-
-      setConversation({
-        id: request.id,
-        counterpartId,
-        counterpartName: counterpart?.full_name || (isMechanic ? 'Motorist' : 'Mechanic'),
-        counterpartRole: counterpart?.role?.toLowerCase() === 'mechanic' ? 'Mechanic' : 'Motorist',
-        counterpartAvatarUrl,
-      });
-      setConversationOpen(isMechanic || Boolean(serviceRequestId));
+      const counterpartById = new Map(
+        (counterparts ?? []).map((item) => [item.id, item]),
+      );
+      const loadedConversations = await Promise.all(
+        requestRows.map(async (request) => {
+          const counterpartId = isMechanic
+            ? request.motorist_id
+            : request.mechanic_id;
+          if (!counterpartId) return null;
+          const counterpart = counterpartById.get(counterpartId);
+          let counterpartAvatarUrl: string | null = null;
+          if (counterpart?.avatar_path) {
+            const { data: signedAvatar, error: avatarError } =
+              await supabase.storage
+                .from('mechanic-avatars')
+                .createSignedUrl(counterpart.avatar_path, 60 * 60);
+            if (avatarError) {
+              console.warn(
+                'Could not load conversation avatar:',
+                avatarError.message,
+              );
+            }
+            counterpartAvatarUrl = signedAvatar?.signedUrl ?? null;
+          }
+          return {
+            id: request.id,
+            counterpartId,
+            counterpartName:
+              counterpart?.full_name || (isMechanic ? 'Motorist' : 'Mechanic'),
+            counterpartRole:
+              counterpart?.role?.toLowerCase() === 'mechanic'
+                ? 'Mechanic'
+                : 'Motorist',
+            counterpartAvatarUrl,
+            status: String(request.status ?? ''),
+            createdAt: request.created_at,
+          } satisfies Conversation;
+        }),
+      );
+      if (!active) return;
+      const availableConversations = loadedConversations.filter(
+        (item): item is Conversation => item !== null,
+      );
+      setConversations(availableConversations);
+      const requestedConversation = serviceRequestId
+        ? availableConversations.find((item) => item.id === serviceRequestId) ?? null
+        : null;
+      setConversation(requestedConversation);
+      setConversationOpen(Boolean(requestedConversation));
       setLoading(false);
     };
 
@@ -208,14 +288,18 @@ export default function MessagesScreen() {
           filter: `${ownerColumn}=eq.${session.user.id}`,
         },
         (payload) => {
-          const updatedStatus = String(payload.new.status ?? '').toLowerCase();
-          if (ACTIVE_STATUSES.includes(updatedStatus)) return;
-          setConversation((current) => {
-            if (current?.id !== String(payload.new.id)) return current;
-            setMessages([]);
-            setConversationOpen(false);
-            return null;
-          });
+          const updatedStatus = String(payload.new.status ?? '');
+          const updatedId = String(payload.new.id);
+          setConversations((current) =>
+            current.map((item) =>
+              item.id === updatedId ? { ...item, status: updatedStatus } : item,
+            ),
+          );
+          setConversation((current) =>
+            current?.id === updatedId
+              ? { ...current, status: updatedStatus }
+              : current,
+          );
         },
       )
       .subscribe();
@@ -225,8 +309,10 @@ export default function MessagesScreen() {
     };
   }, [isMechanic, session?.user.id]);
 
+  const conversationId = conversation?.id;
+
   useEffect(() => {
-    if (!conversation) return;
+    if (!conversationId) return;
     let active = true;
 
     const loadMessages = async () => {
@@ -234,13 +320,13 @@ export default function MessagesScreen() {
       let { data, error: messagesError } = await supabase
         .from('chat_messages')
         .select('id,sender_id,recipient_id,body,image_url,created_at')
-        .eq('service_request_id', conversation.id)
+        .eq('service_request_id', conversationId)
         .order('created_at', { ascending: true });
       if (messagesError?.message.includes('image_url does not exist')) {
         const fallback = await supabase
           .from('chat_messages')
           .select('id,sender_id,recipient_id,body,created_at')
-          .eq('service_request_id', conversation.id)
+          .eq('service_request_id', conversationId)
           .order('created_at', { ascending: true });
         data = fallback.data?.map((message) => ({
           ...message,
@@ -259,14 +345,14 @@ export default function MessagesScreen() {
     };
 
     const channel = supabase
-      .channel(`motorist_chat_${conversation.id}`)
+      .channel(`motorist_chat_${conversationId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'chat_messages',
-          filter: `service_request_id=eq.${conversation.id}`,
+          filter: `service_request_id=eq.${conversationId}`,
         },
         (payload) => {
           const incoming = payload.new as ChatMessage;
@@ -284,11 +370,19 @@ export default function MessagesScreen() {
       active = false;
       void supabase.removeChannel(channel);
     };
-  }, [conversation]);
+  }, [conversationId]);
 
   const sendMessage = async () => {
     const body = draft.trim();
-    if (!body || !session?.user.id || !conversation || sending) return;
+    if (
+      !body ||
+      !session?.user.id ||
+      !conversation ||
+      !conversationIsActive ||
+      sending
+    ) {
+      return;
+    }
 
     setSending(true);
     setError(null);
@@ -333,7 +427,14 @@ export default function MessagesScreen() {
   };
 
   const sendImage = async (asset: ImagePicker.ImagePickerAsset) => {
-    if (!session?.user.id || !conversation || uploadingImage) return;
+    if (
+      !session?.user.id ||
+      !conversation ||
+      !conversationIsActive ||
+      uploadingImage
+    ) {
+      return;
+    }
     setUploadingImage(true);
     setError(null);
     try {
@@ -447,7 +548,7 @@ export default function MessagesScreen() {
           >
             <Text style={[styles.activeFilterText, { color: messageFilter === 'all' ? "#FFFFFF" : colors.text } ]}>All</Text>
             <Text style={[styles.activeFilterCount, { color: messageFilter === 'all' ? "#FFFFFF" : colors.textMuted }]}>
-              {conversation ? '1' : '0'}
+              {conversations.length}
             </Text>
           </Pressable>
           <Pressable
@@ -464,7 +565,7 @@ export default function MessagesScreen() {
               Active Service
             </Text>
             <Text style={[styles.serviceFilterCount, { color: messageFilter === 'active' ? "#FFFFFF" : colors.textMuted }]}>
-              {conversation ? '1' : '0'}
+              {activeConversationCount}
             </Text>
           </Pressable>
         </View>
@@ -479,76 +580,104 @@ export default function MessagesScreen() {
       >
         {loading || isMechanic === null ? (
           <ActivityIndicator color={colors.primary} style={styles.loader} />
-        ) : !conversation ? (
+        ) : conversations.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={[styles.iconCircle, { backgroundColor: colors.btnSecondary }]}>
               <Ionicons name="chatbubble-ellipses-outline" size={34} color={colors.primary} />
             </View>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No active conversation</Text>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No conversations yet</Text>
             <Text style={[styles.emptyMessage, { color: colors.textMuted }]}>
               {isMechanic
-                ? 'Your motorist chat will appear here when you have an active booking.'
-                : 'Your mechanic chat will appear here after a mechanic accepts your booking.'}
+                ? 'Booking conversations with motorists will appear here.'
+                : 'Your conversations with mechanics will appear here after a booking is accepted.'}
             </Text>
           </View>
-        ) : !conversationOpen && !conversationMatchesSearch ? (
-          <View style={styles.emptySearchState}>
-            <Ionicons name="search-outline" size={30} color={colors.textMuted} />
-            <Text style={[styles.emptySearchTitle, { color: colors.text }]}>No mechanic found</Text>
-            <Text style={[styles.emptySearchMessage, { color: colors.textMuted }]}>
-              Try searching with a different mechanic name.
-            </Text>
-          </View>
-        ) : !conversationOpen ? (
-          <Pressable
-            onPress={() => setConversationOpen(true)}
-            style={[styles.conversationPreview, { backgroundColor: colors.card, borderColor: colors.border }]}
-            accessibilityRole="button"
-            accessibilityLabel={`Open conversation with ${conversation.counterpartName}`}
+        ) : !conversationOpen || !conversation ? (
+          <ScrollView
+            style={styles.conversationList}
+            contentContainerStyle={styles.conversationListContent}
+            keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.previewAvatarWrap}>
-              {conversation.counterpartAvatarUrl ? (
-                <ProfileAvatar
-                  uri={conversation.counterpartAvatarUrl}
-                  size={48}
-                  backgroundColor={colors.btnSecondary}
-                />
-              ) : (
-                <View style={[styles.mechanicAvatar, styles.largeMechanicAvatar, { backgroundColor: colors.btnSecondary }]}>
-                  <Ionicons name="person" size={23} color={colors.primary} />
-                </View>
-              )}
-              <View style={styles.onlineDot} />
-            </View>
-            <View style={styles.conversationCopy}>
-              <View style={styles.previewNameRow}>
-                <Text style={[styles.mechanicName, { color: colors.text }]}>{conversation.counterpartName}</Text>
-                <Text style={[styles.previewTime, { color: colors.primary }]}>
-                  {messages.length ? 'now' : ''}
+            {visibleConversations.length === 0 ? (
+              <View style={styles.emptySearchState}>
+                <Ionicons name="search-outline" size={30} color={colors.textMuted} />
+                <Text style={[styles.emptySearchTitle, { color: colors.text }]}>
+                  No conversations found
+                </Text>
+                <Text style={[styles.emptySearchMessage, { color: colors.textMuted }]}>
+                  Try another search or select All to view past conversations.
                 </Text>
               </View>
-              <View style={styles.roleBadge}>
-                <Text style={styles.roleBadgeText}>{conversation.counterpartRole}</Text>
-              </View>
-              <Text style={[styles.conversationStatus, { color: colors.textMuted }]}>
-                {messages.length ? messages[messages.length - 1].body : 'Start a conversation'}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </Pressable>
+            ) : (
+              visibleConversations.map((item) => {
+                const isActive = ACTIVE_STATUSES.includes(item.status.toLowerCase());
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => openConversation(item)}
+                    style={[
+                      styles.conversationPreview,
+                      { backgroundColor: colors.card, borderColor: colors.border },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${isActive ? 'active' : 'past'} conversation with ${item.counterpartName}`}
+                  >
+                    <View style={styles.previewAvatarWrap}>
+                      {item.counterpartAvatarUrl ? (
+                        <ProfileAvatar
+                          uri={item.counterpartAvatarUrl}
+                          size={48}
+                          backgroundColor={colors.btnSecondary}
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.mechanicAvatar,
+                            styles.largeMechanicAvatar,
+                            { backgroundColor: colors.btnSecondary },
+                          ]}
+                        >
+                          <Ionicons name="person" size={23} color={colors.primary} />
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.conversationCopy}>
+                      <Text style={[styles.mechanicName, { color: colors.text }]}>
+                        {item.counterpartName}
+                      </Text>
+                      <Text style={[styles.conversationStatus, { color: colors.textMuted }]}>
+                        {item.counterpartRole} · {formatChatDate(item.createdAt)}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.conversationStatus,
+                          { color: isActive ? colors.primary : colors.textMuted },
+                        ]}
+                      >
+                        {isActive ? 'Active booking' : `Past booking · ${item.status}`}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+                  </Pressable>
+                );
+              })
+            )}
+          </ScrollView>
         ) : (
           <>
             <View style={[styles.conversationHeader, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              {!isMechanic ? (
-                <Pressable
-                  onPress={() => setConversationOpen(false)}
-                  accessibilityLabel="Back to conversations"
-                  hitSlop={8}
-                  style={styles.backButton}
-                >
-                  <Ionicons name="chevron-back" size={21} color="#000000" />
-                </Pressable>
-              ) : null}
+              <Pressable
+                onPress={() => {
+                  setConversationOpen(false);
+                  setConversation(null);
+                  setMessages([]);
+                }}
+                accessibilityLabel="Back to conversations"
+                hitSlop={8}
+                style={styles.backButton}
+              >
+                <Ionicons name="chevron-back" size={21} color={colors.text} />
+              </Pressable>
               {conversation.counterpartAvatarUrl ? (
                 <ProfileAvatar
                   uri={conversation.counterpartAvatarUrl}
@@ -563,10 +692,15 @@ export default function MessagesScreen() {
               <View style={styles.conversationCopy}>
                 <Text style={[styles.mechanicName, { color: colors.text }]}>{conversation.counterpartName}</Text>
                 <Text style={[styles.conversationStatus, { color: colors.textMuted }]}>
-                  {conversation.counterpartRole} · Booking conversation
+                  {conversation.counterpartRole} · {conversation.status}
                 </Text>
               </View>
             </View>
+            {!conversationIsActive ? (
+              <Text style={[styles.readOnlyNotice, { color: colors.textMuted }]}>
+                Past booking history · Read only · {conversation.status}
+              </Text>
+            ) : null}
             {error ? <Text style={[styles.error, { color: '#EF4444' }]}>{error}</Text> : null}
             <FlatList
               data={messages}
@@ -576,37 +710,83 @@ export default function MessagesScreen() {
               keyboardShouldPersistTaps="handled"
               ListEmptyComponent={
                 <Text style={[styles.emptyChat, { color: colors.textMuted }]}>
-                  Send a message to your mechanic.
+                  {conversationIsActive
+                    ? 'Send a message to your mechanic.'
+                    : 'No messages were recorded for this booking.'}
                 </Text>
               }
-              renderItem={({ item }) => {
+              renderItem={({ item, index }) => {
                 const isMine = item.sender_id === session?.user.id;
                 return (
-                  <View style={[styles.messageRow, isMine ? styles.messageRowMine : styles.messageRowTheirs]}>
+                  <View>
+                    {startsNewChatDate(messages, index) ? (
+                      <View style={styles.dateSeparator}>
+                        <Text
+                          style={[
+                            styles.dateSeparatorText,
+                            { color: colors.textMuted },
+                          ]}
+                        >
+                          {formatChatDate(item.created_at)}
+                        </Text>
+                      </View>
+                    ) : null}
                     <View
                       style={[
-                        styles.bubble,
-                        { backgroundColor: isMine ? colors.primary : colors.card },
-                        !isMine && { borderColor: colors.border, borderWidth: 1 },
+                        styles.messageRow,
+                        isMine ? styles.messageRowMine : styles.messageRowTheirs,
                       ]}
                     >
-                      {item.image_url ? (
-                        <Image source={{ uri: item.image_url }} style={styles.messageImage} />
-                      ) : null}
-                      {item.body ? (
-                        <Text style={[styles.messageText, { color: isMine ? '#FFFFFF' : colors.text }]}>
-                          {item.body}
+                      <View
+                        style={[
+                          styles.bubble,
+                          {
+                            backgroundColor: isMine ? colors.primary : colors.card,
+                          },
+                          !isMine && {
+                            borderColor: colors.border,
+                            borderWidth: 1,
+                          },
+                        ]}
+                      >
+                        {item.image_url ? (
+                          <Image
+                            source={{ uri: item.image_url }}
+                            style={styles.messageImage}
+                          />
+                        ) : null}
+                        {item.body ? (
+                          <Text
+                            style={[
+                              styles.messageText,
+                              { color: isMine ? '#FFFFFF' : colors.text },
+                            ]}
+                          >
+                            {item.body}
+                          </Text>
+                        ) : null}
+                        <Text
+                          style={[
+                            styles.timestamp,
+                            {
+                              color: isMine
+                                ? 'rgba(255,255,255,0.75)'
+                                : colors.textMuted,
+                            },
+                          ]}
+                        >
+                          {new Date(item.created_at).toLocaleTimeString([], {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
                         </Text>
-                      ) : null}
-                      <Text style={[styles.timestamp, { color: isMine ? 'rgba(255,255,255,0.75)' : colors.textMuted }]}>
-                        {new Date(item.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                      </Text>
+                      </View>
                     </View>
                   </View>
                 );
               }}
             />
-            <View
+            {conversationIsActive ? <View
               style={[
                 styles.composer,
                 { backgroundColor: colors.card, borderTopColor: colors.border },
@@ -644,7 +824,7 @@ export default function MessagesScreen() {
               >
                 {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="send" size={19} color="#FFFFFF" />}
               </Pressable>
-            </View>
+            </View> : null}
           </>
         )}
       </KeyboardAvoidingView>
@@ -685,6 +865,8 @@ const styles = StyleSheet.create({
   selectedServiceFilterText: { color: '#FFFFFF' },
   recentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18, marginBottom: 8 },
   recentTitle: { fontSize: 12, letterSpacing: 0.6, fontWeight: '800' },
+  conversationList: { flex: 1 },
+  conversationListContent: { paddingBottom: 16 },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
   emptySearchState: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, paddingTop: 40 },
   emptySearchTitle: { fontSize: 17, fontWeight: '800', marginTop: 10 },
@@ -693,6 +875,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 19, fontWeight: '800', textAlign: 'center' },
   emptyMessage: { fontSize: 14, lineHeight: 21, marginTop: 8, textAlign: 'center' },
   conversationHeader: { flexDirection: 'row', alignItems: 'center', padding: 12, borderWidth: 1, borderRadius: 12, marginHorizontal: 10, marginTop: 14, marginBottom: 4 },
+  readOnlyNotice: { fontSize: 12, textAlign: 'center', paddingHorizontal: 16, paddingVertical: 8 },
   conversationPreview: { flexDirection: 'row', alignItems: 'center', padding: 16, borderWidth: 1, borderRadius: 14, marginHorizontal: 16, marginTop: 4 },
   previewAvatarWrap: { width: 50, height: 50, position: 'relative' },
   largeMechanicAvatar: { width: 48, height: 48, borderRadius: 24 },
@@ -710,6 +893,8 @@ const styles = StyleSheet.create({
   error: { paddingHorizontal: 16, paddingTop: 8, fontSize: 12 },
   messageList: { flexGrow: 1, padding: 12, paddingBottom: 24 },
   emptyChat: { marginTop: 24, textAlign: 'center', fontSize: 14 },
+  dateSeparator: { alignItems: 'center', marginVertical: 12 },
+  dateSeparatorText: { fontSize: 12, fontWeight: '700' },
   messageRow: { width: '100%', marginBottom: 10 },
   messageRowMine: { alignItems: 'flex-end' },
   messageRowTheirs: { alignItems: 'flex-start' },

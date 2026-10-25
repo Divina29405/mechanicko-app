@@ -63,8 +63,10 @@ export default function ProfileScreen() {
     | null
   >(null);
   const [maintenancePrices, setMaintenancePrices] = useState<MaintenancePrice[]>([]);
+  const [specializationDraft, setSpecializationDraft] = useState('');
   const [newService, setNewService] = useState('');
   const [newPrice, setNewPrice] = useState('');
+  const [savingSpecializations, setSavingSpecializations] = useState(false);
   const [savingPrices, setSavingPrices] = useState(false);
   const [priceAdded, setPriceAdded] = useState(false);
   const [requestingDeletion, setRequestingDeletion] = useState(false);
@@ -143,6 +145,7 @@ export default function ProfileScreen() {
         license_back_path: data?.license_back_path || application?.license_back_path || null,
       };
       setProfile(mergedProfile);
+      setSpecializationDraft(mergedProfile.skills ?? '');
       setMaintenancePrices(
         Array.isArray(mergedProfile.maintenance_pricing)
           ? mergedProfile.maintenance_pricing
@@ -210,6 +213,7 @@ export default function ProfileScreen() {
       Alert.alert('Incomplete pricing', 'Enter the labor name and price first.');
       return;
     }
+
     const numericPrice = Number(price.replace(/,/g, '').replace(/^₱\s*/, ''));
     if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
       Alert.alert('Invalid price', 'Enter a valid price greater than zero.');
@@ -224,6 +228,37 @@ export default function ProfileScreen() {
       setPriceAdded(true);
       setTimeout(() => setPriceAdded(false), 1800);
     }
+  }
+
+  async function saveSpecializations() {
+    if (!session?.user.id || savingSpecializations) return;
+    setSavingSpecializations(true);
+    const skills = specializationDraft
+      .split(/[,\n]/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .join(', ');
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ skills })
+      .eq('id', session.user.id)
+      .select('id')
+      .maybeSingle();
+    setSavingSpecializations(false);
+    if (error) {
+      Alert.alert('Unable to save specializations', error.message);
+      return;
+    }
+    if (!data) {
+      Alert.alert(
+        'Unable to save specializations',
+        'Your mechanic profile was not found. Please sign out and sign in again.',
+      );
+      return;
+    }
+    setProfile((current) => (current ? { ...current, skills } : current));
+    setSpecializationDraft(skills);
+    Alert.alert('Specializations saved', 'Your mechanic services were updated.');
   }
 
   function requestAccountDeletion() {
@@ -693,18 +728,53 @@ export default function ProfileScreen() {
                 )}
               </>
             ) : expandedSection === 'specializations' ? (
-              specializations.length ? (
-                <View style={styles.chips}>
-                  {specializations.map((item) => (
-                    <View key={item} style={styles.detailItem}>
-                      <Ionicons name="construct-outline" size={20} color={colors.amber} />
-                      <Text style={styles.detailItemText}>{item}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <Text style={styles.detailEmpty}>No specializations added yet.</Text>
-              )
+              <>
+                <Text style={styles.detailIntro}>
+                  Add the motorcycle services you provide. Separate each service with a comma or a new line.
+                </Text>
+                <TextInput
+                  value={specializationDraft}
+                  onChangeText={setSpecializationDraft}
+                  placeholder="e.g. Engine repair, Oil change"
+                  placeholderTextColor={colors.textMuted}
+                  style={styles.specializationInput}
+                  multiline
+                  maxLength={500}
+                  accessibilityLabel="Mechanic specializations"
+                />
+                <Pressable
+                  onPress={() => void saveSpecializations()}
+                  disabled={savingSpecializations}
+                  style={({ pressed }) => [
+                    styles.addPriceButton,
+                    pressed && styles.pressed,
+                    savingSpecializations && styles.disabled,
+                  ]}
+                >
+                  {savingSpecializations ? (
+                    <ActivityIndicator size="small" color={colors.white} />
+                  ) : (
+                    <Ionicons name="save-outline" size={19} color={colors.white} />
+                  )}
+                  <Text style={styles.addPriceText}>
+                    {savingSpecializations ? 'Saving...' : 'Save specializations'}
+                  </Text>
+                </Pressable>
+                {specializations.length ? (
+                  <View style={styles.chips}>
+                    {specializations.map((item) => (
+                      <View key={item} style={styles.specializationChip}>
+                        <Ionicons name="construct-outline" size={18} color={colors.amber} />
+                        <Text style={styles.detailItemText}>{item}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.detailEmpty}>
+                    No specializations added yet. Add them above to display your services.
+                  </Text>
+                )}
+              </>
             ) : expandedSection === 'documents' ? (
               documents.length ? (
                 documents.map((doc) => (
@@ -945,6 +1015,17 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.lg,
   },
+  specializationInput: {
+    minHeight: 96,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    backgroundColor: colors.bgElevated,
+    color: colors.text,
+    textAlignVertical: 'top',
+    marginBottom: spacing.sm,
+  },
   priceInput: {
     minHeight: 48,
     paddingHorizontal: spacing.md,
@@ -1094,9 +1175,19 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
+    marginTop: spacing.lg,
+  },
+  specializationChip: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.bgElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
   },
   chip: {
     backgroundColor: colors.amberSoft,

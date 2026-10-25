@@ -1,39 +1,33 @@
- 🛠️ Mechanic Ko
+ Mechanicko Android UAT Release
 
-Welcome to Mechanic Ko! Your ultimate roadside companion. This mobile application is designed to seamlessly bridge the gap between stranded motorists and nearby freelance mechanics, ensuring that help is always just a tap away.
+This GitHub release provides a standalone Android APK for user acceptance testing (UAT) of Mechanicko, an app that connects motorists with nearby mechanics for roadside assistance and scheduled vehicle services.
 
----
+> UAT notice: This build connects to the configured live Supabase project. Use test accounts and non-sensitive information. Do not submit real identity documents, personal details, or payment information.
 
- 🎯 The Purpose of this Project
+ Features to test
 
-Experiencing a vehicle breakdown in the middle of a trip can be stressful, dangerous, and time-consuming. Finding a trusted mechanic nearby often relies on pure luck or endless web searches. 
+- Motorist onboarding: Create an account, add a vehicle, and submit service requests. Vehicle plate numbers are validated during entry.
+- Emergency assistance: Walk through the emergency request flow and check the request and mechanic-dispatch status updates.
+- Mechanic applications: Register as a mechanic and submit the required application details and documents. Mechanic access is subject to application approval.
+- Role-based experiences: Explore the separate motorist and mechanic workflows. Administrative features are restricted to authorized admin accounts.
+- Theme controls: Switch between light and dark themes in the app.
 
-Mechanic Ko was developed to solve this problem by providing a dual-sided platform:
- For Motorists: An intuitive app to register vehicles, send emergency SOS alerts, locate nearby mechanics on a live map, and book roadside assistance or maintenance services instantly.
- For Mechanics: A dedicated workspace to manage service requests, track daily/weekly earnings, view live customer locations, and communicate directly through in-app chat.
+ Technology
 
----
+- Mobile app: React Native, Expo, and TypeScript
+- Backend: Supabase Authentication, PostgreSQL, Row Level Security, and Storage
+- Maps: Leaflet displayed in a React Native WebView
+- Builds and updates: Expo Application Services (EAS Build and EAS Update)
 
- 💻 Tools Used
+ Install on Android
 
-This project was built using a modern, scalable tech stack to ensure high performance:
+1. Download the `mechanicko-preview.apk` asset attached to this GitHub release.
+2. Open the downloaded APK. If Android asks, allow your browser or file manager to install unknown apps.
+3. Install the app and launch it.
+4. Use a test account when registering or signing in.
 
- UI/UX Design & Prototyping: Figma
- Frontend Framework: React Native & Expo (SDK 57)
- Language: TypeScript
- Backend & Database: Supabase (PostgreSQL, Authentication, Row Level Security)
- Storage: Expo SecureStore & Supabase Storage (for avatars and documents)
- Maps & Tracking: React Native WebView with Leaflet.js
- Animations: React Native Reanimated & Expo Router
+ Updates and platform availability
 
----
+This APK is built for the EAS `preview` channel. Compatible JavaScript and UI updates may be delivered using EAS Update without downloading another APK. Updates that change native code or require a different runtime need a new build.
 
- 🚀 How to Use This
-
-You can easily install and test the Mechanic Ko app on any Android device using our pre-built APK package.
-
- Installation Steps
-1. Download the APK:  
-   [👉 Click here to download the Mechanic Ko APK](https://expo.dev/accounts/shiishshis-team/projects/Mechaniko-app/builds/6e9aacb4-b917-4b34-bfdb-e1c21cff119a)
-2. Allow Unknown Sources: Locate the downloaded `.apk` file on your device. When prompted, tap "Settings" and toggle on "Allow from this source" (or "Install unknown apps").
-3. Install & Launch: Tap "Install", wait for the process to complete, and open the app to get started!
+This release includes an Android APK only; an iOS build is not provided.

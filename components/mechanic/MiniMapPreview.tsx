@@ -1,6 +1,7 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { WebView } from 'react-native-webview';
 
+import { MapWebView, type MapWebViewHandle } from '@/components/MapWebView';
 import { colors } from '@/lib/theme';
 import { normalizeText } from '@/lib/typography';
 
@@ -9,13 +10,7 @@ type Coordinates = {
   longitude: number;
 };
 
-function buildLeafletHtml(
-  mechanicLocation: Coordinates,
-  customerLocation: Coordinates,
-  distanceLabel: string,
-) {
-  const mechanic = `${mechanicLocation.latitude},${mechanicLocation.longitude}`;
-  const customer = `${customerLocation.latitude},${customerLocation.longitude}`;
+function buildLeafletHtml() {
   return `<!doctype html>
 <html>
   <head>
@@ -32,19 +27,31 @@ function buildLeafletHtml(
   </head>
   <body>
     <div id="map"></div>
-    <div class="distance">${distanceLabel} between mechanic and motorist</div>
+    <div id="distance" class="distance">Waiting for live location</div>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-      const mechanic = [${mechanic}];
-      const customer = [${customer}];
       const map = L.map('map', { zoomControl: false, attributionControl: false });
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
       const mechanicIcon = L.divIcon({ className: '', html: '<div class="marker mechanic"></div>', iconSize: [32, 32], iconAnchor: [16, 16] });
       const motoristIcon = L.divIcon({ className: '', html: '<div class="marker motorist"></div>', iconSize: [32, 32], iconAnchor: [16, 16] });
-      L.marker(mechanic, { icon: mechanicIcon }).addTo(map).bindTooltip('Mechanic', { permanent: true, direction: 'bottom', offset: [0, 12] });
-      L.marker(customer, { icon: motoristIcon }).addTo(map).bindTooltip('Motorist', { permanent: true, direction: 'bottom', offset: [0, 12] });
-      L.polyline([mechanic, customer], { color: '#2450D8', weight: 4, dashArray: '8 7' }).addTo(map);
-      map.fitBounds([mechanic, customer], { padding: [35, 35], maxZoom: 15 });
+      let mechanicMarker = null;
+      let motoristMarker = null;
+      let routeLine = null;
+      window.updateRoute = function(mechanicLat, mechanicLng, motoristLat, motoristLng, distanceLabel) {
+        const mechanic = [mechanicLat, mechanicLng];
+        const motorist = [motoristLat, motoristLng];
+        if (!mechanicMarker) {
+          mechanicMarker = L.marker(mechanic, { icon: mechanicIcon }).addTo(map).bindTooltip('Mechanic', { permanent: true, direction: 'bottom', offset: [0, 12] });
+          motoristMarker = L.marker(motorist, { icon: motoristIcon }).addTo(map).bindTooltip('Motorist', { permanent: true, direction: 'bottom', offset: [0, 12] });
+          routeLine = L.polyline([mechanic, motorist], { color: '#2450D8', weight: 4, dashArray: '8 7' }).addTo(map);
+        } else {
+          mechanicMarker.setLatLng(mechanic);
+          motoristMarker.setLatLng(motorist);
+          routeLine.setLatLngs([mechanic, motorist]);
+        }
+        document.getElementById('distance').textContent = distanceLabel + ' between mechanic and motorist';
+        map.fitBounds([mechanic, motorist], { padding: [35, 35], maxZoom: 15 });
+      };
     </script>
   </body>
 </html>`;
@@ -61,7 +68,19 @@ export function MiniMapPreview({
   customerLocation?: Coordinates | null;
   distanceLabel?: string;
 }) {
+  const mapRef = useRef<MapWebViewHandle | null>(null);
+  const [mapHtml] = useState(buildLeafletHtml);
   const hasLocations = mechanicLocation && customerLocation;
+  const updateRoute = useCallback(() => {
+    if (!hasLocations) return;
+    mapRef.current?.injectJavaScript(
+      `window.updateRoute(${mechanicLocation.latitude},${mechanicLocation.longitude},${customerLocation.latitude},${customerLocation.longitude},${JSON.stringify(distanceLabel ?? 'Distance unavailable')}); true;`,
+    );
+  }, [customerLocation, distanceLabel, hasLocations, mechanicLocation]);
+
+  useEffect(() => {
+    updateRoute();
+  }, [updateRoute]);
 
   return (
     <View
@@ -69,19 +88,15 @@ export function MiniMapPreview({
       accessibilityLabel="Preview ng ruta papunta sa customer"
     >
       {hasLocations ? (
-        <WebView
+        <MapWebView
+          ref={mapRef}
           originWhitelist={["*"]}
-          source={{
-            html: buildLeafletHtml(
-              mechanicLocation,
-              customerLocation,
-              distanceLabel ?? "Distance unavailable",
-            ),
-          }}
+          source={{ html: mapHtml }}
           style={styles.webMap}
           scrollEnabled={false}
           javaScriptEnabled
           domStorageEnabled
+          onLoadEnd={updateRoute}
         />
       ) : (
         <FallbackMap />

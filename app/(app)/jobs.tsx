@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { ActivityIndicator, Alert, Dimensions, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { MechanicScreen } from "@/components/mechanic/MechanicScreen";
+import { MiniMapPreview } from "@/components/mechanic/MiniMapPreview";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { imageAssetToBytes } from "@/lib/chatMedia";
@@ -60,6 +61,11 @@ type AdditionalCharge = {
   status: "pending" | "approved" | "rejected";
 };
 
+type Coordinates = {
+  latitude: number;
+  longitude: number;
+};
+
 function getPayableTotal(job: Pick<ServiceRequest, "estimated_total" | "service_price" | "additional_charges">) {
   const approvedCharges = (job.additional_charges ?? [])
     .filter((charge) => charge.status === "approved")
@@ -67,9 +73,31 @@ function getPayableTotal(job: Pick<ServiceRequest, "estimated_total" | "service_
   return Number(job.estimated_total ?? job.service_price ?? 0) + approvedCharges;
 }
 
+function distanceInKm(from: Coordinates, to: Coordinates) {
+  const earthRadiusKm = 6371;
+  const latitudeDelta = ((to.latitude - from.latitude) * Math.PI) / 180;
+  const longitudeDelta = ((to.longitude - from.longitude) * Math.PI) / 180;
+  const latitude1 = (from.latitude * Math.PI) / 180;
+  const latitude2 = (to.latitude * Math.PI) / 180;
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.sin(longitudeDelta / 2) ** 2 *
+      Math.cos(latitude1) *
+      Math.cos(latitude2);
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function formatTripDistance(from: Coordinates | null, to: Coordinates | null) {
+  if (!from || !to) return "Waiting for live location";
+  const distance = distanceInKm(from, to);
+  return distance < 1
+    ? `${Math.round(distance * 1000)} m straight-line distance`
+    : `${distance.toFixed(1)} km straight-line distance`;
+}
+
 function getJobStatus(status: string | null): JobStatus | null {
   const normalized = status?.trim().toLowerCase();
-  if (["pending", "scheduled", "accepted", "arrived", "in_transit", "in_progress", "ongoing"].includes(normalized ?? "")) {
+  if (["accepted", "arrived", "in_transit", "in_progress", "ongoing"].includes(normalized ?? "")) {
     return "ongoing";
   }
   if (
@@ -84,6 +112,37 @@ function getJobStatus(status: string | null): JobStatus | null {
     return "dropped";
   }
   return null;
+}
+
+function isChatActiveStatus(status: string | null) {
+  return [
+    "scheduled",
+    "pending",
+    "accepted",
+    "arrived",
+    "in_transit",
+    "in_progress",
+    "ongoing",
+  ].includes(status?.trim().toLowerCase() ?? "");
+}
+
+function formatChatDate(createdAt: string) {
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+  return date.toLocaleDateString(undefined, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function startsNewChatDate(messages: ChatMessage[], index: number) {
+  if (index === 0) return true;
+  return (
+    new Date(messages[index - 1].created_at).toDateString() !==
+    new Date(messages[index].created_at).toDateString()
+  );
 }
 
 function formatSchedule(value: string | null) {
@@ -156,6 +215,12 @@ export default function JobsScreen() {
     key: string;
     value: string;
   } | null>(null);
+  const [trackedMechanicLocation, setTrackedMechanicLocation] = useState<{
+    jobId: string;
+    coordinates: Coordinates;
+  } | null>(null);
+  const [locationTrackingError, setLocationTrackingError] =
+    useState<string | null>(null);
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener("keyboardDidShow", (event) => {
@@ -272,27 +337,24 @@ export default function JobsScreen() {
   );
 
   const [selectedJob, setSelectedJob] = useState<ServiceRequest | null>(null);
-  const trackingJobId = useRef<string | null>(null);
-  const selectedJobId = selectedJob?.id;
-  const selectedJobStatus = selectedJob?.status;
+  const trackingJob = jobs.find(
+    (job) => job.status?.trim().toLowerCase() === "in_transit",
+  );
+  const trackingJobId = trackingJob?.id;
 
   useEffect(() => {
-    if (
-      !selectedJobId ||
-      selectedJobStatus?.toLowerCase() !== "in_transit" ||
-      !mechanicId
-    ) {
-      trackingJobId.current = null;
-      return;
-    }
+    if (!trackingJobId || !mechanicId) return;
 
-    const jobId = selectedJobId;
-    trackingJobId.current = jobId;
+    const jobId = trackingJobId;
     let active = true;
     let locationSubscription: Location.LocationSubscription | null = null;
 
     const publishLocation = async (nextLocation: Location.LocationObject) => {
-      if (!active || trackingJobId.current !== jobId) return;
+      if (!active) return;
+      const coordinates = {
+        latitude: nextLocation.coords.latitude,
+        longitude: nextLocation.coords.longitude,
+      };
       const { error: locationError } = await supabase
         .from("service_requests")
         .update({
@@ -302,20 +364,43 @@ export default function JobsScreen() {
         .eq("id", jobId)
         .eq("mechanic_id", mechanicId);
       if (locationError) {
-        setError(locationError.message);
+        setLocationTrackingError(locationError.message);
+        return;
       }
+      setLocationTrackingError(null);
+      setTrackedMechanicLocation({ jobId, coordinates });
+      setJobs((current) =>
+        current.map((job) =>
+          job.id === jobId
+            ? {
+                ...job,
+                mechanic_latitude: coordinates.latitude,
+                mechanic_longitude: coordinates.longitude,
+              }
+            : job,
+        ),
+      );
+      setSelectedJob((current) =>
+        current?.id === jobId
+          ? {
+              ...current,
+              mechanic_latitude: coordinates.latitude,
+              mechanic_longitude: coordinates.longitude,
+            }
+          : current,
+      );
     };
 
     const startTracking = async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (!active || status !== "granted") {
-        if (active) {
-          setError("Location permission is required to share your trip location.");
-        }
-        return;
-      }
-
       try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (!active) return;
+        if (status !== "granted") {
+          setLocationTrackingError(
+            "Location permission is required to share your trip location.",
+          );
+          return;
+        }
         const currentLocation = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Highest,
         });
@@ -333,7 +418,7 @@ export default function JobsScreen() {
         );
       } catch (trackingError) {
         if (active) {
-          setError(
+          setLocationTrackingError(
             trackingError instanceof Error
               ? trackingError.message
               : "Unable to start live location sharing.",
@@ -346,9 +431,45 @@ export default function JobsScreen() {
     return () => {
       active = false;
       locationSubscription?.remove();
-      if (trackingJobId.current === jobId) trackingJobId.current = null;
     };
-  }, [mechanicId, selectedJobId, selectedJobStatus]);
+  }, [mechanicId, trackingJobId]);
+
+  useEffect(() => {
+    if (!mechanicId) return;
+    const channel = supabase
+      .channel(`mechanic_booking_updates_${mechanicId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "service_requests",
+          filter: `mechanic_id=eq.${mechanicId}`,
+        },
+        (payload) => {
+          const updated = payload.new as Partial<ServiceRequest> & { id: string };
+          setJobs((current) =>
+            current.map((job) =>
+              job.id === updated.id ? { ...job, ...updated } : job,
+            ),
+          );
+          setSelectedJob((current) =>
+            current?.id === updated.id ? { ...current, ...updated } : current,
+          );
+        },
+      )
+      .subscribe((status, subscribeError) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn(
+            "Mechanic booking realtime connection failed:",
+            subscribeError?.message ?? status,
+          );
+        }
+      });
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [mechanicId]);
 
   useEffect(() => {
     if (!chatJob || !mechanicId) return;
@@ -451,7 +572,7 @@ export default function JobsScreen() {
 
   async function sendMessage() {
     const body = chatText.trim();
-    if (!body || !mechanicId || !chatJob) return;
+    if (!body || !mechanicId || !chatJob || !isChatActiveStatus(chatJob.status)) return;
     setSendingMessage(true);
     let { data, error: insertError } = await supabase
       .from("chat_messages")
@@ -493,7 +614,12 @@ export default function JobsScreen() {
   }
 
   async function sendChatImage(asset: ImagePicker.ImagePickerAsset) {
-    if (!mechanicId || !chatJob || chatUploadingImage) return;
+    if (
+      !mechanicId ||
+      !chatJob ||
+      !isChatActiveStatus(chatJob.status) ||
+      chatUploadingImage
+    ) return;
     setChatUploadingImage(true);
     try {
       const { body, contentType } = await imageAssetToBytes(asset);
@@ -558,18 +684,36 @@ export default function JobsScreen() {
 
   async function updateJobStatus(id: string, status: "in_transit" | "arrived" | "in_progress" | "completed" | "cancelled") {
     if (!mechanicId) return;
+    const job = jobs.find((item) => item.id === id);
+    const currentStatus = job?.status?.trim().toLowerCase();
+    const allowedNextStatuses: Record<string, string[]> = {
+      accepted: ["in_transit", "cancelled"],
+      in_transit: ["arrived", "cancelled"],
+      arrived: ["in_progress", "cancelled"],
+      in_progress: ["completed", "cancelled"],
+    };
+    if (!currentStatus || !allowedNextStatuses[currentStatus]?.includes(status)) {
+      setError("This booking must be accepted before its status can be advanced.");
+      return;
+    }
+
     setRefreshing(true);
     const updatePayload =
       status === "completed"
         ? { status, completed_at: new Date().toISOString() }
         : { status };
-    const { error: updateError } = await supabase
+    const { data: updatedJob, error: updateError } = await supabase
       .from("service_requests")
       .update(updatePayload)
       .eq("id", id)
-      .eq("mechanic_id", mechanicId);
+      .eq("mechanic_id", mechanicId)
+      .eq("status", currentStatus)
+      .select("id")
+      .maybeSingle();
     if (updateError) {
       setError(updateError.message);
+    } else if (!updatedJob) {
+      setError("This booking changed. Refresh the job list and try again.");
     } else if (status === "completed" || status === "cancelled") {
       setSelectedJob(null);
     } else {
@@ -877,6 +1021,54 @@ export default function JobsScreen() {
                 </View>
               </View>
               <Text style={styles.detailCustomer}>{selectedJob.customer_name}</Text>
+              {selectedJob.status?.toLowerCase() === "in_transit" ? (
+                <View style={styles.tripCard}>
+                  <View style={styles.tripHeader}>
+                    <Ionicons name="navigate-outline" size={19} color={colors.blue} />
+                    <View style={styles.tripCopy}>
+                      <Text style={styles.tripTitle}>Live trip to motorist</Text>
+                      <Text style={styles.tripDistance}>
+                        {formatTripDistance(
+                          trackedMechanicLocation?.jobId === selectedJob.id
+                            ? trackedMechanicLocation.coordinates
+                            : null,
+                          selectedJob.latitude !== null &&
+                            selectedJob.longitude !== null
+                            ? {
+                                latitude: selectedJob.latitude,
+                                longitude: selectedJob.longitude,
+                              }
+                            : null,
+                        )}
+                      </Text>
+                    </View>
+                  </View>
+                  {trackedMechanicLocation?.jobId === selectedJob.id &&
+                  selectedJob.latitude !== null &&
+                  selectedJob.longitude !== null ? (
+                    <MiniMapPreview
+                      compact
+                      mechanicLocation={trackedMechanicLocation.coordinates}
+                      customerLocation={{
+                        latitude: selectedJob.latitude,
+                        longitude: selectedJob.longitude,
+                      }}
+                      distanceLabel={formatTripDistance(
+                        trackedMechanicLocation.coordinates,
+                        {
+                          latitude: selectedJob.latitude,
+                          longitude: selectedJob.longitude,
+                        },
+                      )}
+                    />
+                  ) : (
+                    <Text style={styles.tripHint}>
+                      {locationTrackingError ||
+                        "Waiting for live location. Keep the app open and allow location access while travelling."}
+                    </Text>
+                  )}
+                </View>
+              ) : null}
               <Pressable
                 style={styles.locationCard}
                 onPress={() => openCustomerLocation(selectedJob)}
@@ -1009,7 +1201,7 @@ export default function JobsScreen() {
                 >
                   <Text style={styles.arrivedText}>{refreshing ? "Saving..." : "Start trip"}</Text>
                 </Pressable>
-              ) : (
+              ) : selectedJob.status?.toLowerCase() === "in_transit" ? (
                 <Pressable
                   style={styles.arrivedButton}
                   onPress={() => void updateJobStatus(selectedJob.id, "arrived")}
@@ -1017,6 +1209,16 @@ export default function JobsScreen() {
                 >
                   <Text style={styles.arrivedText}>{refreshing ? "Saving..." : "Arrived at pickup"}</Text>
                 </Pressable>
+              ) : ["pending", "scheduled"].includes(
+                  selectedJob.status?.toLowerCase() ?? "",
+                ) ? (
+                <Text style={styles.arrivedText}>
+                  Waiting for mechanic acceptance
+                </Text>
+              ) : (
+                <Text style={styles.arrivedText}>
+                  This booking cannot be advanced from its current status.
+                </Text>
               )}
             </View>
           </SafeAreaView>
@@ -1225,36 +1427,48 @@ export default function JobsScreen() {
                 automaticallyAdjustKeyboardInsets
               >
                 <Text style={styles.chatPurpose}>
-                  Use this chat to coordinate with the customer about this booking.
+                  {isChatActiveStatus(chatJob.status)
+                    ? "Use this chat to coordinate with the customer about this booking."
+                    : "Past booking history is read-only."}
                 </Text>
                 {chatLoading ? (
                   <ActivityIndicator color={colors.blue} />
                 ) : chatMessages.length === 0 ? (
-                  <Text style={styles.emptyChat}>No messages yet. Start the conversation.</Text>
+                  <Text style={styles.emptyChat}>
+                    {isChatActiveStatus(chatJob.status)
+                      ? "No messages yet. Start the conversation."
+                      : "No messages were recorded for this booking."}
+                  </Text>
                 ) : (
-                  chatMessages.map((message) => (
-                    <View
-                      key={message.id}
-                      style={[
-                        styles.messageBubble,
-                        message.sender_id === mechanicId && styles.myMessageBubble,
-                      ]}
-                    >
-                      {message.image_url ? (
-                        <Image source={{ uri: message.image_url }} style={styles.chatMessageImage} />
+                  chatMessages.map((message, index) => (
+                    <View key={message.id}>
+                      {startsNewChatDate(chatMessages, index) ? (
+                        <Text style={styles.chatDateSeparator}>
+                          {formatChatDate(message.created_at)}
+                        </Text>
                       ) : null}
-                      {message.body ? <Text style={styles.messageBody}>{message.body}</Text> : null}
-                      <Text style={styles.messageTime}>
-                        {new Date(message.created_at).toLocaleTimeString([], {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                      </Text>
+                      <View
+                        style={[
+                          styles.messageBubble,
+                          message.sender_id === mechanicId && styles.myMessageBubble,
+                        ]}
+                      >
+                        {message.image_url ? (
+                          <Image source={{ uri: message.image_url }} style={styles.chatMessageImage} />
+                        ) : null}
+                        {message.body ? <Text style={styles.messageBody}>{message.body}</Text> : null}
+                        <Text style={styles.messageTime}>
+                          {new Date(message.created_at).toLocaleTimeString([], {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </Text>
+                      </View>
                     </View>
                   ))
                 )}
               </ScrollView>
-              <View
+              {isChatActiveStatus(chatJob.status) ? <View
                 style={[
                   styles.chatComposer,
                   Platform.OS === "android" && keyboardHeight > 0 && {
@@ -1288,7 +1502,7 @@ export default function JobsScreen() {
                 >
                   <Ionicons name="send" size={19} color={colors.white} />
                 </Pressable>
-              </View>
+              </View> : null}
             </KeyboardAvoidingView>
           </SafeAreaView>
         ) : null}
@@ -1566,7 +1780,13 @@ const styles = StyleSheet.create({
   locationHint: { color: colors.amber, fontSize: 12, fontWeight: "700", marginTop: spacing.xs },
   detailLabel: { color: colors.textDim, fontSize: 10, fontWeight: "800", letterSpacing: 0.8, marginTop: spacing.md },
   detailValue: { color: colors.text, fontSize: 15, lineHeight: 20, marginTop: 3 },
-  detailActions: { gap: spacing.sm, padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bgElevated },
+  detailActions: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bgElevated, width: "100%" },
+  tripCard: { marginBottom: spacing.md, padding: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.bgElevated },
+  tripHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  tripCopy: { flex: 1 },
+  tripTitle: { color: colors.text, fontSize: 14, fontWeight: "800" },
+  tripDistance: { color: colors.blue, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  tripHint: { color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: spacing.sm },
   chatButton: { flex: 1, minHeight: 48, borderWidth: 1, borderColor: colors.blue, flexDirection: "row", gap: spacing.sm, alignItems: "center", justifyContent: "center" },
   chatSupportRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   supportIconButton: { width: 48, height: 48, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
@@ -1586,6 +1806,7 @@ const styles = StyleSheet.create({
   chatMessages: { flexGrow: 1, padding: spacing.md, gap: spacing.sm, justifyContent: "flex-end" },
   emptyChat: { color: colors.textMuted, textAlign: "center", marginBottom: spacing.lg },
   chatPurpose: { color: colors.textMuted, fontSize: 12, lineHeight: 18, textAlign: "center", marginBottom: spacing.sm },
+  chatDateSeparator: { alignSelf: "center", color: colors.textMuted, fontSize: 12, fontWeight: "700", marginVertical: spacing.sm },
   messageBubble: { alignSelf: "flex-start", maxWidth: "82%", backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.border, padding: spacing.sm },
   myMessageBubble: { alignSelf: "flex-end", backgroundColor: colors.blueSoft, borderColor: colors.blue },
   messageBody: { color: colors.text, fontSize: 15, lineHeight: 21 },

@@ -1,49 +1,343 @@
 import { Ionicons } from "@expo/vector-icons";
-import { StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { MechanicScreen } from "@/components/mechanic/MechanicScreen";
-import { colors, spacing } from "@/lib/theme";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAppTheme } from "@/contexts/ThemeContext";
+import { supabase } from "@/lib/supabase";
+
+type AppNotification = {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  service_request_id: string | null;
+  created_at: string;
+  read_at: string | null;
+};
 
 export default function NotificationsScreen() {
+  const { session } = useAuth();
+  const { colors } = useAppTheme();
+  const userId = session?.user.id;
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [isMechanic, setIsMechanic] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [reloadVersion, setReloadVersion] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    const loadNotifications = async () => {
+      const [{ data, error: notificationError }, { data: profile }] =
+        await Promise.all([
+          supabase
+            .from("app_notifications")
+            .select(
+              "id,type,title,body,service_request_id,created_at,read_at",
+            )
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(100),
+          supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", userId)
+            .maybeSingle(),
+        ]);
+      if (!active) return;
+      if (notificationError) {
+        setError(notificationError.message);
+      } else {
+        setNotifications((data ?? []) as AppNotification[]);
+        setError(null);
+      }
+      setIsMechanic(profile?.role?.toLowerCase() === "mechanic");
+      setLoading(false);
+      setRefreshing(false);
+    };
+    void loadNotifications();
+
+    const channel = supabase
+      .channel(`app_notifications_${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "app_notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => void loadNotifications(),
+      )
+      .subscribe((status, subscribeError) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn(
+            "Notification realtime connection failed:",
+            subscribeError?.message ?? status,
+          );
+        }
+      });
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [reloadVersion, userId]);
+
+  const unreadCount = notifications.filter((item) => !item.read_at).length;
+
+  const markAllAsRead = async () => {
+    if (!userId || unreadCount === 0) return;
+    const readAt = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from("app_notifications")
+      .update({ read_at: readAt })
+      .eq("user_id", userId)
+      .is("read_at", null);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setNotifications((current) =>
+      current.map((item) => ({ ...item, read_at: item.read_at ?? readAt })),
+    );
+  };
+
+  const openNotification = async (item: AppNotification) => {
+    if (!userId) return;
+    if (!item.read_at) {
+      const readAt = new Date().toISOString();
+      const { error: updateError } = await supabase
+        .from("app_notifications")
+        .update({ read_at: readAt })
+        .eq("id", item.id)
+        .eq("user_id", userId);
+      if (updateError) {
+        setError(updateError.message);
+      } else {
+        setNotifications((current) =>
+          current.map((notification) =>
+            notification.id === item.id
+              ? { ...notification, read_at: readAt }
+              : notification,
+          ),
+        );
+      }
+    }
+
+    if (item.type === "chat_message" && item.service_request_id) {
+      router.push({
+        pathname: "/messages",
+        params: { serviceRequestId: item.service_request_id },
+      });
+    } else if (isMechanic) {
+      router.push("/jobs");
+    } else {
+      router.push("/motorist-activity");
+    }
+  };
+
   return (
     <MechanicScreen back title="Notifications">
-      <View style={styles.content}>
-        <View style={styles.iconCircle}>
-          <Ionicons name="notifications-off-outline" size={34} color={colors.amber} />
+      <ScrollView
+        style={[styles.screen, { backgroundColor: colors.bg }]}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              setReloadVersion((current) => current + 1);
+            }}
+            tintColor={colors.primary}
+          />
+        }
+      >
+        <View style={styles.titleRow}>
+          <View>
+            <Text style={[styles.heading, { color: colors.text }]}>
+              Notifications
+            </Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+              {unreadCount
+                ? `${unreadCount} unread`
+                : "You're all caught up"}
+            </Text>
+          </View>
+          {unreadCount > 0 ? (
+            <Pressable
+              onPress={() => void markAllAsRead()}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.markAll, { color: colors.primary }]}>
+                Mark all read
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
-        <Text style={styles.title}>This feature is not available yet.</Text>
-        <Text style={styles.message}>Coming soon. Check soon for updates.</Text>
-      </View>
+
+        {error ? (
+          <Text style={[styles.error, { color: "#DC2626" }]}>{error}</Text>
+        ) : null}
+
+        {loading ? (
+          <ActivityIndicator color={colors.primary} style={styles.loader} />
+        ) : notifications.length === 0 ? (
+          <View style={styles.emptyState}>
+            <View
+              style={[
+                styles.iconCircle,
+                { backgroundColor: colors.btnSecondary },
+              ]}
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={32}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              No notifications yet
+            </Text>
+            <Text style={[styles.emptyMessage, { color: colors.textMuted }]}>
+              Booking updates and new messages will appear here.
+            </Text>
+          </View>
+        ) : (
+          notifications.map((item) => (
+            <Pressable
+              key={item.id}
+              onPress={() => void openNotification(item)}
+              style={[
+                styles.notificationCard,
+                {
+                  backgroundColor: item.read_at ? colors.card : colors.btnSecondary,
+                  borderColor: colors.border,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.read_at ? "" : "Unread: "}${item.title}. ${item.body}`}
+            >
+              <View
+                style={[
+                  styles.notificationIcon,
+                  { backgroundColor: colors.bg },
+                ]}
+              >
+                <Ionicons
+                  name={
+                    item.type === "chat_message"
+                      ? "chatbubble-ellipses-outline"
+                      : item.type === "booking_status"
+                        ? "calendar-outline"
+                        : "notifications-outline"
+                  }
+                  size={21}
+                  color={colors.primary}
+                />
+              </View>
+              <View style={styles.notificationCopy}>
+                <View style={styles.notificationTitleRow}>
+                  <Text
+                    style={[styles.notificationTitle, { color: colors.text }]}
+                  >
+                    {item.title}
+                  </Text>
+                  {!item.read_at ? (
+                    <View
+                      style={[
+                        styles.unreadDot,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    />
+                  ) : null}
+                </View>
+                <Text style={[styles.body, { color: colors.textMuted }]}>
+                  {item.body}
+                </Text>
+                <Text style={[styles.time, { color: colors.textMuted }]}>
+                  {new Date(item.created_at).toLocaleString([], {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={colors.textMuted}
+              />
+            </Pressable>
+          ))
+        )}
+      </ScrollView>
     </MechanicScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    flex: 1,
+  screen: { flex: 1 },
+  content: { padding: 16, paddingBottom: 32 },
+  titleRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.lg,
+    justifyContent: "space-between",
+    marginBottom: 14,
   },
+  heading: { fontSize: 22, fontWeight: "800" },
+  subtitle: { fontSize: 13, marginTop: 4 },
+  markAll: { fontSize: 13, fontWeight: "700" },
+  loader: { marginTop: 40 },
+  error: { fontSize: 13, marginBottom: 12 },
+  emptyState: { alignItems: "center", paddingHorizontal: 24, paddingTop: 72 },
   iconCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.amberSoft,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.lg,
+    marginBottom: 16,
   },
-  title: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: "800",
-    textAlign: "center",
+  emptyTitle: { fontSize: 17, fontWeight: "800", textAlign: "center" },
+  emptyMessage: { fontSize: 13, lineHeight: 19, textAlign: "center", marginTop: 6 },
+  notificationCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    gap: 10,
   },
-  message: {
-    color: colors.textMuted,
-    fontSize: 14,
-    marginTop: spacing.sm,
-    textAlign: "center",
+  notificationIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  notificationCopy: { flex: 1 },
+  notificationTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  notificationTitle: { flex: 1, fontSize: 14, fontWeight: "800" },
+  body: { fontSize: 13, lineHeight: 18, marginTop: 3 },
+  time: { fontSize: 11, marginTop: 5 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4 },
 });
