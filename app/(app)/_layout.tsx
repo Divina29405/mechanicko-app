@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs, useSegments } from "expo-router";
+import type { BottomTabBarProps } from "expo-router/build/layouts/Tabs.js";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { MechanicProvider } from "@/contexts/MechanicContext";
@@ -14,6 +16,7 @@ function MechanicTabs() {
 
   return (
     <Tabs
+      tabBar={(props) => <MechanicTabBar {...props} />}
       screenOptions={{
         headerShown: false,
         animation: "none",
@@ -24,27 +27,6 @@ function MechanicTabs() {
           borderTopColor: colors.border,
           borderTopWidth: 1,
           width: "100%",
-          maxWidth: "100%",
-          alignSelf: "stretch",
-          paddingHorizontal: 0,
-        },
-        tabBarItemStyle: {
-          flex: 1,
-          width: "20%",
-          maxWidth: "20%",
-          minWidth: 0,
-          alignSelf: "stretch",
-        },
-        tabBarButton: ({ ref: _ref, ...props }) => (
-          <Pressable
-            {...props}
-            style={[props.style, { flex: 1, width: "100%" }]}
-          />
-        ),
-        tabBarLabelStyle: {
-          fontSize: normalizeText(12),
-          fontWeight: "700",
-          marginBottom: 6,
         },
       }}
     >
@@ -129,6 +111,81 @@ function MechanicTabs() {
       <Tabs.Screen name="emergency-checklist" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />
     </Tabs>
+  );
+}
+
+const MECHANIC_TAB_NAMES = ["index", "jobs", "earnings", "messages", "profile"];
+
+function MechanicTabBar({
+  state,
+  descriptors,
+  emitter,
+  navigateToTab,
+}: BottomTabBarProps) {
+  const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const visibleRoutes = MECHANIC_TAB_NAMES.flatMap((name) => {
+    const route = state.routes.find((item) => item.name === name);
+    return route ? [route] : [];
+  });
+
+  return (
+    <View
+      style={[
+        styles.mechanicTabBar,
+        {
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
+          paddingBottom: insets.bottom,
+        },
+      ]}
+    >
+      {visibleRoutes.map((route) => {
+        const { options } = descriptors[route.key];
+        const focused = state.routes[state.index]?.key === route.key;
+        const color = focused ? colors.primary : colors.textMuted;
+        const label =
+          typeof options.tabBarLabel === "string"
+            ? options.tabBarLabel
+            : options.title ?? route.name;
+
+        return (
+          <Pressable
+            key={route.key}
+            accessibilityRole="button"
+            accessibilityState={focused ? { selected: true } : {}}
+            accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
+            testID={options.tabBarButtonTestID}
+            onPress={() => {
+              const event = emitter.emit({
+                type: "tabPress",
+                target: route.key,
+                canPreventDefault: true,
+              });
+              if (!focused && !event.defaultPrevented) {
+                navigateToTab(route.key);
+              }
+            }}
+            onLongPress={() => {
+              emitter.emit({ type: "tabLongPress", target: route.key });
+            }}
+            style={styles.mechanicTabItem}
+          >
+            {options.tabBarIcon?.({
+              focused,
+              color,
+              size: 24,
+            })}
+            <Text
+              numberOfLines={1}
+              style={[styles.mechanicTabLabel, { color }]}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -365,5 +422,23 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+  },
+  mechanicTabBar: {
+    width: "100%",
+    minHeight: 58,
+    flexDirection: "row",
+    borderTopWidth: 1,
+  },
+  mechanicTabItem: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 6,
+  },
+  mechanicTabLabel: {
+    fontSize: normalizeText(12),
+    fontWeight: "700",
+    marginTop: 2,
   },
 });
