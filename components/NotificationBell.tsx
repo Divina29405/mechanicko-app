@@ -13,6 +13,8 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 
+let nextNotificationChannelId = 0;
+
 export function NotificationBell({
   color,
   style,
@@ -47,8 +49,9 @@ export function NotificationBell({
     };
 
     void loadUnreadCount();
+    const channelId = ++nextNotificationChannelId;
     const channel = supabase
-      .channel(`notification_badge_${userId}`)
+      .channel(`notification_badge_${userId}_${channelId}`)
       .on(
         "postgres_changes",
         {

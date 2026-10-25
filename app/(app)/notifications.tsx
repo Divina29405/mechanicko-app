@@ -16,6 +16,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
 
+let nextNotificationChannelId = 0;
+
 type AppNotification = {
   id: string;
   type: string;
@@ -70,8 +72,9 @@ export default function NotificationsScreen() {
     };
     void loadNotifications();
 
+    const channelId = ++nextNotificationChannelId;
     const channel = supabase
-      .channel(`app_notifications_${userId}`)
+      .channel(`app_notifications_${userId}_${channelId}`)
       .on(
         "postgres_changes",
         {
