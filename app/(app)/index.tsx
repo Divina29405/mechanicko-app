@@ -1065,12 +1065,14 @@ export default function MechanicHomeScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.bg,
   },
   homeScroll: {
+    flex: 1,
     backgroundColor: colors.bg,
   },
   content: {
+    flexGrow: 1,
     paddingHorizontal: spacing.sm,
     paddingBottom: spacing.xxl,
   },
@@ -1090,11 +1092,12 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   homeImageContainer: {
+    flex: 1,
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 120,
-    marginBottom: spacing.xl,
+    marginTop: 0,
+    marginBottom: 0,
   },
   homeImage: {
     width: "88%",

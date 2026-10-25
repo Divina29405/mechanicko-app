@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -15,8 +15,6 @@ import { MechanicScreen } from "@/components/mechanic/MechanicScreen";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
-
-let nextNotificationChannelId = 0;
 
 type AppNotification = {
   id: string;
@@ -36,15 +34,19 @@ export default function NotificationsScreen() {
   const [isMechanic, setIsMechanic] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [reloadVersion, setReloadVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const reloadNotificationsRef = useRef<(() => void) | null>(null);
+  const hasFocusedOnce = useRef(false);
 
   useEffect(() => {
     if (!userId) return;
     let active = true;
     const loadNotifications = async () => {
-      const [{ data, error: notificationError }, { data: profile }] =
-        await Promise.all([
+      try {
+        const [
+          { data, error: notificationError },
+          { data: profile, error: profileError },
+        ] = await Promise.all([
           supabase
             .from("app_notifications")
             .select(
@@ -59,20 +61,36 @@ export default function NotificationsScreen() {
             .eq("id", userId)
             .maybeSingle(),
         ]);
-      if (!active) return;
-      if (notificationError) {
-        setError(notificationError.message);
-      } else {
-        setNotifications((data ?? []) as AppNotification[]);
-        setError(null);
+        if (!active) return;
+        if (notificationError) {
+          setError(notificationError.message);
+        } else {
+          setNotifications((data ?? []) as AppNotification[]);
+          setError(null);
+        }
+        if (profileError) {
+          console.warn("Could not load notification screen role:", profileError.message);
+        } else {
+          setIsMechanic(profile?.role?.toLowerCase() === "mechanic");
+        }
+      } catch (loadError) {
+        if (active) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Could not load notification history.",
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
-      setIsMechanic(profile?.role?.toLowerCase() === "mechanic");
-      setLoading(false);
-      setRefreshing(false);
     };
     void loadNotifications();
 
-    const channelId = ++nextNotificationChannelId;
+    const channelId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const channel = supabase
       .channel(`app_notifications_${userId}_${channelId}`)
       .on(
@@ -93,12 +111,27 @@ export default function NotificationsScreen() {
           );
         }
       });
+    const reload = () => void loadNotifications();
+    reloadNotificationsRef.current = reload;
 
     return () => {
       active = false;
+      if (reloadNotificationsRef.current === reload) {
+        reloadNotificationsRef.current = null;
+      }
       void supabase.removeChannel(channel);
     };
-  }, [reloadVersion, userId]);
+  }, [userId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (hasFocusedOnce.current) {
+        reloadNotificationsRef.current?.();
+      } else {
+        hasFocusedOnce.current = true;
+      }
+    }, []),
+  );
 
   const unreadCount = notifications.filter((item) => !item.read_at).length;
 
@@ -163,7 +196,7 @@ export default function NotificationsScreen() {
             refreshing={refreshing}
             onRefresh={() => {
               setRefreshing(true);
-              setReloadVersion((current) => current + 1);
+              reloadNotificationsRef.current?.();
             }}
             tintColor={colors.primary}
           />

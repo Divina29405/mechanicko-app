@@ -99,6 +99,12 @@ const ACTIVE_BOOKING_STATUSES = [
   "arrived",
   "in_progress",
 ];
+const COMPLETED_BOOKING_STATUSES = ["completed", "done", "resolved"];
+const INACTIVE_BOOKING_STATUSES = ["cancelled", "canceled", "closed"];
+
+function normalizeBookingStatus(status: unknown) {
+  return String(status ?? "").trim().toLowerCase();
+}
 
 function bookingStepIndex(status: string | null | undefined) {
   if (status === "in_progress") return 2;
@@ -1125,50 +1131,46 @@ export default function MotoristMap() {
         setActiveRequestLoading(false);
         return undefined;
       }
-      if (activeRequest?.id) {
-        setActiveRequestLoading(false);
-        return undefined;
-      }
 
       let active = true;
-      const cachedBooking = getCachedActiveBooking(session.user.id);
-      if (cachedBooking) {
-        setActiveRequest(cachedBooking);
-        setActiveRequestLoading(false);
-        return undefined;
-      }
       setActiveRequestLoading(true);
       const loadActiveBooking = async () => {
-      const { data: request, error } = await supabase
-        .from("service_requests")
-        .select("*")
-        .eq("motorist_id", session.user.id)
-        .in("status", [
-          "scheduled",
-          "pending",
-          "accepted",
-          "arrived",
-          "in_transit",
-          "in_progress",
-          "completed",
-        ])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        const { data: request, error } = await supabase
+          .from("service_requests")
+          .select("*")
+          .eq("motorist_id", session.user.id)
+          .in("status", [
+            ...ACTIVE_BOOKING_STATUSES,
+            ...COMPLETED_BOOKING_STATUSES,
+            ...INACTIVE_BOOKING_STATUSES,
+          ])
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (!active) return;
-      if (error || !request) {
-        setActiveRequestLoading(false);
-        return;
-      }
+        if (!active) return;
+        if (error) {
+          console.warn("Could not refresh the active booking:", error.message);
+          setActiveRequestLoading(false);
+          return;
+        }
 
-      const { data: mechanic } = await supabase
-        .from("profiles")
-        .select("id,full_name,mobile_number,average_rating,is_online")
-        .eq("id", request.mechanic_id)
-        .maybeSingle();
+        if (!request) {
+          setActiveRequest(null);
+          setCachedActiveBooking(session.user.id, null);
+          setActiveRequestLoading(false);
+          return;
+        }
 
-      if (active) {
+        const { data: mechanic } = request.mechanic_id
+          ? await supabase
+              .from("profiles")
+              .select("id,full_name,mobile_number,average_rating,is_online")
+              .eq("id", request.mechanic_id)
+              .maybeSingle()
+          : { data: null };
+
+        if (!active) return;
         const requestWithMechanic = {
           ...request,
           mechanic: mechanic
@@ -1181,21 +1183,26 @@ export default function MotoristMap() {
               }
             : null,
         };
-        if (request.status === "completed") {
+        const status = normalizeBookingStatus(request.status);
+        if (COMPLETED_BOOKING_STATUSES.includes(status)) {
           setCompletedJob(requestWithMechanic);
+          setActiveRequest(null);
+          setCachedActiveBooking(session.user.id, null);
+        } else if (INACTIVE_BOOKING_STATUSES.includes(status)) {
+          setActiveRequest(null);
+          setCachedActiveBooking(session.user.id, null);
         } else {
           setActiveRequest(requestWithMechanic);
           setCachedActiveBooking(session.user.id, requestWithMechanic);
         }
-      }
-      setActiveRequestLoading(false);
+        setActiveRequestLoading(false);
       };
 
       void loadActiveBooking();
       return () => {
         active = false;
       };
-    }, [activeRequest?.id, session]),
+    }, [session]),
   );
 
   const confirmCancel = async () => {
@@ -1254,18 +1261,15 @@ export default function MotoristMap() {
           setActiveRequest((prev: any) => {
             if (!prev) return prev;
             const updatedRequest = { ...prev, ...payload.new };
-            if (payload.new.status === "completed") {
+            const status = normalizeBookingStatus(payload.new.status);
+            if (COMPLETED_BOOKING_STATUSES.includes(status)) {
               setCompletedJob(updatedRequest);
               if (session?.user.id) {
                 setCachedActiveBooking(session.user.id, null);
               }
               return null;
             }
-            if (
-              ["cancelled", "canceled"].includes(
-                String(payload.new.status ?? "").toLowerCase(),
-              )
-            ) {
+            if (INACTIVE_BOOKING_STATUSES.includes(status)) {
               if (session?.user.id) {
                 setCachedActiveBooking(session.user.id, null);
               }

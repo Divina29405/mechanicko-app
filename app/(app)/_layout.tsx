@@ -24,9 +24,16 @@ function MechanicTabs() {
           borderTopColor: colors.border,
           borderTopWidth: 1,
           width: "100%",
+          maxWidth: "100%",
+          alignSelf: "stretch",
+          paddingHorizontal: 0,
+        },
+        tabBarItemStyle: {
+          flex: 1,
+          flexBasis: 0,
+          minWidth: 0,
           alignSelf: "stretch",
         },
-        tabBarItemStyle: { flex: 1 },
         tabBarLabelStyle: {
           fontSize: normalizeText(12),
           fontWeight: "700",

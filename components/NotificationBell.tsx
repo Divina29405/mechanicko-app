@@ -13,8 +13,6 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 
-let nextNotificationChannelId = 0;
-
 export function NotificationBell({
   color,
   style,
@@ -35,21 +33,30 @@ export function NotificationBell({
 
     let active = true;
     const loadUnreadCount = async () => {
-      const { count, error } = await supabase
-        .from("app_notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .is("read_at", null);
-      if (!active) return;
-      if (error) {
-        console.warn("Could not load unread notification count:", error.message);
-        return;
+      try {
+        const { count, error } = await supabase
+          .from("app_notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .is("read_at", null);
+        if (!active) return;
+        if (error) {
+          console.warn(
+            "Could not load unread notification count:",
+            error.message,
+          );
+          return;
+        }
+        setUnreadState({ userId, count: count ?? 0 });
+      } catch (loadError) {
+        if (active) {
+          console.warn("Could not load unread notification count:", loadError);
+        }
       }
-      setUnreadState({ userId, count: count ?? 0 });
     };
 
     void loadUnreadCount();
-    const channelId = ++nextNotificationChannelId;
+    const channelId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const channel = supabase
       .channel(`notification_badge_${userId}_${channelId}`)
       .on(
