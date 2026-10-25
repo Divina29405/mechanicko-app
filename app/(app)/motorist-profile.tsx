@@ -676,13 +676,9 @@ export default function MotoristProfileScreen() {
         </SafeAreaView>
       </Modal>
 
-      <Modal
-        visible={settingsVisible}
-        animationType="none"
-        presentationStyle="fullScreen"
-        onRequestClose={() => setSettingsVisible(false)}
-      >
-        <SafeAreaView style={[styles.detailScreen, { backgroundColor: colors.bg }]}>
+      {settingsVisible ? (
+        <View style={styles.settingsOverlay}>
+          <SafeAreaView style={[styles.detailScreen, { backgroundColor: colors.bg }]}>
           <View style={[styles.detailHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
             <Text style={[styles.detailTitle, { color: colors.text }]}>Settings & Preferences</Text>
             <TouchableOpacity onPress={() => setSettingsVisible(false)} style={styles.closeButton}>
@@ -693,8 +689,8 @@ export default function MotoristProfileScreen() {
             <TouchableOpacity
               style={[styles.settingsRow, { borderBottomColor: colors.border }]}
               onPress={() => {
-                setSettingsVisible(false);
                 router.navigate('/(app)/payment-methods');
+                setSettingsVisible(false);
               }}
             >
               <Ionicons name="card-outline" size={24} color={colors.primary} style={styles.settingsRowIcon} />
@@ -750,8 +746,9 @@ export default function MotoristProfileScreen() {
               </View>
             </View>
           </View>
-        </SafeAreaView>
-      </Modal>
+          </SafeAreaView>
+        </View>
+      ) : null}
 
       <Modal
         visible={accountDetailsVisible}
@@ -829,6 +826,7 @@ function AccountDetailRow({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  settingsOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 10, elevation: 10 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16, borderBottomWidth: 1 },
   backButton: { padding: 4 },
   headerTitle: { fontSize: normalizeText(20), fontWeight: '800' },
