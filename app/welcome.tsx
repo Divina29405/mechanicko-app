@@ -1,4 +1,3 @@
-import { LinearGradient } from "expo-linear-gradient";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -94,13 +93,10 @@ export default function WelcomeScreen() {
         options={{
           animation: isBackNavigation ? "slide_from_left" : "slide_from_right",
           gestureEnabled: false,
-          contentStyle: { backgroundColor: "#F5F7FA" },
+          contentStyle: { backgroundColor: "#FFFFFF" },
         }}
       />
-      <LinearGradient
-          colors={["#F5F7FA", "#F5F7FA"]}
-          style={styles.screen}
-      >
+      <View style={styles.screen}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.content}>
           <Animated.View style={[styles.topBar, topAnimatedStyle]}>
@@ -130,7 +126,7 @@ export default function WelcomeScreen() {
               WELCOME TO
             </Animated.Text>
             <Animated.Image
-              source={require("../assets/images/mechanikotext.png")}
+              source={require("../assets/images/mechanicko.png")}
               resizeMode="contain"
               style={[styles.wordmark, wordmarkAnimatedStyle]}
             />
@@ -155,7 +151,7 @@ export default function WelcomeScreen() {
           </View>
           </View>
         </SafeAreaView>
-      </LinearGradient>
+      </View>
     </>
   );
 }
@@ -208,7 +204,7 @@ const styles = StyleSheet.create({
     marginTop: 92,
   },
   heading: {
-    color: "#20439B",
+    color: "#000000",
     fontFamily: "sans-serif",
     width: 202,
     fontSize: 30,
@@ -227,7 +223,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   description: {
-    color: "#272B34",
+    color: "#111111",
     fontFamily: "sans-serif",
     fontSize: 13,
     fontWeight: "500",
@@ -255,14 +251,14 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.99 }],
   },
   buttonText: {
-    color: "#FFFFFF",
+    color: "#000000",
     fontFamily: "sans-serif",
     fontSize: 18,
     fontWeight: "600",
     lineHeight: 20,
   },
   arrow: {
-    color: "#FFFFFF",
+    color: "#000000",
     fontSize: 23,
     lineHeight: 23,
     marginLeft: 9,

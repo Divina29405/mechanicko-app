@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -71,21 +70,10 @@ export function OnboardingInfoScreen({
         options={{
           animation: isBackNavigation ? "slide_from_left" : "slide_from_right",
           gestureEnabled: false,
-          contentStyle: { backgroundColor: "#373327" },
+          contentStyle: { backgroundColor: "#FFFFFF" },
         }}
       />
-      <LinearGradient
-          colors={[
-            "#373327",
-            "#686150",
-            "#9E9786",
-            "#DCDCDB",
-            "#F3F3F5",
-            "#F8F8FA",
-          ]}
-          locations={[0, 0.2, 0.38, 0.56, 0.72, 1]}
-          style={styles.screen}
-      >
+      <View style={styles.screen}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.content}>
           <View style={styles.topBar}>
@@ -185,7 +173,7 @@ export function OnboardingInfoScreen({
           </View>
         </View>
       </SafeAreaView>
-      </LinearGradient>
+      </View>
     </>
   );
 }
@@ -228,7 +216,7 @@ const styles = StyleSheet.create({
     borderColor: "#FFFFFF",
   },
   skip: {
-    color: "#FFFFFF",
+    color: "#24439A",
     fontFamily: "sans-serif",
     fontSize: 16,
     fontWeight: "400",
@@ -245,7 +233,7 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
   title: {
-    color: "#FFFFFF",
+    color: "#20439B",
     fontFamily: "sans-serif",
     height: 32,
     fontSize: 18,

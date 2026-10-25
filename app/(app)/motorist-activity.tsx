@@ -174,7 +174,7 @@ function ScheduledBookingCard({
           .leaflet-control-attribution { display: none; }
           .you-pin { width: 38px; height: 38px; border-radius: 50%; background: #2450D8; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
           .mechanic-pin { width: 48px; height: 48px; border-radius: 50%; background: #FFFFFF; border: 3px solid #18A957; display: flex; align-items: center; justify-content: center; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
-          .mechanic-pin img { width: 100%; height: 100%; object-fit: contain; }
+          .mechanic-pin img { width: 100%; height: 100%; object-fit: contain; filter: brightness(0); }
         </style>
       </head>
       <body>

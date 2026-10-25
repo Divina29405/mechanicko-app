@@ -1065,6 +1065,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     resizeMode: "contain",
+    tintColor: "#000000",
   },
   roleCopy: {
     flex: 1,

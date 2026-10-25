@@ -73,6 +73,7 @@ const styles = StyleSheet.create({
   mechanicLogo: {
     width: 31,
     height: 31,
+    tintColor: "#000000",
   },
   wordmark: {
     color: colors.text,

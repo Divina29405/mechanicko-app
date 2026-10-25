@@ -21,6 +21,8 @@ import Animated, {
 import { useAuth } from "@/contexts/AuthContext";
 
 const DEVICE_ONBOARDING_KEY = "mechaniko-device-onboarding-complete";
+// Temporary preview exception: show onboarding again for signed-out users.
+const TEMPORARY_SHOW_WELCOME = true;
 
 async function readDeviceOnboardingState() {
   if (Platform.OS === "web") {
@@ -122,7 +124,7 @@ export default function Index() {
     return <Redirect href="/(app)" />;
   }
 
-  if (returningDevice) {
+  if (returningDevice && !TEMPORARY_SHOW_WELCOME) {
     return <Redirect href="/login" />;
   }
 
@@ -145,7 +147,7 @@ export default function Index() {
               style={styles.logo}
             />
             <Image
-              source={require("../assets/images/mechanikotext.png")}
+              source={require("../assets/images/mechanicko.png")}
               resizeMode="contain"
               style={styles.wordmark}
             />
