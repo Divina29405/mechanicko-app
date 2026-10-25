@@ -3,6 +3,7 @@ import { Session } from "@supabase/supabase-js";
 import * as ExpoLinking from "expo-linking";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
+import { Platform } from "react-native";
 import {
   createContext,
   useContext,
@@ -363,18 +364,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { error: "Google login needs Supabase to be configured." };
         }
 
-        const redirectTo = ExpoLinking.createURL("auth/callback");
+        const isWeb = Platform.OS === "web";
+        const redirectTo =
+          isWeb && typeof window !== "undefined"
+            ? `${window.location.origin}/?google_login=1`
+            : ExpoLinking.createURL("auth/callback");
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: "google",
           options: {
             redirectTo,
-            skipBrowserRedirect: true,
+            skipBrowserRedirect: !isWeb,
             queryParams: { prompt: "select_account" },
           },
         });
 
         if (error || !data.url) {
           return { error: error?.message ?? "Could not start Google login." };
+        }
+
+        if (isWeb) {
+          return { error: null };
         }
 
         const result = await WebBrowser.openAuthSessionAsync(

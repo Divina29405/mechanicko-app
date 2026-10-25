@@ -1,5 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Redirect, router } from "expo-router";
+import { Redirect, router, useLocalSearchParams } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import {
   Image,
@@ -45,6 +45,9 @@ async function markDeviceOnboardingComplete() {
 
 export default function Index() {
   const { session, loading } = useAuth();
+  const { google_login: googleLogin } = useLocalSearchParams<{
+    google_login?: string;
+  }>();
   const [returningDevice, setReturningDevice] = useState<boolean | null>(null);
   const contentProgress = useSharedValue(0);
   const bootProgress = useSharedValue(0);
@@ -122,6 +125,16 @@ export default function Index() {
   }
 
   if (session) {
+    if (googleLogin === "1") {
+      return (
+        <Redirect
+          href={{
+            pathname: "/(app)/motorist-profile",
+            params: { setupVehicle: "1" },
+          }}
+        />
+      );
+    }
     return <Redirect href="/(app)" />;
   }
 

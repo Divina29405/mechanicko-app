@@ -35,7 +35,7 @@ export default function ActivityScreen() {
   const router = useRouter();
   const [requests, setRequests] = useState<ActivityRequest[]>([]);
   const [filter, setFilter] = useState<"ongoing" | "resolved" | "revoked">("ongoing");
-  const [period, setPeriod] = useState<"today" | "week" | "month">("month");
+  const [period, setPeriod] = useState<"today" | "week" | "month">("today");
   const [periodMenuVisible, setPeriodMenuVisible] = useState(false);
   const [loading, setLoading] = useState(true);
 

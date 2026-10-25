@@ -1,4 +1,4 @@
-import { Link, Stack } from "expo-router";
+import { Link, router, Stack } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -7,7 +7,6 @@ import { AuthInput } from "@/components/auth/AuthInput";
 import { AuthScreenShell } from "@/components/auth/AuthScreenShell";
 import { ErrorBanner } from "@/components/auth/ErrorBanner";
 import { PrimaryButton } from "@/components/auth/PrimaryButton";
-import { ComingSoonModal } from "@/components/ComingSoonModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/theme";
 import { validateEmail, validatePassword } from "@/lib/validation";
@@ -66,14 +65,13 @@ async function clearRememberedLogin() {
 }
 
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [comingSoonVisible, setComingSoonVisible] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(false);
 
   useEffect(() => {
@@ -114,8 +112,19 @@ export default function LoginScreen() {
     if (error) setFormError(error);
   }
 
-  function onGoogleSignIn() {
-    setComingSoonVisible(true);
+  async function onGoogleSignIn() {
+    setFormError(null);
+    setLoading(true);
+    const { error } = await signInWithGoogle();
+    setLoading(false);
+    if (error) {
+      setFormError(error);
+      return;
+    }
+    router.replace({
+      pathname: "/(app)/motorist-profile",
+      params: { setupVehicle: "1" },
+    });
   }
 
   return (
@@ -253,10 +262,6 @@ export default function LoginScreen() {
           </Link>
         </View>
       </View>
-      <ComingSoonModal
-        visible={comingSoonVisible}
-        onClose={() => setComingSoonVisible(false)}
-      />
       </AuthScreenShell>
     </>
   );

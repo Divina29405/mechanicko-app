@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,6 +24,7 @@ const MOTORIST_RADIUS_KEY = 'motorist_search_radius_km';
 
 export default function MotoristProfileScreen() {
   const router = useRouter();
+  const { setupVehicle } = useLocalSearchParams<{ setupVehicle?: string }>();
   const { session, signOut } = useAuth();
   const { colors, isDarkMode, toggleTheme } = useAppTheme();
 
@@ -53,11 +54,18 @@ export default function MotoristProfileScreen() {
   const [vehicleYear, setVehicleYear] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [savingVehicle, setSavingVehicle] = useState(false);
+  const [vehiclePromptDismissed, setVehiclePromptDismissed] = useState(false);
   const [vehicleLimitVisible, setVehicleLimitVisible] = useState(false);
   const [logoutConfirmationVisible, setLogoutConfirmationVisible] =
     useState(false);
   const avatarRequestId = useRef(0);
   const vehiclesLoading = Boolean(session?.user.id) && vehiclesLoadedFor !== session?.user.id;
+  const shouldPromptVehicle =
+    setupVehicle === '1' &&
+    Boolean(session?.user.id) &&
+    vehiclesLoadedFor === session?.user.id &&
+    motoristVehicles.length === 0 &&
+    !vehiclePromptDismissed;
 
   useEffect(() => {
     void SecureStore.getItemAsync(MOTORIST_RADIUS_KEY).then((storedRadius) => {
@@ -608,15 +616,24 @@ export default function MotoristProfileScreen() {
       </Modal>
 
       <Modal
-        visible={addVehicleVisible}
+        visible={addVehicleVisible || shouldPromptVehicle}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setAddVehicleVisible(false)}
+        onRequestClose={() => {
+          setAddVehicleVisible(false);
+          setVehiclePromptDismissed(true);
+        }}
       >
         <SafeAreaView style={[styles.detailScreen, { backgroundColor: colors.bg }]}>
           <View style={[styles.detailHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
             <Text style={[styles.detailTitle, { color: colors.text }]}>Add Vehicle</Text>
-            <TouchableOpacity onPress={() => setAddVehicleVisible(false)} style={styles.closeButton}>
+            <TouchableOpacity
+              onPress={() => {
+                setAddVehicleVisible(false);
+                setVehiclePromptDismissed(true);
+              }}
+              style={styles.closeButton}
+            >
               <Ionicons name="close" size={26} color={colors.text} />
             </TouchableOpacity>
           </View>
