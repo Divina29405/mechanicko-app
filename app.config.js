@@ -1,27 +1,32 @@
-const baseConfig = require("./app.json");
-
-module.exports = {
-  ...baseConfig.expo,
+module.exports = ({ config }) => ({
+  ...config,
   updates: {
-    url: "https://u.expo.dev/16c708eb-375a-46b2-bee5-8af3049e875f"
+    ...config.updates,
+    url: "https://u.expo.dev/16c708eb-375a-46b2-bee5-8af3049e875f",
   },
   runtimeVersion: {
-    policy: "appVersion"
+    policy: "appVersion",
   },
   extra: {
-    ...baseConfig.expo.extra,
+    ...config.extra,
     eas: {
-      ...baseConfig.expo.extra?.eas,
+      ...config.extra?.eas,
       projectId: "16c708eb-375a-46b2-bee5-8af3049e875f",
     },
   },
   android: {
-    ...baseConfig.expo.android,
-    package: baseConfig.expo.android?.package ?? "com.mechaniko.app",
+    ...config.android,
+    package: config.android?.package ?? "com.mechaniko.app",
   },
   ios: {
-    ...baseConfig.expo.ios,
+    ...config.ios,
     bundleIdentifier:
-      baseConfig.expo.ios?.bundleIdentifier ?? "com.mechaniko.app",
+      config.ios?.bundleIdentifier ?? "com.mechaniko.app",
   },
-};
+  plugins: [
+    ...(config.plugins ?? []),
+    "expo-font",
+    "expo-status-bar",
+    "expo-web-browser",
+  ],
+});

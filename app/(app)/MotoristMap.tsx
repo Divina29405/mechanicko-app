@@ -30,8 +30,8 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { WebView } from "react-native-webview";
 import { normalizeText } from "@/lib/typography";
+import { MapWebView, type MapWebViewHandle } from "@/components/MapWebView";
 
 const bikeIcon = require("../../assets/images/bike.png");
 const motoristCallIcon = require("../../assets/images/motorist-call.png");
@@ -194,7 +194,7 @@ export default function MotoristMap() {
         ? session.user.user_metadata.avatar_url
         : null),
   );
-  const mapRef = useRef<WebView | null>(null);
+  const mapRef = useRef<MapWebViewHandle | null>(null);
   const previousBookingStatus = useRef<string | null>(null);
   const [radarRotation] = useState(() => new Animated.Value(0));
   const motoristAvatarPath = useRef<string | null>(null);
@@ -1263,7 +1263,7 @@ export default function MotoristMap() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      <WebView
+      <MapWebView
         ref={mapRef}
         source={{ html: mapHtml }}
         style={styles.map}

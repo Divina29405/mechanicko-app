@@ -3,6 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useRef, useState } from "react";
+import type { ScrollViewInstance } from "react-native";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -15,7 +16,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { WebView } from "react-native-webview";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -24,6 +24,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { normalizeText } from "@/lib/typography";
+import { MapWebView, type MapWebViewHandle } from "@/components/MapWebView";
 
 const DEFAULT_LOCATION = {
   latitude: 14.5995,
@@ -141,9 +142,9 @@ export default function DispatchLocationScreen() {
   const [saving, setSaving] = useState(false);
   const [showAlmostDone, setShowAlmostDone] = useState(false);
   const [isMapExpanded, setIsMapExpanded] = useState(false);
-  const mapRef = useRef<WebView | null>(null);
-  const expandedMapRef = useRef<WebView | null>(null);
-  const scrollRef = useRef<ScrollView | null>(null);
+  const mapRef = useRef<MapWebViewHandle | null>(null);
+  const expandedMapRef = useRef<MapWebViewHandle | null>(null);
+  const scrollRef = useRef<ScrollViewInstance | null>(null);
   const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const geocodeRequestRef = useRef(0);
 
@@ -282,7 +283,7 @@ export default function DispatchLocationScreen() {
     }
   };
 
-  const syncMapView = (map: WebView | null) => {
+  const syncMapView = (map: MapWebViewHandle | null) => {
     map?.injectJavaScript(
       `window.setRadius(${radius}); window.setLocation(${coordinates.latitude}, ${coordinates.longitude}); true;`,
     );
@@ -337,7 +338,7 @@ export default function DispatchLocationScreen() {
             onRequestClose={() => setIsMapExpanded(false)}
           >
             <View style={styles.expandedMapScreen}>
-              <WebView
+              <MapWebView
                 ref={expandedMapRef}
                 source={{ html: MAP_HTML }}
                 style={styles.expandedMap}
@@ -421,7 +422,7 @@ export default function DispatchLocationScreen() {
               </Text>
 
               <View style={styles.mapCard}>
-                <WebView
+                <MapWebView
                   ref={mapRef}
                   source={{ html: MAP_HTML }}
                   style={styles.map}

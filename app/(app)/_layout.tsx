@@ -36,7 +36,11 @@ function MechanicTabs() {
         options={{
           title: "Home",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
+            <Ionicons
+              name="home"
+              size={size}
+              color={typeof color === "string" ? color : colors.primary}
+            />
           ),
         }}
       />
@@ -45,7 +49,11 @@ function MechanicTabs() {
         options={{
           title: "Jobs",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" size={size} color={color} />
+            <Ionicons
+              name="calendar"
+              size={size}
+              color={typeof color === "string" ? color : colors.primary}
+            />
           ),
         }}
       />
@@ -54,7 +62,11 @@ function MechanicTabs() {
         options={{
           title: "Earnings",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cash" size={size} color={color} />
+            <Ionicons
+              name="cash"
+              size={size}
+              color={typeof color === "string" ? color : colors.primary}
+            />
           ),
         }}
       />
@@ -63,7 +75,11 @@ function MechanicTabs() {
         options={{
           title: "Chat",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles" size={size} color={color} />
+            <Ionicons
+              name="chatbubbles"
+              size={size}
+              color={typeof color === "string" ? color : colors.primary}
+            />
           ),
         }}
       />
@@ -72,7 +88,11 @@ function MechanicTabs() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+            <Ionicons
+              name="person"
+              size={size}
+              color={typeof color === "string" ? color : colors.primary}
+            />
           ),
         }}
       />
@@ -107,7 +127,6 @@ function CustomerTabs() {
 
   return (
     <Tabs
-      initialRouteName="MotoristMap"
       screenOptions={{
         headerShown: false,
         animation: "none",

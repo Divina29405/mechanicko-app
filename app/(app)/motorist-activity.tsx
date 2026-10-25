@@ -19,11 +19,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { WebView } from "react-native-webview";
 
 import { MotoristHomeHeader } from "@/components/MotoristHomeHeader";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { normalizeText } from "@/lib/typography";
+import { MapWebView, type MapWebViewHandle } from "@/components/MapWebView";
 
 type BookingColors = {
   bg: string;
@@ -55,7 +55,7 @@ function ScheduledBookingCard({
   colors: BookingColors;
   onCancel: (id: string) => void;
 }) {
-  const mapRef = useRef<WebView>(null);
+  const mapRef = useRef<MapWebViewHandle | null>(null);
   const router = useRouter();
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [updatingChargeId, setUpdatingChargeId] = useState<string | null>(null);
@@ -162,7 +162,7 @@ function ScheduledBookingCard({
     Number.isFinite(mechanicLatitude) && Number.isFinite(mechanicLongitude);
   const mechanicLogoUri = Image.resolveAssetSource(
     require("../../assets/images/mechaniclogo.png"),
-  ).uri;
+  )?.uri ?? "";
   const mapHtml = `
     <!DOCTYPE html>
     <html>
@@ -233,7 +233,7 @@ function ScheduledBookingCard({
             styles.bookingMapPreview,
           ]}
         >
-          <WebView
+          <MapWebView
             ref={mapRef}
             source={{ html: mapHtml }}
             style={styles.bookingLeafletMap}
@@ -287,7 +287,7 @@ function ScheduledBookingCard({
         onRequestClose={() => setIsMapFullscreen(false)}
       >
         <View style={styles.fullscreenMapContainer}>
-          <WebView
+          <MapWebView
             ref={mapRef}
             source={{ html: mapHtml }}
             style={styles.fullscreenBookingMap}
