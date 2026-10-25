@@ -105,7 +105,10 @@ function MechanicTabs() {
       <Tabs.Screen name="MotoristMap" options={{ href: null }} />
       <Tabs.Screen name="motorist-profile" options={{ href: null }} />
       <Tabs.Screen name="motorist-activity" options={{ href: null }} />
-      <Tabs.Screen name="payment-methods" options={{ href: null }} />
+      <Tabs.Screen
+        name="payment-methods"
+        options={{ tabBarButton: () => null, animation: "none" }}
+      />
       <Tabs.Screen name="emergency-checklist" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />
     </Tabs>
@@ -233,7 +236,10 @@ function CustomerTabs() {
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="wallet" options={{ href: null }} />
       <Tabs.Screen name="saved-locations" options={{ href: null }} />
-      <Tabs.Screen name="payment-methods" options={{ href: null }} />
+      <Tabs.Screen
+        name="payment-methods"
+        options={{ tabBarButton: () => null, animation: "none" }}
+      />
       <Tabs.Screen name="emergency-checklist" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />
     </Tabs>

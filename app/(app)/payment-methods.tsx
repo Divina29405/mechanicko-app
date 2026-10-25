@@ -64,7 +64,15 @@ export default function PaymentMethodsScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.replace('/motorist-profile')} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() =>
+            router.navigate({
+              pathname: '/(app)/motorist-profile',
+              params: { openSettings: '1' },
+            })
+          }
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={26} color="#000000" />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Payment Methods</Text>

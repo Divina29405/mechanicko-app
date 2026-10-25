@@ -24,9 +24,12 @@ const MOTORIST_RADIUS_KEY = 'motorist_search_radius_km';
 
 export default function MotoristProfileScreen() {
   const router = useRouter();
-  const { setupVehicle } = useLocalSearchParams<{ setupVehicle?: string }>();
+  const { setupVehicle, openSettings } = useLocalSearchParams<{
+    setupVehicle?: string;
+    openSettings?: string;
+  }>();
   const { session, signOut } = useAuth();
-  const { colors, isDarkMode, toggleTheme } = useAppTheme();
+  const { colors, isDarkMode } = useAppTheme();
 
   const email = session?.user.email ?? 'motorist@example.com';
   const fullName = typeof session?.user.user_metadata?.full_name === 'string'
@@ -40,7 +43,7 @@ export default function MotoristProfileScreen() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarPickerVisible, setAvatarPickerVisible] = useState(false);
   const [accountDetailsVisible, setAccountDetailsVisible] = useState(false);
-  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(openSettings === '1');
   const [searchRadius, setSearchRadius] = useState(10);
   const [editableEmail, setEditableEmail] = useState(email);
   const [mobileNumber, setMobileNumber] = useState('');
@@ -675,7 +678,7 @@ export default function MotoristProfileScreen() {
 
       <Modal
         visible={settingsVisible}
-        animationType="slide"
+        animationType="none"
         presentationStyle="fullScreen"
         onRequestClose={() => setSettingsVisible(false)}
       >
@@ -691,7 +694,7 @@ export default function MotoristProfileScreen() {
               style={[styles.settingsRow, { borderBottomColor: colors.border }]}
               onPress={() => {
                 setSettingsVisible(false);
-                router.push('/payment-methods');
+                router.navigate('/(app)/payment-methods');
               }}
             >
               <Ionicons name="card-outline" size={24} color={colors.primary} style={styles.settingsRowIcon} />
@@ -707,10 +710,13 @@ export default function MotoristProfileScreen() {
               </View>
               <Switch
                 value={isDarkMode}
-                onValueChange={toggleTheme}
-                trackColor={{ false: colors.border, true: colors.primary }}
+                disabled
+                trackColor={{ false: colors.border, true: colors.border }}
                 thumbColor="#FFFFFF"
               />
+              <Text style={[styles.settingsRowHint, { color: colors.textMuted }]}>
+                Temporarily unavailable
+              </Text>
             </View>
             <View style={[styles.settingsRow, styles.radiusSettingsRow, { borderBottomColor: colors.border }]}>
               <Ionicons name="radio-outline" size={24} color={colors.primary} style={styles.settingsRowIcon} />
