@@ -585,11 +585,15 @@ export default function MessagesScreen() {
             <View style={[styles.iconCircle, { backgroundColor: colors.btnSecondary }]}>
               <Ionicons name="chatbubble-ellipses-outline" size={34} color={colors.primary} />
             </View>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No conversations yet</Text>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>
+              {error ? 'Unable to load conversations' : 'No conversations yet'}
+            </Text>
             <Text style={[styles.emptyMessage, { color: colors.textMuted }]}>
-              {isMechanic
-                ? 'Booking conversations with motorists will appear here.'
-                : 'Your conversations with mechanics will appear here after a booking is accepted.'}
+              {error
+                ? error
+                : isMechanic
+                  ? 'Booking conversations with motorists will appear here.'
+                  : 'Your conversations with mechanics will appear here after a booking is accepted.'}
             </Text>
           </View>
         ) : !conversationOpen || !conversation ? (

@@ -147,10 +147,12 @@ create index if not exists chat_messages_request_idx
   on public.chat_messages (service_request_id, created_at);
 
 alter table public.chat_messages enable row level security;
+grant select on public.chat_messages to authenticated;
 
 drop policy if exists "chat_messages_participants_select" on public.chat_messages;
 create policy "chat_messages_participants_select"
 on public.chat_messages for select
+to authenticated
 using (
   exists (
     select 1

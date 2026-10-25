@@ -30,10 +30,17 @@ function MechanicTabs() {
         },
         tabBarItemStyle: {
           flex: 1,
-          flexBasis: 0,
+          width: "20%",
+          maxWidth: "20%",
           minWidth: 0,
           alignSelf: "stretch",
         },
+        tabBarButton: ({ ref: _ref, ...props }) => (
+          <Pressable
+            {...props}
+            style={[props.style, { flex: 1, width: "100%" }]}
+          />
+        ),
         tabBarLabelStyle: {
           fontSize: normalizeText(12),
           fontWeight: "700",
