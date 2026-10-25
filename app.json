@@ -4,7 +4,7 @@
     "slug": "Mechaniko-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/mechanichome.png",
     "scheme": "mechanikoapp",
     "userInterfaceStyle": "dark",
     "ios": {
@@ -21,7 +21,7 @@
       ],
       "adaptiveIcon": {
         "backgroundColor": "#0C0D10",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "foregroundImage": "./assets/images/mechanichome.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },

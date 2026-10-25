@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MiniMapPreview } from '@/components/mechanic/MiniMapPreview';
 import { useMechanic } from '@/contexts/MechanicContext';
 import { colors, radii, spacing } from '@/lib/theme';
+import { normalizeText } from '@/lib/typography';
 
 function formatSeconds(total: number) {
   const m = Math.floor(total / 60);
@@ -135,8 +136,8 @@ const styles = StyleSheet.create({
   idleText: {
     flex: 1,
     color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: normalizeText(13),
+    lineHeight: normalizeText(18),
   },
   liveRow: {
     flexDirection: 'row',
@@ -160,7 +161,7 @@ const styles = StyleSheet.create({
   },
   liveText: {
     color: colors.sos,
-    fontSize: 11,
+    fontSize: normalizeText(11),
     fontWeight: '800',
     letterSpacing: 0.8,
   },
@@ -173,22 +174,23 @@ const styles = StyleSheet.create({
     color: colors.sos,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
+    fontSize: normalizeText(14),
   },
   title: {
     marginTop: 10,
     color: colors.text,
-    fontSize: 20,
+    fontSize: normalizeText(20),
     fontWeight: '800',
   },
   meta: {
     marginTop: 4,
     color: colors.textMuted,
-    fontSize: 13,
+    fontSize: normalizeText(13),
   },
   distance: {
     marginTop: 2,
     color: colors.text,
-    fontSize: 13,
+    fontSize: normalizeText(13),
     fontWeight: '600',
   },
   mapToggle: {
@@ -200,7 +202,7 @@ const styles = StyleSheet.create({
   mapToggleText: {
     color: colors.amber,
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: normalizeText(13),
   },
   actions: {
     flexDirection: 'row',
@@ -220,6 +222,7 @@ const styles = StyleSheet.create({
   declineText: {
     color: colors.text,
     fontWeight: '700',
+    fontSize: normalizeText(14),
   },
   accept: {
     flex: 1.2,
@@ -234,6 +237,7 @@ const styles = StyleSheet.create({
   acceptText: {
     color: colors.white,
     fontWeight: '800',
+    fontSize: normalizeText(14),
   },
   pressed: {
     opacity: 0.85,
@@ -256,7 +260,7 @@ const styles = StyleSheet.create({
   },
   kickerOk: {
     color: colors.success,
-    fontSize: 11,
+    fontSize: normalizeText(11),
     fontWeight: '800',
     letterSpacing: 0.7,
   },

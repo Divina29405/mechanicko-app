@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 import { colors } from '@/lib/theme';
+import { normalizeText } from '@/lib/typography';
 
 type Coordinates = {
   latitude: number;
@@ -194,7 +195,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.text,
-    fontSize: 10,
+    fontSize: normalizeText(10),
     fontWeight: '700',
   },
 });

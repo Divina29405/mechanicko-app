@@ -25,6 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMechanic } from "@/contexts/MechanicContext";
 import { supabase } from "@/lib/supabase";
 import { colors, radii, spacing } from "@/lib/theme";
+import { normalizeText } from "@/lib/typography";
 
 type AvailableJob = {
   id: string;
@@ -1095,7 +1096,7 @@ const styles = StyleSheet.create({
   homeImageHeader: {
     marginTop: -30,
     color: colors.text,
-    fontSize: 21,
+    fontSize: normalizeText(24),
     fontWeight: "800",
     textAlign: "center",
   },
@@ -1112,7 +1113,7 @@ const styles = StyleSheet.create({
   },
   onlineSliderText: {
     color: colors.white,
-    fontSize: 15,
+    fontSize: normalizeText(16),
     fontWeight: "800",
   },
   onlineSliderTrail: {
@@ -1137,8 +1138,8 @@ const styles = StyleSheet.create({
     maxWidth: 310,
     marginTop: spacing.xs,
     color: colors.textDim,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(22),
     textAlign: "center",
   },
   identity: {
@@ -1167,7 +1168,7 @@ const styles = StyleSheet.create({
   },
   availabilityText: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: normalizeText(13),
     marginTop: 2,
   },
   headerActions: {
@@ -1182,7 +1183,7 @@ const styles = StyleSheet.create({
   },
   headerRatingValue: {
     color: colors.text,
-    fontSize: 15,
+    fontSize: normalizeText(16),
     fontWeight: "700",
   },
   notificationButton: {
@@ -1208,7 +1209,7 @@ const styles = StyleSheet.create({
   },
   offlineButtonText: {
     color: colors.sos,
-    fontSize: 13,
+    fontSize: normalizeText(14),
     fontWeight: "800",
   },
   sidebarOverlay: {
@@ -1249,7 +1250,7 @@ const styles = StyleSheet.create({
   sidebarName: {
     flex: 1,
     color: colors.text,
-    fontSize: 16.5,
+    fontSize: normalizeText(18),
     fontWeight: "800",
   },
   sidebarDivider: {
@@ -1268,7 +1269,7 @@ const styles = StyleSheet.create({
   sidebarRowText: {
     flex: 1,
     color: colors.text,
-    fontSize: 16,
+    fontSize: normalizeText(17),
     fontWeight: "700",
   },
   avatar: {
@@ -1284,7 +1285,7 @@ const styles = StyleSheet.create({
   avatarText: {
     color: colors.amber,
     fontWeight: "800",
-    fontSize: 18,
+    fontSize: normalizeText(19),
   },
   avatarImage: {
     width: "100%",
@@ -1296,14 +1297,14 @@ const styles = StyleSheet.create({
   },
   hello: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
   name: {
     color: colors.text,
-    fontSize: 17,
+    fontSize: normalizeText(19),
     fontWeight: "800",
   },
   ratingRow: {
@@ -1315,11 +1316,11 @@ const styles = StyleSheet.create({
   rating: {
     color: colors.text,
     fontWeight: "800",
-    fontSize: 13,
+    fontSize: normalizeText(14),
   },
   ratingHint: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: normalizeText(13),
   },
   bell: {
     width: 44,
@@ -1345,7 +1346,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: colors.white,
-    fontSize: 9,
+    fontSize: normalizeText(10),
     fontWeight: "800",
   },
   availability: {
@@ -1365,13 +1366,13 @@ const styles = StyleSheet.create({
   availLabel: {
     color: colors.text,
     fontWeight: "800",
-    fontSize: 14,
+    fontSize: normalizeText(15),
   },
   availHint: {
     marginTop: 2,
     color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: normalizeText(13),
+    lineHeight: normalizeText(17),
   },
   availableSection: {
     marginTop: spacing.md,
@@ -1388,7 +1389,7 @@ const styles = StyleSheet.create({
   },
   noBookingText: {
     color: colors.textMuted,
-    fontSize: 17,
+    fontSize: normalizeText(18),
     fontWeight: "700",
     textAlign: "center",
     marginTop: 0,
@@ -1427,13 +1428,13 @@ const styles = StyleSheet.create({
   },
   sosDispatchTitle: {
     color: colors.white,
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "900",
     letterSpacing: 0.4,
   },
   sosDispatchSubtitle: {
     color: colors.white,
-    fontSize: 11,
+    fontSize: normalizeText(12),
     marginTop: 2,
   },
   sosHeaderDistance: {
@@ -1442,12 +1443,12 @@ const styles = StyleSheet.create({
   },
   sosHeaderDistanceText: {
     color: colors.white,
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "900",
   },
   sosHeaderArrivalText: {
     color: colors.white,
-    fontSize: 10,
+    fontSize: normalizeText(11),
     fontWeight: "700",
     marginTop: 2,
   },
@@ -1471,7 +1472,7 @@ const styles = StyleSheet.create({
   },
   autoReassignText: {
     color: colors.textMuted,
-    fontSize: 9,
+    fontSize: normalizeText(10),
     fontWeight: "900",
   },
   reassignTrack: {
@@ -1489,7 +1490,7 @@ const styles = StyleSheet.create({
   },
   reassignTime: {
     color: colors.text,
-    fontSize: 11,
+    fontSize: normalizeText(12),
     fontWeight: "800",
   },
   pickupHeader: {
@@ -1512,7 +1513,7 @@ const styles = StyleSheet.create({
   },
   pickupHeaderText: {
     color: colors.bg,
-    fontSize: 15,
+    fontSize: normalizeText(16),
     fontWeight: "800",
   },
   emergencyHeader: {
@@ -1531,7 +1532,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 9,
     paddingVertical: 5,
-    fontSize: 11,
+    fontSize: normalizeText(12),
     fontWeight: "800",
     letterSpacing: 0.5,
   },
@@ -1576,12 +1577,12 @@ const styles = StyleSheet.create({
   },
   availableType: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: normalizeText(17),
     fontWeight: "800",
     flex: 1,
   },
   sosDispatchType: {
-    fontSize: 14,
+    fontSize: normalizeText(15),
     color: colors.text,
   },
   highPriorityBadge: {
@@ -1592,7 +1593,7 @@ const styles = StyleSheet.create({
   },
   highPriorityText: {
     color: colors.sos,
-    fontSize: 9,
+    fontSize: normalizeText(10),
     fontWeight: "900",
   },
   sosCustomerRow: {
@@ -1613,13 +1614,13 @@ const styles = StyleSheet.create({
   },
   sosAvatarText: {
     color: colors.blue,
-    fontSize: 11,
+    fontSize: normalizeText(12),
     fontWeight: "900",
   },
   sosCustomerName: {
     flex: 1,
     color: colors.text,
-    fontSize: 15,
+    fontSize: normalizeText(16),
     fontWeight: "800",
   },
   sosCallButton: {
@@ -1648,13 +1649,13 @@ const styles = StyleSheet.create({
   },
   sosVehicleName: {
     color: colors.text,
-    fontSize: 17,
+    fontSize: normalizeText(18),
     fontWeight: "800",
     marginTop: 3,
   },
   sosSectionLabel: {
     color: colors.textMuted,
-    fontSize: 10,
+    fontSize: normalizeText(11),
     fontWeight: "900",
     letterSpacing: 0.7,
   },
@@ -1663,7 +1664,7 @@ const styles = StyleSheet.create({
   },
   sosPlate: {
     color: colors.text,
-    fontSize: 11,
+    fontSize: normalizeText(12),
     fontWeight: "800",
     marginTop: 3,
     letterSpacing: 0.5,
@@ -1700,18 +1701,18 @@ const styles = StyleSheet.create({
   },
   sosFareLabel: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: normalizeText(12),
     fontWeight: "800",
     letterSpacing: 0.3,
   },
   sosFareHint: {
     color: colors.textMuted,
-    fontSize: 10,
+    fontSize: normalizeText(11),
     marginTop: 4,
   },
   sosFareValue: {
     color: "#1D4294",
-    fontSize: 17,
+    fontSize: normalizeText(18),
     fontWeight: "900",
   },
   sosActions: {
@@ -1731,7 +1732,7 @@ const styles = StyleSheet.create({
   },
   sosAcceptText: {
     color: colors.white,
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "900",
   },
   sosDeclineButton: {
@@ -1748,12 +1749,12 @@ const styles = StyleSheet.create({
   },
   sosDeclineText: {
     color: colors.textMuted,
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "800",
   },
   requestCustomer: {
     color: colors.text,
-    fontSize: 21,
+    fontSize: normalizeText(22),
     fontWeight: "800",
     marginTop: 10,
   },
@@ -1772,25 +1773,25 @@ const styles = StyleSheet.create({
   requestInfoText: {
     flex: 1,
     color: colors.textMuted,
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "600",
   },
   requestIssue: {
     color: colors.textDim,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(21),
     marginTop: 12,
   },
   sosIssue: {
     color: colors.sos,
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "700",
-    lineHeight: 20,
+    lineHeight: normalizeText(21),
     marginTop: 4,
   },
   newLabel: {
     color: colors.success,
-    fontSize: 11,
+    fontSize: normalizeText(12),
     fontWeight: "800",
   },
   emergencyText: {
@@ -1802,12 +1803,12 @@ const styles = StyleSheet.create({
   availableVehicle: {
     color: colors.text,
     fontWeight: "700",
-    fontSize: 16,
+    fontSize: normalizeText(17),
     marginTop: spacing.xs,
   },
   availableIssue: {
     color: colors.textMuted,
-    lineHeight: 19,
+    lineHeight: normalizeText(20),
     marginTop: 4,
   },
   acceptJobButton: {
@@ -1851,14 +1852,14 @@ const styles = StyleSheet.create({
   },
   vehicleDetailsTitle: {
     color: colors.text,
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "800",
     marginBottom: 2,
   },
   bookingDetail: {
     color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: normalizeText(13),
+    lineHeight: normalizeText(18),
   },
   compactSummary: {
     flexDirection: "row",
@@ -1873,17 +1874,17 @@ const styles = StyleSheet.create({
   },
   compactName: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: normalizeText(17),
     fontWeight: "700",
   },
   compactVehicle: {
     color: colors.textMuted,
-    fontSize: 13,
+    fontSize: normalizeText(14),
     fontWeight: "600",
   },
   compactDistance: {
     color: colors.amber,
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "800",
   },
   requestValues: {
@@ -1898,8 +1899,8 @@ const styles = StyleSheet.create({
   requestValue: {
     flex: 1,
     color: colors.text,
-    fontSize: 14,
-    lineHeight: 19,
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(20),
   },
   routeBox: {
     backgroundColor: colors.bgInput,
@@ -1918,7 +1919,7 @@ const styles = StyleSheet.create({
   routeTitle: {
     color: colors.text,
     fontWeight: "700",
-    fontSize: 13,
+    fontSize: normalizeText(14),
   },
   routeLine: {
     height: 12,
@@ -1934,14 +1935,14 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     color: colors.textDim,
-    fontSize: 10,
+    fontSize: normalizeText(11),
     fontWeight: "800",
     letterSpacing: 0.7,
     marginTop: 5,
   },
   detailValue: {
     color: colors.textMuted,
-    fontSize: 13,
+    fontSize: normalizeText(14),
     marginTop: 2,
   },
   jobDetailScreen: {
@@ -1973,7 +1974,7 @@ const styles = StyleSheet.create({
   },
   jobDetailHeaderTitle: {
     color: colors.white,
-    fontSize: 18,
+    fontSize: normalizeText(19),
     fontWeight: "800",
   },
   jobDetailContent: {
@@ -1982,7 +1983,7 @@ const styles = StyleSheet.create({
   },
   jobDetailType: {
     color: colors.amber,
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "800",
     letterSpacing: 1,
   },
@@ -1991,7 +1992,7 @@ const styles = StyleSheet.create({
   },
   jobDetailCustomer: {
     color: colors.text,
-    fontSize: 28,
+    fontSize: normalizeText(29),
     fontWeight: "800",
     marginTop: spacing.sm,
     marginBottom: spacing.lg,
@@ -2012,18 +2013,18 @@ const styles = StyleSheet.create({
   },
   detailRouteLabel: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "700",
   },
   detailRouteValue: {
     color: colors.text,
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: normalizeText(17),
+    lineHeight: normalizeText(24),
     marginTop: 3,
   },
   detailRouteHint: {
     color: colors.amber,
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "700",
     marginTop: spacing.sm,
   },
@@ -2038,7 +2039,7 @@ const styles = StyleSheet.create({
   },
   fullDetailLabel: {
     color: colors.textDim,
-    fontSize: 11,
+    fontSize: normalizeText(12),
     fontWeight: "800",
     letterSpacing: 0.8,
     marginTop: spacing.md,
@@ -2059,13 +2060,13 @@ const styles = StyleSheet.create({
   },
   distanceLabel: {
     color: colors.textDim,
-    fontSize: 11,
+    fontSize: normalizeText(12),
     fontWeight: "800",
     letterSpacing: 0.8,
   },
   distanceValue: {
     color: colors.amber,
-    fontSize: 24,
+    fontSize: normalizeText(25),
     fontWeight: "800",
     marginTop: 4,
     marginBottom: spacing.sm,
@@ -2075,8 +2076,8 @@ const styles = StyleSheet.create({
   },
   fullDetailValue: {
     color: colors.text,
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: normalizeText(17),
+    lineHeight: normalizeText(23),
     marginTop: 4,
   },
   fullDetailActions: {
@@ -2119,13 +2120,13 @@ const styles = StyleSheet.create({
   },
   declineModalTitle: {
     color: colors.text,
-    fontSize: 20,
+    fontSize: normalizeText(21),
     fontWeight: "800",
   },
   declineModalHint: {
     color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: normalizeText(14),
+    lineHeight: normalizeText(20),
     marginTop: spacing.xs,
   },
   declineReasonInput: {
@@ -2137,6 +2138,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     textAlignVertical: "top",
+    fontSize: normalizeText(15),
   },
   declineModalActions: {
     flexDirection: "row",
@@ -2154,6 +2156,7 @@ const styles = StyleSheet.create({
   cancelDeclineText: {
     color: colors.textMuted,
     fontWeight: "800",
+    fontSize: normalizeText(15),
   },
   confirmDeclineButton: {
     flex: 1,
@@ -2166,10 +2169,12 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: "800",
     textAlign: "center",
+    fontSize: normalizeText(15),
   },
   acceptJobText: {
     color: colors.bg,
     fontWeight: "800",
+    fontSize: normalizeText(16),
   },
   emptyJobs: {
     backgroundColor: colors.bgElevated,
@@ -2181,22 +2186,23 @@ const styles = StyleSheet.create({
   emptyJobsText: {
     color: colors.text,
     fontWeight: "700",
+    fontSize: normalizeText(15),
   },
   emptyJobsHint: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: normalizeText(13),
     marginTop: 4,
   },
   jobsError: {
     color: colors.sos,
-    fontSize: 12,
+    fontSize: normalizeText(13),
     marginBottom: spacing.sm,
   },
   section: {
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
     color: colors.text,
-    fontSize: 16,
+    fontSize: normalizeText(17),
     fontWeight: "800",
   },
   sectionRow: {
@@ -2208,6 +2214,7 @@ const styles = StyleSheet.create({
     color: colors.amber,
     fontWeight: "700",
     marginTop: spacing.lg,
+    fontSize: normalizeText(15),
   },
   metrics: {
     flexDirection: "row",
@@ -2230,19 +2237,19 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "600",
   },
   metricValue: {
     marginTop: 4,
     color: colors.text,
-    fontSize: 28,
+    fontSize: normalizeText(29),
     fontWeight: "800",
   },
   metricValueSm: {
     marginTop: 4,
     color: colors.text,
-    fontSize: 18,
+    fontSize: normalizeText(19),
     fontWeight: "800",
   },
   pressed: {

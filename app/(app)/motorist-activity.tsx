@@ -23,6 +23,7 @@ import { WebView } from "react-native-webview";
 
 import { MotoristHomeHeader } from "@/components/MotoristHomeHeader";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { normalizeText } from "@/lib/typography";
 
 type BookingColors = {
   bg: string;
@@ -252,7 +253,7 @@ function ScheduledBookingCard({
                 )
               }
             >
-              <Ionicons name="locate-outline" size={22} color="#172B66" />
+              <Ionicons name="locate-outline" size={24} color="#172B66" />
             </TouchableOpacity>
             <TouchableOpacity
               accessibilityLabel={
@@ -265,13 +266,13 @@ function ScheduledBookingCard({
             >
               <Ionicons
                 name={isMapFullscreen ? "contract-outline" : "scan-outline"}
-                size={22}
+                size={24}
                 color="#172B66"
               />
             </TouchableOpacity>
           </View>
           <View style={styles.bookingMapLabel}>
-            <Ionicons name="navigate-outline" size={16} color="#18A957" />
+            <Ionicons name="navigate-outline" size={18} color="#18A957" />
             <Text style={styles.bookingMapLabelText}>
               Real-Time Mechanic Tracking
             </Text>
@@ -300,7 +301,7 @@ function ScheduledBookingCard({
             style={styles.fullscreenCloseButton}
             onPress={() => setIsMapFullscreen(false)}
           >
-            <Ionicons name="close" size={25} color="#172B66" />
+            <Ionicons name="close" size={28} color="#172B66" />
           </TouchableOpacity>
           <View style={styles.fullscreenMapControls}>
             <TouchableOpacity
@@ -312,11 +313,11 @@ function ScheduledBookingCard({
                 )
               }
             >
-              <Ionicons name="locate-outline" size={22} color="#172B66" />
+              <Ionicons name="locate-outline" size={24} color="#172B66" />
             </TouchableOpacity>
           </View>
           <View style={styles.fullscreenMapLabel}>
-            <Ionicons name="navigate-outline" size={16} color="#18A957" />
+            <Ionicons name="navigate-outline" size={18} color="#18A957" />
             <Text style={styles.bookingMapLabelText}>
               Real-Time Mechanic Tracking
             </Text>
@@ -366,7 +367,7 @@ function ScheduledBookingCard({
           </View>
         </View>
         <View style={styles.vehicleSummary}>
-          <Ionicons name="construct-outline" size={18} color="#F08A00" />
+          <Ionicons name="construct-outline" size={20} color="#F08A00" />
           <Text style={styles.vehicleSummaryText}>
             {isAwaitingMechanic
               ? "Waiting for mechanic acceptance"
@@ -385,7 +386,7 @@ function ScheduledBookingCard({
               void Linking.openURL(`tel:${phone}`);
             }}
           >
-            <Ionicons name="call-outline" size={18} color="#FFFFFF" />
+            <Ionicons name="call-outline" size={20} color="#FFFFFF" />
             <Text style={styles.callMechanicText}>Call</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -397,14 +398,14 @@ function ScheduledBookingCard({
               })
             }
           >
-            <Ionicons name="chatbox-outline" size={23} color="#172B66" />
+            <Ionicons name="chatbox-outline" size={26} color="#172B66" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.squareBookingButton}
             onPress={() => onCancel(String(request.id))}
             accessibilityLabel="Open booking options"
           >
-            <Ionicons name="ellipsis-vertical" size={23} color="#172B66" />
+            <Ionicons name="ellipsis-vertical" size={26} color="#172B66" />
           </TouchableOpacity>
         </View>
       </View>
@@ -883,7 +884,7 @@ export default function MotoristActivityScreen() {
             accessibilityLabel="Dismiss booking accepted notification"
             style={styles.acceptanceNoticeClose}
           >
-            <Ionicons name="close" size={18} color={colors.textMuted} />
+            <Ionicons name="close" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
       ) : null}
@@ -915,7 +916,7 @@ export default function MotoristActivityScreen() {
             accessibilityLabel="Dismiss booking cancellation notification"
             style={styles.acceptanceNoticeClose}
           >
-            <Ionicons name="close" size={18} color={colors.textMuted} />
+            <Ionicons name="close" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
       ) : null}
@@ -928,7 +929,7 @@ export default function MotoristActivityScreen() {
         <View style={styles.cancelSuccessOverlay}>
           <View style={[styles.cancelSuccessCard, { backgroundColor: colors.card }]}>
             <View style={styles.cancelSuccessIcon}>
-              <Ionicons name="checkmark" size={28} color="#FFFFFF" />
+              <Ionicons name="checkmark" size={32} color="#FFFFFF" />
             </View>
             <Text style={[styles.cancelSuccessTitle, { color: colors.text }]}>
               Booking Cancelled
@@ -961,7 +962,7 @@ export default function MotoristActivityScreen() {
           />
         ) : filteredRequests.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="receipt-outline" size={48} color={colors.border} />
+            <Ionicons name="receipt-outline" size={54} color={colors.border} />
             <Text style={[styles.emptyText, { color: colors.text }]}>
               No active bookings.
             </Text>
@@ -1095,7 +1096,7 @@ export default function MotoristActivityScreen() {
                     disabled={isCancelling}
                   >
                     <Text style={[styles.issueOptionText, { color: colors.text }]}>{reason}</Text>
-                    <Ionicons name="chevron-forward" size={18} color="#EF4444" />
+                    <Ionicons name="chevron-forward" size={20} color="#EF4444" />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -1130,7 +1131,7 @@ export default function MotoristActivityScreen() {
         <View style={styles.confirmationOverlay}>
           <View style={[styles.confirmationCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.confirmationIcon}>
-              <Ionicons name="alert-circle-outline" size={30} color="#EF4444" />
+              <Ionicons name="alert-circle-outline" size={34} color="#EF4444" />
             </View>
             <Text style={[styles.confirmationTitle, { color: colors.text }]}>
               Confirm Cancellation
@@ -1190,26 +1191,26 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   acceptanceNoticeIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "#18A957",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
   },
   cancellationNoticeIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "#D64545",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
   },
   acceptanceNoticeCopy: { flex: 1 },
-  acceptanceNoticeTitle: { fontSize: 14, fontWeight: "800" },
-  acceptanceNoticeMessage: { fontSize: 12, lineHeight: 17, marginTop: 2 },
+  acceptanceNoticeTitle: { fontSize: normalizeText(16), fontWeight: "800" },
+  acceptanceNoticeMessage: { fontSize: normalizeText(14), lineHeight: normalizeText(20), marginTop: 2 },
   acceptanceNoticeClose: { padding: 4, marginLeft: 8 },
   cancelSuccessOverlay: {
     flex: 1,
@@ -1231,20 +1232,20 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
   },
   cancelSuccessIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: "#18A957",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 14,
+    marginBottom: 16,
   },
-  cancelSuccessTitle: { fontSize: 20, fontWeight: "800", marginBottom: 8 },
+  cancelSuccessTitle: { fontSize: normalizeText(22), fontWeight: "800", marginBottom: 8 },
   cancelSuccessMessage: {
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: normalizeText(16),
+    lineHeight: normalizeText(24),
     textAlign: "center",
-    marginBottom: 22,
+    marginBottom: 24,
   },
   cancelSuccessButton: {
     width: "100%",
@@ -1253,70 +1254,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 14,
   },
-  cancelSuccessButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
-  topContainer: {
-    position: "relative",
-    left: 0,
-    right: 0,
-    paddingHorizontal: 10,
-    paddingBottom: 10,
-    borderRadius: 0,
-    borderWidth: 1,
-    zIndex: 10,
-    elevation: 7,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
-    shadowRadius: 7,
-  },
-  headerRow: { minHeight: 58, flexDirection: "row", alignItems: "center" },
-  appLogo: { width: 74, height: 58 },
-  screenTitle: { flex: 1, marginLeft: 8, fontSize: 22, fontWeight: "800" },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 14 },
-  activityButton: {
-    width: 34,
-    height: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-  iconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 5,
-    borderWidth: 1,
-  },
-  iconAvatarImage: { width: "100%", height: "100%", borderRadius: 25 },
-  iconInitials: { fontSize: 18, fontWeight: "800" },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 16,
-  },
-  backButton: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: "800" },
-
-  tabContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 10,
-    borderBottomWidth: 1,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 16,
-    alignItems: "center",
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
-  },
-  tabText: { fontSize: 14, fontWeight: "700" },
-
+  cancelSuccessButtonText: { color: "#FFFFFF", fontSize: normalizeText(17), fontWeight: "800" },
+  
   content: { padding: 20 },
   emptyState: {
     alignItems: "center",
@@ -1324,8 +1263,8 @@ const styles = StyleSheet.create({
     marginTop: 60,
     padding: 24,
   },
-  emptyText: { fontSize: 18, fontWeight: "700", marginTop: 16 },
-  emptySub: { fontSize: 14, textAlign: "center", marginTop: 8, lineHeight: 20 },
+  emptyText: { fontSize: normalizeText(20), fontWeight: "700", marginTop: 16 },
+  emptySub: { fontSize: normalizeText(16), textAlign: "center", marginTop: 8, lineHeight: normalizeText(24) },
 
   card: {
     borderRadius: 16,
@@ -1343,9 +1282,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
   },
-  serviceType: { fontSize: 15, fontWeight: "800" },
-  status: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
-  issue: { fontSize: 14, lineHeight: 20, marginBottom: 12 },
+  serviceType: { fontSize: normalizeText(17), fontWeight: "800" },
+  status: { fontSize: normalizeText(13), fontWeight: "800", letterSpacing: 0.5 },
+  issue: { fontSize: normalizeText(16), lineHeight: normalizeText(24), marginBottom: 12 },
 
   receiptBox: {
     padding: 12,
@@ -1360,29 +1299,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 4,
   },
-  receiptTitle: { fontSize: 14, fontWeight: "700" },
-  receiptPrice: { fontSize: 16, fontWeight: "900", color: "#10b981" },
-  receiptNotes: { fontSize: 13, fontStyle: "italic", marginTop: 4 },
+  receiptTitle: { fontSize: normalizeText(16), fontWeight: "700" },
+  receiptPrice: { fontSize: normalizeText(18), fontWeight: "900", color: "#10b981" },
+  receiptNotes: { fontSize: normalizeText(15), fontStyle: "italic", marginTop: 4 },
   additionalChargesBox: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: "#FFF9ED", borderWidth: 1, borderColor: "#F2D08A" },
-  additionalChargesTitle: { color: "#8A5A00", fontSize: 13, fontWeight: "800", marginBottom: 8 },
+  additionalChargesTitle: { color: "#8A5A00", fontSize: normalizeText(15), fontWeight: "800", marginBottom: 8 },
   additionalChargeRow: { paddingVertical: 8, borderTopWidth: 1, borderTopColor: "#F2D08A" },
   additionalChargeCopy: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
-  additionalChargeDescription: { flex: 1, color: "#34383F", fontSize: 13, fontWeight: "700" },
-  additionalChargeAmount: { color: "#34383F", fontSize: 13, fontWeight: "800" },
+  additionalChargeDescription: { flex: 1, color: "#34383F", fontSize: normalizeText(15), fontWeight: "700" },
+  additionalChargeAmount: { color: "#34383F", fontSize: normalizeText(15), fontWeight: "800" },
   additionalChargeActions: { flexDirection: "row", gap: 8, marginTop: 8 },
-  rejectChargeButton: { flex: 1, minHeight: 34, borderWidth: 1, borderColor: "#D98B8B", borderRadius: 7, alignItems: "center", justifyContent: "center" },
-  rejectChargeText: { color: "#B33A3A", fontSize: 12, fontWeight: "800" },
-  approveChargeButton: { flex: 1, minHeight: 34, borderRadius: 7, backgroundColor: "#18A957", alignItems: "center", justifyContent: "center" },
-  approveChargeText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
-  approvedCharge: { color: "#18A957", fontSize: 12, fontWeight: "800", marginTop: 6 },
-  rejectedCharge: { color: "#B33A3A", fontSize: 12, fontWeight: "800", marginTop: 6 },
+  rejectChargeButton: { flex: 1, minHeight: 38, borderWidth: 1, borderColor: "#D98B8B", borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  rejectChargeText: { color: "#B33A3A", fontSize: normalizeText(14), fontWeight: "800" },
+  approveChargeButton: { flex: 1, minHeight: 38, borderRadius: 7, backgroundColor: "#18A957", alignItems: "center", justifyContent: "center" },
+  approveChargeText: { color: "#FFFFFF", fontSize: normalizeText(14), fontWeight: "800" },
+  approvedCharge: { color: "#18A957", fontSize: normalizeText(14), fontWeight: "800", marginTop: 6 },
+  rejectedCharge: { color: "#B33A3A", fontSize: normalizeText(14), fontWeight: "800", marginTop: 6 },
   liveTotalRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#F2D08A" },
-  liveTotalLabel: { color: "#34383F", fontSize: 13, fontWeight: "800" },
-  liveTotalValue: { color: "#2450D8", fontSize: 16, fontWeight: "900" },
+  liveTotalLabel: { color: "#34383F", fontSize: normalizeText(15), fontWeight: "800" },
+  liveTotalValue: { color: "#2450D8", fontSize: normalizeText(18), fontWeight: "900" },
 
-  date: { fontSize: 12, fontWeight: "600" },
+  date: { fontSize: normalizeText(14), fontWeight: "600" },
 
-  // New Cancel Button Style
   cancelListButton: {
     marginTop: 16,
     paddingVertical: 12,
@@ -1392,48 +1330,53 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(239, 68, 68, 0.3)",
   },
-  cancelListButtonText: { color: "#EF4444", fontWeight: "bold", fontSize: 14 },
+  cancelListButtonText: { color: "#EF4444", fontWeight: "bold", fontSize: normalizeText(16) },
   issueModalOverlay: {
     flex: 1,
     justifyContent: "center",
     padding: 20,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
-  issueModalCard: { padding: 24, borderWidth: 1 },
-  issueModalTitle: { fontSize: 20, fontWeight: "800" },
-  issueModalHint: { fontSize: 13, lineHeight: 19, marginTop: 4, marginBottom: 16 },
-  issueOptions: { gap: 4 },
+  issueModalCard: { padding: 24, borderWidth: 1, borderRadius: 18 },
+  issueModalTitle: { fontSize: normalizeText(22), fontWeight: "800" },
+  issueModalHint: { fontSize: normalizeText(15), lineHeight: normalizeText(22), marginTop: 4, marginBottom: 16 },
+  issueOptions: { gap: 6 },
   otherIssueInput: {
-    minHeight: 96,
+    minHeight: 110,
     borderWidth: 1,
-    padding: 10,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: normalizeText(15),
     textAlignVertical: "top",
   },
   submitIssueButton: {
-    minHeight: 44,
-    marginTop: 8,
+    minHeight: 48,
+    marginTop: 12,
+    borderRadius: 12,
     backgroundColor: "#EF4444",
     alignItems: "center",
     justifyContent: "center",
   },
-  submitIssueText: { color: "#FFFFFF", fontWeight: "800" },
+  submitIssueText: { color: "#FFFFFF", fontSize: normalizeText(16), fontWeight: "800" },
   issueOption: {
-    minHeight: 48,
-    paddingHorizontal: 10,
+    minHeight: 52,
+    paddingHorizontal: 14,
+    borderRadius: 12,
     borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  issueOptionText: { flex: 1, fontSize: 14, fontWeight: "700" },
+  issueOptionText: { flex: 1, fontSize: normalizeText(16), fontWeight: "700" },
   issueCancelButton: {
-    minHeight: 44,
+    minHeight: 48,
     marginTop: 16,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
   },
-  issueCancelText: { fontWeight: "800" },
+  issueCancelText: { fontSize: normalizeText(16), fontWeight: "800" },
   confirmationOverlay: {
     flex: 1,
     justifyContent: "center",
@@ -1447,9 +1390,9 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   confirmationIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",
@@ -1458,13 +1401,13 @@ const styles = StyleSheet.create({
   },
   confirmationTitle: {
     textAlign: "center",
-    fontSize: 21,
+    fontSize: normalizeText(23),
     fontWeight: "800",
   },
   confirmationMessage: {
     textAlign: "center",
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: normalizeText(16),
+    lineHeight: normalizeText(24),
     marginTop: 8,
   },
   selectedReasonBox: {
@@ -1474,20 +1417,20 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   selectedReasonLabel: {
-    fontSize: 11,
+    fontSize: normalizeText(13),
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   selectedReasonValue: {
-    fontSize: 14,
+    fontSize: normalizeText(16),
     fontWeight: "700",
-    lineHeight: 19,
+    lineHeight: normalizeText(22),
     marginTop: 4,
   },
   confirmationWarning: {
     textAlign: "center",
-    fontSize: 12,
+    fontSize: normalizeText(14),
     marginTop: 14,
   },
   confirmationActions: {
@@ -1501,18 +1444,18 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 13,
+    paddingVertical: 14,
   },
-  keepBookingText: { fontSize: 13, fontWeight: "800" },
+  keepBookingText: { fontSize: normalizeText(15), fontWeight: "800" },
   finalCancelButton: {
     flex: 1,
     borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 13,
+    paddingVertical: 14,
     backgroundColor: "#EF4444",
   },
-  finalCancelText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
+  finalCancelText: { color: "#FFFFFF", fontSize: normalizeText(15), fontWeight: "800" },
 
   scheduledBooking: { marginBottom: 22 },
   bookingsHeading: {
@@ -1520,8 +1463,8 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
     alignSelf: "center",
     color: "#131B2E",
-    fontSize: 20,
-    lineHeight: 32,
+    fontSize: normalizeText(22),
+    lineHeight: normalizeText(34),
     letterSpacing: -0.24,
     fontWeight: "700",
     marginTop: -8,
@@ -1531,40 +1474,27 @@ const styles = StyleSheet.create({
     width: 358,
     maxWidth: "100%",
     alignSelf: "center",
-    height: 32,
-    borderRadius: 16,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "#E2E8FF",
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     marginBottom: 18,
   },
   statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: "#F08A00",
     marginRight: 12,
   },
   bookingStatusText: {
     color: "#131B2E",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: normalizeText(14),
+    lineHeight: normalizeText(20),
     fontWeight: "700",
     letterSpacing: 0.6,
-  },
-  arrivalLabel: {
-    marginLeft: "auto",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  arrivalText: {
-    color: "#D97706",
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.24,
-    fontWeight: "700",
   },
   bookingMapPreview: {
     width: 358,
@@ -1589,9 +1519,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 54,
     right: 18,
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -1622,74 +1552,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 4,
   },
-  mapWater: {
-    position: "absolute",
-    left: -80,
-    top: -40,
-    width: 230,
-    height: 380,
-    backgroundColor: "#8ECFD9",
-    borderRadius: 120,
-    transform: [{ rotate: "12deg" }],
-  },
-  mapRoadPrimary: {
-    position: "absolute",
-    width: "140%",
-    height: 22,
-    top: 142,
-    left: -45,
-    backgroundColor: "#FFFFFF",
-    transform: [{ rotate: "-30deg" }],
-  },
-  mapRoadSecondary: {
-    position: "absolute",
-    width: "120%",
-    height: 12,
-    top: 194,
-    left: -20,
-    backgroundColor: "#F0E5B7",
-    transform: [{ rotate: "18deg" }],
-  },
-  mapRoute: {
-    position: "absolute",
-    width: 245,
-    height: 5,
-    top: 145,
-    left: 44,
-    backgroundColor: "#FF6725",
-    transform: [{ rotate: "52deg" }],
-    borderRadius: 3,
-  },
-  userMapPin: {
-    position: "absolute",
-    right: 92,
-    bottom: 62,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "#2450D8",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mechanicMapPin: {
-    position: "absolute",
-    left: 118,
-    top: 52,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "#2450D8",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
   mapControl: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -1716,15 +1582,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 5,
   },
-  bookingMapLabelText: { color: "#172B66", fontSize: 13, fontWeight: "800" },
+  bookingMapLabelText: { color: "#172B66", fontSize: normalizeText(15), fontWeight: "800" },
   mechanicBookingCard: {
     width: 358,
     maxWidth: "100%",
     alignSelf: "center",
-    height: 180,
+    minHeight: 180,
     borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
     marginBottom: 22,
     elevation: 3,
     shadowColor: "#000",
@@ -1732,55 +1598,43 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   mechanicBookingHeader: {
-    height: 55,
+    height: 60,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
-  },
-  mechanicAvatarPlaceholder: {
-    width: 55,
-    height: 55,
-    borderRadius: 27.5,
-    backgroundColor: "#7A8794",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mechanicAvatarImage: {
-    width: 55,
-    height: 55,
-    borderRadius: 27.5,
+    marginBottom: 8,
   },
   mechanicBookingIdentity: { flex: 1, marginLeft: 12, minWidth: 0 },
-  mechanicBookingName: { fontSize: 17, lineHeight: 24, fontWeight: "600" },
-  mechanicRatingRow: { height: 16, flexDirection: "row", alignItems: "center" },
-  ratingStar: { color: "#D97706", fontSize: 17, lineHeight: 16 },
+  mechanicBookingName: { fontSize: normalizeText(19), lineHeight: normalizeText(26), fontWeight: "600" },
+  mechanicRatingRow: { height: 18, flexDirection: "row", alignItems: "center" },
+  ratingStar: { color: "#D97706", fontSize: normalizeText(19), lineHeight: normalizeText(20) },
   ratingValue: {
     color: "#D97706",
-    fontSize: 10,
-    lineHeight: 16,
+    fontSize: normalizeText(12),
+    lineHeight: normalizeText(20),
     fontWeight: "700",
     marginLeft: 4,
   },
   servicesValue: {
     color: "#2C2F35",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: normalizeText(14),
+    lineHeight: normalizeText(20),
     fontWeight: "500",
     marginLeft: 7,
   },
   mechanicVehicleText: {
     color: "#2C2F35",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: normalizeText(14),
+    lineHeight: normalizeText(20),
     fontWeight: "400",
   },
   mechanicPlateText: {
     backgroundColor: "#E8ECFF",
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: normalizeText(12),
+    lineHeight: normalizeText(18),
     fontWeight: "700",
     letterSpacing: 0.4,
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
+    borderRadius: 4,
   },
   moderateBadge: {
     backgroundColor: "#DCE7FF",
@@ -1790,35 +1644,32 @@ const styles = StyleSheet.create({
   },
   moderateBadgeText: {
     color: "#0037B0",
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: normalizeText(12),
+    lineHeight: normalizeText(18),
     fontWeight: "800",
     letterSpacing: 0.4,
   },
   vehicleSummary: {
-    width: 326,
-    maxWidth: "100%",
-    alignSelf: "center",
-    height: 32,
+    width: "100%",
+    minHeight: 36,
     backgroundColor: "#EEF0FF",
     borderRadius: 10,
     paddingHorizontal: 13,
     flexDirection: "row",
     alignItems: "center",
     gap: 9,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   vehicleSummaryText: {
     color: "#29488F",
-    fontSize: 15,
+    fontSize: normalizeText(17),
     fontWeight: "700",
     flex: 1,
   },
-  bookingActions: { height: 48, flexDirection: "row", gap: 8 },
+  bookingActions: { minHeight: 52, flexDirection: "row", gap: 8 },
   callMechanicButton: {
-    width: 197,
-    height: 48,
-    flexShrink: 0,
+    flex: 1,
+    height: 52,
     borderRadius: 14,
     backgroundColor: "#29458F",
     borderWidth: 2,
@@ -1828,10 +1679,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  callMechanicText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
+  callMechanicText: { color: "#FFFFFF", fontSize: normalizeText(18), fontWeight: "600" },
   squareBookingButton: {
-    width: 48,
-    height: 48,
+    width: 52,
+    height: 52,
     borderRadius: 14,
     backgroundColor: "#E8ECFF",
     alignItems: "center",
@@ -1852,26 +1703,26 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 18,
   },
-  progressTitle: { fontSize: 20, fontWeight: "500" },
-  progressStep: { color: "#D87500", fontSize: 13, fontWeight: "800" },
+  progressTitle: { fontSize: normalizeText(22), fontWeight: "500" },
+  progressStep: { color: "#D87500", fontSize: normalizeText(15), fontWeight: "800" },
   progressRow: {
     flexDirection: "row",
-    minHeight: 62,
+    minHeight: 68,
     alignItems: "flex-start",
   },
   progressIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
+    marginRight: 12,
   },
-  progressIconText: { color: "#FFFFFF", fontSize: 17, fontWeight: "800" },
+  progressIconText: { color: "#FFFFFF", fontSize: normalizeText(19), fontWeight: "800" },
   progressCopy: { flex: 1 },
-  progressRowTitle: { fontSize: 15, fontWeight: "800", marginTop: 3 },
-  progressRowSubtitle: { fontSize: 13, lineHeight: 18, marginTop: 3 },
-  progressTime: { fontSize: 13, marginTop: 4, marginLeft: 6 },
+  progressRowTitle: { fontSize: normalizeText(17), fontWeight: "800", marginTop: 3 },
+  progressRowSubtitle: { fontSize: normalizeText(15), lineHeight: normalizeText(22), marginTop: 3 },
+  progressTime: { fontSize: normalizeText(15), marginTop: 4, marginLeft: 6 },
   referenceCard: {
     borderRadius: 18,
     padding: 20,
@@ -1883,12 +1734,12 @@ const styles = StyleSheet.create({
   },
   referenceEyebrow: {
     color: "#565C6D",
-    fontSize: 12,
+    fontSize: normalizeText(14),
     fontWeight: "800",
     letterSpacing: 1,
     marginBottom: 5,
   },
-  referenceId: { fontSize: 24, fontWeight: "800", marginBottom: 20 },
+  referenceId: { fontSize: normalizeText(26), fontWeight: "800", marginBottom: 20 },
   referenceRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1896,9 +1747,9 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     gap: 12,
   },
-  referenceLabel: { fontSize: 14, fontWeight: "700" },
+  referenceLabel: { fontSize: normalizeText(16), fontWeight: "700" },
   referenceValue: {
-    fontSize: 14,
+    fontSize: normalizeText(16),
     fontWeight: "700",
     textAlign: "right",
     flex: 1,
@@ -1906,7 +1757,7 @@ const styles = StyleSheet.create({
   estimatedFee: {
     backgroundColor: "#E8ECFF",
     borderRadius: 12,
-    padding: 14,
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1914,10 +1765,10 @@ const styles = StyleSheet.create({
   },
   estimatedFeeLabel: {
     color: "#565C6D",
-    fontSize: 11,
+    fontSize: normalizeText(13),
     fontWeight: "800",
     letterSpacing: 0.5,
   },
-  estimatedFeeDescription: { fontSize: 13, marginTop: 3 },
-  estimatedFeeAmount: { color: "#29458F", fontSize: 19, fontWeight: "800" },
+  estimatedFeeDescription: { fontSize: normalizeText(15), marginTop: 3 },
+  estimatedFeeAmount: { color: "#29458F", fontSize: normalizeText(21), fontWeight: "800" },
 });

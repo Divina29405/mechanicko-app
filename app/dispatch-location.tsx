@@ -23,6 +23,7 @@ import Animated, {
   withDelay,
   withTiming,
 } from "react-native-reanimated";
+import { normalizeText } from "@/lib/typography";
 
 const DEFAULT_LOCATION = {
   latitude: 14.5995,
@@ -308,7 +309,7 @@ export default function DispatchLocationScreen() {
         }}
       />
       <LinearGradient
-        colors={["#F5F7FA", "#F5F7FA"]}
+        colors={["#F8FAFC", "#F1F5F9"]}
         style={styles.screen}
       >
         <SafeAreaView style={styles.safeArea}>
@@ -325,7 +326,7 @@ export default function DispatchLocationScreen() {
               accessibilityLabel="Go back"
               style={styles.backButton}
             >
-              <Ionicons name="arrow-back" size={25} color="#000000" />
+              <Ionicons name="arrow-back" size={28} color="#0F172A" />
             </Pressable>
           </View>
 
@@ -349,10 +350,10 @@ export default function DispatchLocationScreen() {
                 onPress={() => setIsMapExpanded(false)}
                 accessibilityLabel="Close full screen map"
               >
-                <Ionicons name="close" size={24} color="#283247" />
+                <Ionicons name="close" size={26} color="#0F172A" />
               </Pressable>
               <View style={styles.expandedMapHint}>
-                <Ionicons name="location-outline" size={17} color="#24439A" />
+                <Ionicons name="location-outline" size={20} color="#24439A" />
                 <Text style={styles.expandedMapHintText}>
                   Tap anywhere on the map to set your dispatch pin
                 </Text>
@@ -433,7 +434,7 @@ export default function DispatchLocationScreen() {
                   onPress={() => setIsMapExpanded(true)}
                   accessibilityLabel="Open map in full screen"
                 >
-                  <Ionicons name="expand-outline" size={20} color="#283247" />
+                  <Ionicons name="expand-outline" size={22} color="#0F172A" />
                 </Pressable>
                 <View style={[styles.mapBadge, styles.mapBadgeTop]}>
                   <View style={styles.orangeDot} />
@@ -461,7 +462,7 @@ export default function DispatchLocationScreen() {
                 </View>
                 <View style={styles.locationBox}>
                   <View style={styles.locationIcon}>
-                    <Ionicons name="briefcase" size={24} color="#FFFFFF" />
+                    <Ionicons name="briefcase" size={26} color="#FFFFFF" />
                   </View>
                   <Text style={styles.locationText}>{address}</Text>
                   <Pressable
@@ -472,7 +473,7 @@ export default function DispatchLocationScreen() {
                   >
                     <Ionicons
                       name="location-outline"
-                      size={16}
+                      size={18}
                       color="#30343D"
                     />
                     <Text style={styles.changePinText}>Change Pin</Text>
@@ -530,7 +531,7 @@ export default function DispatchLocationScreen() {
                     <View key={zone} style={styles.zoneChip}>
                       <Text style={styles.zoneText}>{zone}</Text>
                       <Pressable onPress={() => removeZone(zone)} hitSlop={8}>
-                        <Ionicons name="trash" size={13} color="#EF4444" />
+                        <Ionicons name="trash" size={16} color="#EF4444" />
                       </Pressable>
                     </View>
                   ))}
@@ -582,7 +583,7 @@ export default function DispatchLocationScreen() {
 
               <View style={styles.standbyCard}>
                 <View style={styles.standbyIcon}>
-                  <Ionicons name="star" size={23} color="#FFFFFF" />
+                  <Ionicons name="star" size={26} color="#FFFFFF" />
                 </View>
                 <View style={styles.standbyCopy}>
                   <Text style={styles.standbyTitle}>
@@ -645,43 +646,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   almostDoneTitle: {
-    width: 289,
+    width: 320,
     color: "#1E3A8A",
-    fontSize: 24,
-    lineHeight: 33,
+    fontSize: normalizeText(28),
+    lineHeight: normalizeText(36),
     fontWeight: "800",
     textAlign: "center",
   },
   almostDoneText: {
-    color: "#2C2F35",
-    width: 291,
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 3,
+    color: "#0F172A",
+    width: 320,
+    fontSize: normalizeText(16),
+    lineHeight: normalizeText(24),
+    marginTop: 6,
     textAlign: "center",
   },
   almostDoneActions: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
+    gap: 12,
     marginTop: 44,
   },
   almostDoneBack: {
-    minHeight: 36,
-    minWidth: 86,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    minHeight: 44,
+    minWidth: 96,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E0E5F0",
     alignItems: "center",
     justifyContent: "center",
   },
-  almostDoneBackText: { color: "#4B5568", fontSize: 12, fontWeight: "700" },
+  almostDoneBackText: { color: "#4B5568", fontSize: normalizeText(14), fontWeight: "700" },
   almostDoneProceed: {
-    width: 145,
-    minHeight: 36,
-    borderRadius: 10,
+    width: 160,
+    minHeight: 44,
+    borderRadius: 12,
     backgroundColor: "#24439A",
     flexDirection: "row",
     alignItems: "center",
@@ -694,44 +695,43 @@ const styles = StyleSheet.create({
   },
   almostDoneProceedText: {
     color: "#FFFFFF",
-    fontSize: 12,
-    lineHeight: 20,
-    fontWeight: "600",
+    fontSize: normalizeText(15),
+    fontWeight: "700",
   },
-  almostDoneArrow: { color: "#FFFFFF", fontSize: 16, marginLeft: 6 },
-  content: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 36 },
+  almostDoneArrow: { color: "#FFFFFF", fontSize: normalizeText(20), marginLeft: 6 },
+  content: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 36 },
   title: {
-    color: "#30343D",
-    fontSize: 27,
-    lineHeight: 34,
+    color: "#0F172A",
+    fontSize: normalizeText(28),
+    lineHeight: normalizeText(36),
     fontWeight: "800",
     marginTop: 4,
   },
   subtitle: {
-    color: "#444851",
-    fontSize: 14,
-    lineHeight: 21,
+    color: "#334155",
+    fontSize: normalizeText(16),
+    lineHeight: normalizeText(24),
     marginTop: 6,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   mapCard: {
-    width: 340,
-    height: 208,
+    width: "100%",
+    height: 240,
     alignSelf: "center",
     borderRadius: 18,
     overflow: "hidden",
     backgroundColor: "#DCECF4",
     elevation: 4,
-    marginBottom: 16,
+    marginBottom: 18,
   },
   map: { flex: 1 },
   expandMapButton: {
     position: "absolute",
-    top: 12,
-    right: 12,
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    top: 14,
+    right: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -743,9 +743,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 56,
     right: 18,
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -755,117 +755,117 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 18,
     right: 18,
-    bottom: 28,
-    minHeight: 52,
+    bottom: 32,
+    minHeight: 56,
     borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     backgroundColor: "#FFFFFF",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     elevation: 4,
   },
   expandedMapHintText: {
     flex: 1,
-    color: "#283247",
-    fontSize: 14,
+    color: "#0F172A",
+    fontSize: normalizeText(15),
     fontWeight: "700",
   },
   mapBadge: {
     position: "absolute",
-    left: 14,
+    left: 16,
     backgroundColor: "#FFFFFF",
     borderRadius: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
     elevation: 2,
   },
-  mapBadgeTop: { top: 16 },
-  mapBadgeSecond: { top: 59 },
+  mapBadgeTop: { top: 18 },
+  mapBadgeSecond: { top: 66 },
   orangeDot: {
-    width: 9,
-    height: 9,
+    width: 10,
+    height: 10,
     borderRadius: 5,
     backgroundColor: "#F59E0B",
-    marginRight: 7,
+    marginRight: 8,
   },
   blueDot: {
-    width: 9,
-    height: 9,
+    width: 10,
+    height: 10,
     borderRadius: 5,
     backgroundColor: "#24439A",
-    marginRight: 7,
+    marginRight: 8,
   },
   mapBadgeText: {
     flexShrink: 1,
-    color: "#283247",
-    fontSize: 13,
+    color: "#0F172A",
+    fontSize: normalizeText(14),
     fontWeight: "700",
   },
   activeZoneBadge: {
     position: "absolute",
-    right: 14,
-    bottom: 15,
+    right: 16,
+    bottom: 16,
     backgroundColor: "#E5EAFE",
     borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  activeZoneText: { color: "#24439A", fontSize: 13, fontWeight: "800" },
+  activeZoneText: { color: "#24439A", fontSize: normalizeText(14), fontWeight: "800" },
   card: {
-    width: 342,
+    width: "100%",
     alignSelf: "center",
     backgroundColor: "#FFFFFF",
     borderRadius: 18,
-    padding: 20,
-    marginBottom: 16,
+    padding: 22,
+    marginBottom: 18,
     borderWidth: 1,
     borderColor: "#E4E8F0",
   },
-  baseWorkshopCard: { height: 155, padding: 16 },
-  radiusCard: { height: 320, padding: 16 },
+  baseWorkshopCard: { minHeight: 165, padding: 18 },
+  radiusCard: { minHeight: 340, padding: 18 },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
   },
   sectionTitle: {
-    color: "#30343D",
-    fontSize: 16,
-    lineHeight: 24,
+    color: "#0F172A",
+    fontSize: normalizeText(18),
+    lineHeight: normalizeText(26),
     fontWeight: "800",
     letterSpacing: 0.3,
   },
   sectionDescription: {
-    color: "#4C515B",
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 5,
+    color: "#334155",
+    fontSize: normalizeText(16),
+    lineHeight: normalizeText(24),
+    marginTop: 6,
   },
   verified: {
     color: "#24439A",
     backgroundColor: "#EFF5FF",
     borderRadius: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: normalizeText(13),
     fontWeight: "800",
   },
   locationBox: {
     backgroundColor: "#F1F3FF",
     borderRadius: 14,
-    padding: 10,
-    marginTop: 14,
+    padding: 12,
+    marginTop: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   locationIcon: {
-    width: 42,
-    height: 42,
+    width: 46,
+    height: 46,
     borderRadius: 12,
     backgroundColor: "#24439A",
     alignItems: "center",
@@ -875,42 +875,43 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     flexShrink: 1,
-    color: "#283247",
-    fontSize: 14,
-    lineHeight: 19,
+    color: "#0F172A",
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(22),
     fontWeight: "700",
   },
   changePin: {
     flexShrink: 0,
     borderWidth: 1,
-    borderColor: "#30343D",
+    borderColor: "#0F172A",
     borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
+    gap: 4,
   },
-  changePinText: { color: "#30343D", fontSize: 12, fontWeight: "800" },
+  changePinText: { color: "#0F172A", fontSize: normalizeText(13), fontWeight: "800" },
   radiusPill: {
     color: "#24439A",
     backgroundColor: "#EFF5FF",
     borderWidth: 1,
     borderColor: "#A8C8FF",
     borderRadius: 20,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    fontSize: normalizeText(15),
     fontWeight: "800",
   },
-  radiusGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 14 },
+  radiusGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 16 },
   radiusOption: {
-    width: "49%",
-    minHeight: 88,
+    width: "48%",
+    minHeight: 96,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#DDE2EE",
     backgroundColor: "#FAF9FF",
-    padding: 11,
+    padding: 14,
   },
   radiusSelected: {
     borderWidth: 2,
@@ -923,138 +924,138 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   radiusTitle: {
-    color: "#2C2F35",
-    fontSize: 15,
-    lineHeight: 20,
+    color: "#0F172A",
+    fontSize: normalizeText(17),
+    lineHeight: normalizeText(22),
     fontWeight: "700",
   },
   recommended: {
     color: "#FFFFFF",
     backgroundColor: "#24439A",
     borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     marginRight: 6,
     marginLeft: 4,
-    fontSize: 10,
+    fontSize: normalizeText(11),
     fontWeight: "800",
     letterSpacing: 0.2,
   },
   radiusSubtitle: {
-    color: "#2C2F35",
-    fontSize: 11,
-    lineHeight: 20,
+    color: "#0F172A",
+    fontSize: normalizeText(13),
+    lineHeight: normalizeText(22),
   },
   radiusDetail: {
-    color: "#2C2F35",
-    fontSize: 11,
-    lineHeight: 20,
+    color: "#0F172A",
+    fontSize: normalizeText(13),
+    lineHeight: normalizeText(22),
     fontWeight: "500",
     marginTop: 0,
   },
-  zoneCount: { color: "#667085", fontSize: 13 },
+  zoneCount: { color: "#334155", fontSize: normalizeText(15) },
   zoneList: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 9,
-    marginTop: 18,
+    gap: 10,
+    marginTop: 20,
   },
   zoneChip: {
     borderWidth: 1,
     borderColor: "#A8C8FF",
     borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
+    gap: 8,
     backgroundColor: "#F7FAFF",
   },
-  zoneText: { color: "#24439A", fontWeight: "800", fontSize: 13 },
+  zoneText: { color: "#24439A", fontWeight: "800", fontSize: normalizeText(15) },
   addZone: {
     alignSelf: "flex-start",
-    marginTop: 12,
+    marginTop: 14,
     borderWidth: 1,
     borderStyle: "dashed",
     borderColor: "#A8B5CE",
     borderRadius: 20,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
   },
-  addZoneText: { color: "#24439A", fontSize: 13, fontWeight: "800" },
-  addZoneForm: { marginTop: 10 },
+  addZoneText: { color: "#24439A", fontSize: normalizeText(15), fontWeight: "800" },
+  addZoneForm: { marginTop: 12 },
   zoneInput: {
-    minHeight: 44,
+    minHeight: 48,
     borderWidth: 1,
     borderColor: "#A8B5CE",
     borderRadius: 12,
-    paddingHorizontal: 12,
-    color: "#283247",
-    fontSize: 14,
+    paddingHorizontal: 14,
+    color: "#0F172A",
+    fontSize: normalizeText(16),
     backgroundColor: "#FFFFFF",
   },
   zoneActions: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    gap: 8,
-    marginTop: 8,
+    gap: 10,
+    marginTop: 10,
   },
   cancelZone: {
     borderWidth: 1,
     borderColor: "#A8B5CE",
     borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
-  cancelZoneText: { color: "#4C515B", fontSize: 13, fontWeight: "700" },
+  cancelZoneText: { color: "#4C515B", fontSize: normalizeText(15), fontWeight: "700" },
   confirmZone: {
     backgroundColor: "#24439A",
     borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
   },
-  confirmZoneText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800" },
-  zoneError: { color: "#C2410C", fontSize: 12, marginTop: 6 },
+  confirmZoneText: { color: "#FFFFFF", fontSize: normalizeText(15), fontWeight: "800" },
+  zoneError: { color: "#C2410C", fontSize: normalizeText(14), marginTop: 8 },
   standbyCard: {
     backgroundColor: "#FFF9E9",
     borderWidth: 1,
     borderColor: "#FFD978",
     borderRadius: 18,
-    padding: 16,
+    padding: 18,
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 24,
+    gap: 14,
+    marginBottom: 26,
   },
   standbyIcon: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 14,
     backgroundColor: "#E88900",
     alignItems: "center",
     justifyContent: "center",
   },
   standbyCopy: { flex: 1 },
-  standbyTitle: { color: "#30343D", fontSize: 16, fontWeight: "800" },
-  standbyText: { color: "#69707C", fontSize: 13, lineHeight: 19, marginTop: 5 },
+  standbyTitle: { color: "#0F172A", fontSize: normalizeText(18), fontWeight: "800" },
+  standbyText: { color: "#334155", fontSize: normalizeText(15), lineHeight: normalizeText(22), marginTop: 6 },
   saveButton: {
-    minHeight: 58,
+    minHeight: 62,
     backgroundColor: "#24439A",
     borderRadius: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
+    gap: 12,
     elevation: 4,
   },
-  saveButtonText: { color: "#FFFFFF", fontSize: 17, fontWeight: "800" },
-  saveArrow: { color: "#FFFFFF", fontSize: 25 },
+  saveButtonText: { color: "#FFFFFF", fontSize: normalizeText(18), fontWeight: "800" },
+  saveArrow: { color: "#FFFFFF", fontSize: normalizeText(28) },
   disabled: { opacity: 0.6 },
   footerText: {
-    color: "#4C515B",
+    color: "#334155",
     textAlign: "center",
-    fontSize: 13,
-    lineHeight: 20,
-    marginTop: 20,
+    fontSize: normalizeText(14),
+    lineHeight: normalizeText(22),
+    marginTop: 22,
   },
 });

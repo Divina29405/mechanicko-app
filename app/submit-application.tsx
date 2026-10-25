@@ -12,6 +12,7 @@ import Animated, {
   withDelay,
   withTiming,
 } from "react-native-reanimated";
+import { normalizeText } from "@/lib/typography";
 
 export default function SubmitApplicationScreen() {
   const { role } = useLocalSearchParams<{ role?: string }>();
@@ -57,7 +58,7 @@ export default function SubmitApplicationScreen() {
       <Stack.Screen options={{ animation: "slide_from_right" }} />
       <StatusBar style="dark" />
       <LinearGradient
-        colors={["#F5F7FA", "#F5F7FA"]}
+        colors={["#F8FAFC", "#F1F5F9"]}
         style={styles.screen}
       >
         <SafeAreaView style={styles.safeArea}>
@@ -69,7 +70,7 @@ export default function SubmitApplicationScreen() {
               onPress={reviewDetails}
               style={styles.backButton}
             >
-              <Ionicons name="arrow-back" size={25} color="#000000" />
+              <Ionicons name="arrow-back" size={28} color="#0F172A" />
             </Pressable>
           ) : null}
           <View style={styles.sheet}>
@@ -175,8 +176,8 @@ const styles = StyleSheet.create({
     flex: 1,
     marginTop: 52,
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#DCE3EF",
@@ -189,23 +190,23 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 32, paddingTop: 198 },
   successContent: { paddingTop: 204 },
   title: {
-    color: "#17213D",
-    fontSize: 27,
-    lineHeight: 34,
+    color: "#0F172A",
+    fontSize: normalizeText(29),
+    lineHeight: normalizeText(36),
     fontWeight: "800",
     textAlign: "center",
   },
   description: {
-    color: "#4B5568",
-    fontSize: 15,
-    lineHeight: 23,
+    color: "#334155",
+    fontSize: normalizeText(16),
+    lineHeight: normalizeText(25),
     textAlign: "center",
-    marginTop: 8,
+    marginTop: 12,
   },
-  actions: { marginTop: 30, gap: 10 },
+  actions: { marginTop: 34, gap: 12 },
   submitButton: {
-    minHeight: 49,
-    borderRadius: 11,
+    minHeight: 52,
+    borderRadius: 14,
     backgroundColor: "#0641B9",
     alignItems: "center",
     justifyContent: "center",
@@ -215,43 +216,43 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  submitButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
+  submitButtonText: { color: "#FFFFFF", fontSize: normalizeText(17), fontWeight: "800" },
   reviewButton: {
-    minHeight: 43,
-    borderRadius: 11,
+    minHeight: 48,
+    borderRadius: 14,
     backgroundColor: "#F0F2FF",
     alignItems: "center",
     justifyContent: "center",
   },
   reviewButtonText: {
     color: "#202943",
-    fontSize: 14,
+    fontSize: normalizeText(15),
     fontWeight: "700",
   },
   successTitle: {
     color: "#16A34A",
-    fontSize: 27,
-    lineHeight: 34,
+    fontSize: normalizeText(29),
+    lineHeight: normalizeText(36),
     fontWeight: "800",
     textAlign: "center",
   },
   successDescription: {
-    color: "#4B5568",
-    fontSize: 15,
-    lineHeight: 23,
+    color: "#334155",
+    fontSize: normalizeText(16),
+    lineHeight: normalizeText(25),
     textAlign: "center",
-    marginTop: 14,
+    marginTop: 16,
   },
-  businessDays: { fontWeight: "800", color: "#17213D" },
+  businessDays: { fontWeight: "800", color: "#0F172A" },
   backToLoginButton: {
     alignSelf: "center",
-    minWidth: 150,
-    minHeight: 43,
-    borderRadius: 11,
+    minWidth: 160,
+    minHeight: 48,
+    borderRadius: 14,
     backgroundColor: "#24439A",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 28,
+    marginTop: 32,
     shadowColor: "#0B3FA8",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
@@ -260,7 +261,7 @@ const styles = StyleSheet.create({
   },
   backToLoginText: {
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: normalizeText(16),
     fontWeight: "800",
   },
   buttonPressed: { opacity: 0.8 },

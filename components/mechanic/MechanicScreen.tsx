@@ -1,14 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMechanic } from '@/contexts/MechanicContext';
 import { colors, spacing } from '@/lib/theme';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { normalizeText } from '@/lib/typography';
 
 type Props = {
   children: ReactNode;
@@ -40,6 +41,8 @@ export function MechanicScreen({
   const theme = useAppTheme();
   const { session } = useAuth();
   const { online, rating, avatarUrl } = useMechanic();
+  const insets = useSafeAreaInsets();
+  
   const name = displayName(
     typeof session?.user.user_metadata?.full_name === 'string'
       ? session.user.user_metadata.full_name
@@ -53,7 +56,7 @@ export function MechanicScreen({
       edges={safeAreaTop ? ['top'] : []}
     >
       {profileHeader ? (
-        <View style={[styles.profileHeader, { backgroundColor: colors.white }]}>
+        <View style={[styles.profileHeader, { backgroundColor: colors.white, paddingTop: Platform.OS === 'android' ? Math.max(insets.top, 12) : 10 }]}>
           <Pressable
             style={styles.profileIdentity}
             onPress={() => router.push('./profile')}
@@ -64,7 +67,7 @@ export function MechanicScreen({
               <ProfileAvatar
                 uri={avatarUrl}
                 name={name}
-                size={48}
+                size={46}
                 backgroundColor={colors.amberSoft}
               />
               <View
@@ -86,7 +89,7 @@ export function MechanicScreen({
           </Pressable>
           <View style={styles.profileActions}>
             <View style={styles.profileRating}>
-              <Ionicons name="star" size={20} color={colors.amber} />
+              <Ionicons name="star" size={18} color={colors.amber} />
               <Text style={[styles.profileRatingValue, { color: theme.colors.text }]}>
                 {rating.toFixed(2)}
               </Text>
@@ -103,7 +106,7 @@ export function MechanicScreen({
         </View>
       ) : null}
       {!hideHeader ? (
-        <View style={[styles.header, { backgroundColor: colors.white, borderBottomColor: theme.colors.border }]}>
+        <View style={[styles.header, { backgroundColor: colors.white, borderBottomColor: theme.colors.border, paddingTop: Platform.OS === 'android' ? Math.max(insets.top, 12) : 0 }]}>
           {back ? (
             <Pressable
               onPress={() => {
@@ -115,7 +118,7 @@ export function MechanicScreen({
               }}
               style={({ pressed }) => [styles.back, pressed && styles.pressed]}
               accessibilityLabel="Go back">
-              <Ionicons name="arrow-back" size={24} color="#000000" />
+              <Ionicons name="arrow-back" size={26} color="#000000" />
             </Pressable>
           ) : null}
           <View style={styles.headerText}>
@@ -161,7 +164,7 @@ const styles = StyleSheet.create({
   profileHeader: {
     minHeight: 70,
     paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    paddingBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -180,8 +183,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
     top: 1,
-    width: 11,
-    height: 11,
+    width: 12,
+    height: 12,
     borderRadius: 6,
     backgroundColor: colors.sos,
     borderWidth: 2,
@@ -193,11 +196,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileName: {
-    fontSize: 17,
+    fontSize: normalizeText(17),
     fontWeight: '800',
   },
   profileAvailability: {
-    fontSize: 12,
+    fontSize: normalizeText(12),
     marginTop: 2,
   },
   profileActions: {
@@ -211,7 +214,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   profileRatingValue: {
-    fontSize: 15,
+    fontSize: normalizeText(15),
     fontWeight: '700',
   },
   profileNotification: {
@@ -222,11 +225,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   back: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.xs,
+    zIndex: 10,
   },
   headerText: {
     position: 'absolute',
@@ -236,14 +240,14 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: normalizeText(18),
     fontWeight: '800',
     textAlign: 'center',
   },
   subtitle: {
     display: 'none',
     color: colors.textMuted,
-    fontSize: 13,
+    fontSize: normalizeText(13),
   },
   iconBtn: {
     width: 42,

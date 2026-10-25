@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 
 import { colors, radii, spacing } from '@/lib/theme';
+import { normalizeText } from '@/lib/typography';
 
 type Props = {
   label: string;
@@ -90,7 +91,7 @@ export function AuthInput({
         ) : (
           <Ionicons
             name={icon}
-            size={isMechanic ? 20 : 20}
+            size={isMechanic ? normalizeText(20) : normalizeText(20)}
             color={focused ? colors.amber : colors.textDim}
             style={iconStyle}
           />
@@ -115,7 +116,7 @@ export function AuthInput({
           <Pressable onPress={() => setHidden((v) => !v)} hitSlop={10}>
             <Ionicons
               name={hidden ? "eye-outline" : "eye-off-outline"}
-              size={isMechanic || isCustomer ? 20 : 20}
+              size={isMechanic || isCustomer ? normalizeText(20) : normalizeText(20)}
               color={colors.textMuted}
             />
           </Pressable>
@@ -141,41 +142,41 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   mechanicWrap: {
-    marginBottom: 6,
+    marginBottom: 8,
   },
   customerWrap: {
-    marginBottom: 7,
+    marginBottom: 8,
   },
   label: {
     color: colors.textMuted,
-    fontSize: 13,
+    fontSize: normalizeText(14),
     marginBottom: spacing.xs,
     fontWeight: '600',
   },
   mechanicLabel: {
     color: "#2C2F35",
-    fontSize: 12,
+    fontSize: normalizeText(13),
     fontWeight: "500",
-    lineHeight: 16,
-    marginBottom: 3,
+    lineHeight: normalizeText(18),
+    marginBottom: 4,
   },
   customerLabel: {
     color: colors.text,
-    fontSize: 12,
+    fontSize: normalizeText(14),
     fontWeight: "500",
-    lineHeight: 16,
-    marginBottom: 3,
+    lineHeight: normalizeText(18),
+    marginBottom: 4,
   },
   field: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     backgroundColor: colors.bgInput,
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: 14,
-    minHeight: 54,
+    paddingHorizontal: 16,
+    minHeight: 56,
   },
   fieldFocused: {
     borderColor: colors.amber,
@@ -184,37 +185,37 @@ const styles = StyleSheet.create({
     borderColor: colors.error,
   },
   mechanicField: {
-    minHeight: 46,
+    minHeight: 50,
     borderWidth: 1,
-    borderRadius: 11,
-    paddingHorizontal: 12,
-    gap: 9,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    gap: 10,
   },
   imageIcon: {
-    width: 20,
-    height: 20,
+    width: 22,
+    height: 22,
   },
   input: {
     flex: 1,
     color: colors.text,
-    fontSize: 16,
-    paddingVertical: 12,
+    fontSize: normalizeText(16),
+    paddingVertical: 14,
   },
   mechanicInput: {
-    fontSize: 15,
-    paddingVertical: 8,
+    fontSize: normalizeText(16),
+    paddingVertical: 10,
   },
   error: {
     marginTop: 6,
     color: colors.error,
-    fontSize: 12,
+    fontSize: normalizeText(13),
   },
   mechanicError: {
-    marginTop: 3,
-    fontSize: 11,
+    marginTop: 4,
+    fontSize: normalizeText(12),
   },
   customerError: {
     marginTop: 4,
-    fontSize: 10,
+    fontSize: normalizeText(12),
   },
 });

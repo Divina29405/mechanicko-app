@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { MechanicProvider } from "@/contexts/MechanicContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { normalizeText } from "@/lib/typography";
 
 function MechanicTabs() {
   const { colors } = useAppTheme();
@@ -24,7 +25,7 @@ function MechanicTabs() {
           borderTopWidth: 1,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: normalizeText(12),
           fontWeight: "700",
           marginBottom: 6,
         },
@@ -124,7 +125,7 @@ function CustomerTabs() {
           paddingHorizontal: 12,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: normalizeText(12),
           fontWeight: "700",
           marginBottom: 2,
           transform: [{ translateY: -6 }],

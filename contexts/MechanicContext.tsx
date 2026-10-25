@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { AppState } from 'react-native';
 
 import {
   initialBookings,
@@ -88,6 +89,8 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
     async function loadProfileData() {
       if (!session?.user.id) {
         setAvatarUrl(null);
+        setRating(5);
+        setOnlineState(false);
         setAvatarLoading(false);
         return;
       }
@@ -97,6 +100,10 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
         .select('avatar_path,average_rating,is_online')
         .eq('id', session.user.id)
         .maybeSingle();
+
+      if (data === null) {
+        setAvatarUrl(null);
+      }
       if (active && data?.avatar_path) {
         const signed = await supabase.storage
           .from('mechanic-avatars')
@@ -108,12 +115,75 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
         }
       }
       if (active && typeof data?.average_rating === 'number') {
-        setRating(Math.min(5, Math.max(1, data.average_rating)));
+        setRating(Math.min(5, Math.max(0, data.average_rating)));
       }
+      
+      // FIX: Properly sync the online status from the database to the app on boot!
+      if (active && typeof data?.is_online === 'boolean') {
+        setOnlineState(data.is_online);
+      }
+      
       if (active) setAvatarLoading(false);
     }
     void loadProfileData();
     return () => { active = false; };
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+    let active = true;
+
+    const refreshRating = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('average_rating')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('Mechanic rating refresh failed:', error.message);
+        return;
+      }
+      if (
+        active &&
+        typeof data?.average_rating === 'number' &&
+        Number.isFinite(data.average_rating)
+      ) {
+        setRating(Math.min(5, Math.max(0, data.average_rating)));
+      }
+    };
+
+    const channel = supabase
+      .channel(`mechanic_rating_${session.user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${session.user.id}`,
+        },
+        (payload) => {
+          const nextRating = payload.new.average_rating;
+          if (typeof nextRating === 'number' && Number.isFinite(nextRating)) {
+            setRating(Math.min(5, Math.max(0, nextRating)));
+          }
+        },
+      )
+      .subscribe((status, error) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('Mechanic rating updates unavailable:', error?.message ?? status);
+        }
+      });
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshRating();
+    });
+
+    return () => {
+      active = false;
+      appStateSubscription.remove();
+      void supabase.removeChannel(channel);
+    };
   }, [session?.user.id]);
 
   const setOnline = useCallback(

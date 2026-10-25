@@ -101,7 +101,10 @@ export default function ProfileScreen() {
         typeof metadata.home_longitude === 'number' ? metadata.home_longitude : null;
       const profileFields =
         'mobile_number,home_address,home_latitude,home_longitude,skills,certifications,maintenance_pricing,experience,license_front_path,license_back_path';
-      const [{ data, error }, { data: application }] = await Promise.all([
+      const [
+        { data, error },
+        { data: application, error: applicationError },
+      ] = await Promise.all([
         supabase
           .from('profiles')
           .select(profileFields)
@@ -118,6 +121,9 @@ export default function ProfileScreen() {
       if (error) {
         Alert.alert('Profile unavailable', error.message);
       }
+      if (applicationError) {
+        Alert.alert('Application details unavailable', applicationError.message);
+      }
 
       const mergedProfile = {
         mobile_number: data?.mobile_number ?? null,
@@ -126,7 +132,10 @@ export default function ProfileScreen() {
           (typeof metadata.home_address === 'string' ? metadata.home_address : null),
         home_latitude: data?.home_latitude ?? metadataLatitude,
         home_longitude: data?.home_longitude ?? metadataLongitude,
-        skills: data?.skills || application?.skills || null,
+        skills:
+          data?.skills ||
+          application?.skills ||
+          (typeof metadata.skills === 'string' ? metadata.skills : null),
         certifications: data?.certifications || application?.certifications || null,
         maintenance_pricing: data?.maintenance_pricing ?? null,
         experience: data?.experience || application?.experience || null,
@@ -148,7 +157,7 @@ export default function ProfileScreen() {
   }, [session?.user.id, session?.user.user_metadata]);
 
   const specializations = (profile?.skills ?? '')
-    .split(',')
+    .split(/[,\n]/)
     .map((item) => item.trim())
     .filter(Boolean);
   const certifications = profile?.certifications

@@ -5,6 +5,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import * as SecureStore from 'expo-secure-store';
 import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
@@ -14,6 +15,7 @@ import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { publishSharedAvatarUrl } from '@/lib/avatarStore';
 import { listVehicles, setPrimaryVehicle } from '@/services/vehicleService';
 import type { Vehicle } from '@/types/vehicle';
+import { normalizeText } from '@/lib/typography';
 
 const motorcycleIcon = require('../../assets/images/motorcycle.png');
 const carIcon = require('../../assets/images/car.png');
@@ -330,7 +332,7 @@ export default function MotoristProfileScreen() {
 
   const handleLogout = () => {
     setLogoutConfirmationVisible(true);
-  };
+  }
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
@@ -352,7 +354,7 @@ export default function MotoristProfileScreen() {
               borderColor="#F0A202"
             />
             <View style={[styles.cameraBadge, { backgroundColor: colors.primary }]}>
-              <Ionicons name="camera-outline" size={14} color="#FFFFFF" />
+              <Ionicons name="camera-outline" size={16} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
           <View style={styles.profileInfo}>
@@ -363,7 +365,7 @@ export default function MotoristProfileScreen() {
                 style={styles.settingsButton}
                 accessibilityLabel="Open settings and preferences"
               >
-                <Ionicons name="settings-outline" size={20} color={colors.text} />
+                <Ionicons name="settings-outline" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
             <Text style={[styles.meta, { color: colors.textMuted }]}>{mobileNumber || '09232124501'}</Text>
@@ -378,21 +380,21 @@ export default function MotoristProfileScreen() {
               style={[styles.editProfileButton, { backgroundColor: colors.card }]}
             >
               <Text style={styles.editProfileText}>Edit Profile</Text>
-              <Ionicons name="chevron-forward" size={16} color="#0037B0" />
+              <Ionicons name="chevron-forward" size={18} color="#0037B0" />
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.garageHeader}>
           <View style={styles.garageTitleRow}>
-            <Ionicons name="home-outline" size={18} color={colors.primary} />
+            <Ionicons name="home-outline" size={20} color={colors.primary} />
             <Text style={[styles.garageTitle, { color: colors.text }]}>My Garage</Text>
           </View>
           <TouchableOpacity
             onPress={openAddVehicleForm}
             style={[styles.addVehicleButton, { backgroundColor: '#0037B0' }]}
           >
-            <Ionicons name="add-circle-outline" size={16} color="#FFFFFF" />
+            <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
             <Text style={styles.addVehicleText}>Add Vehicle</Text>
           </TouchableOpacity>
         </View>
@@ -410,7 +412,7 @@ export default function MotoristProfileScreen() {
               <Image
                 source={vehicle.type === 'car' ? carIcon : motorcycleIcon}
                 resizeMode="contain"
-                style={styles.vehicleIconImage}
+                style={[styles.vehicleIconImage, { tintColor: "#0037B0" }]} 
               />
             </View>
             <View style={styles.vehicleCardCopy}>
@@ -433,7 +435,7 @@ export default function MotoristProfileScreen() {
               >
                 <Ionicons
                   name={vehicle.is_primary ? 'checkmark-circle' : 'radio-button-off-outline'}
-                  size={15}
+                  size={16}
                   color="#0037B0"
                 />
                 <Text style={[styles.primaryVehicleText, { color: '#0037B0' }]}>
@@ -454,7 +456,7 @@ export default function MotoristProfileScreen() {
             onPress={openAddVehicleForm}
             style={[styles.emptyVehicleCard, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
-            <Image source={carIcon} resizeMode="contain" style={styles.vehicleIconImage} />
+            <Image source={carIcon} resizeMode="contain" style={[styles.vehicleIconImage, { tintColor: colors.textMuted }]} />
             <Text style={[styles.emptyVehicleText, { color: colors.textMuted }]}>
               No vehicles added yet
             </Text>
@@ -462,7 +464,7 @@ export default function MotoristProfileScreen() {
         )}
 
         <TouchableOpacity onPress={handleLogout} style={[styles.logoutButton, { backgroundColor: '#FFF0F3' }]}>
-          <Ionicons name="log-out-outline" size={18} color="#D92D20" />
+          <Ionicons name="log-out-outline" size={20} color="#D92D20" />
           <Text style={styles.logoutButtonText}>Log Out of Mechanic Ko</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -476,7 +478,7 @@ export default function MotoristProfileScreen() {
         <View style={styles.logoutModalOverlay}>
           <View style={[styles.logoutModalCard, { backgroundColor: colors.card }]}>
             <View style={styles.logoutModalIcon}>
-              <Ionicons name="log-out-outline" size={28} color="#D92D20" />
+              <Ionicons name="log-out-outline" size={30} color="#D92D20" />
             </View>
             <Text style={[styles.logoutModalTitle, { color: colors.text }]}>
               Log out of Mechaniko?
@@ -531,13 +533,13 @@ export default function MotoristProfileScreen() {
                 }}
               >
                 <View style={[styles.avatarPickerIcon, { backgroundColor: '#E8ECFF' }]}>
-                  <Ionicons name="camera-outline" size={25} color="#0037B0" />
+                  <Ionicons name="camera-outline" size={26} color="#0037B0" />
                 </View>
                 <View style={styles.avatarPickerCopy}>
                   <Text style={[styles.avatarPickerOptionTitle, { color: colors.text }]}>Take a photo</Text>
                   <Text style={[styles.avatarPickerOptionText, { color: colors.textMuted }]}>Use your camera</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#0037B0" />
+                <Ionicons name="chevron-forward" size={22} color="#0037B0" />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.avatarPickerOption, { backgroundColor: colors.bg, borderColor: colors.border }]}
@@ -547,13 +549,13 @@ export default function MotoristProfileScreen() {
                 }}
               >
                 <View style={[styles.avatarPickerIcon, { backgroundColor: '#E8ECFF' }]}>
-                  <Ionicons name="images-outline" size={25} color="#0037B0" />
+                  <Ionicons name="images-outline" size={26} color="#0037B0" />
                 </View>
                 <View style={styles.avatarPickerCopy}>
                   <Text style={[styles.avatarPickerOptionTitle, { color: colors.text }]}>Choose from gallery</Text>
                   <Text style={[styles.avatarPickerOptionText, { color: colors.textMuted }]}>Select an existing photo</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#0037B0" />
+                <Ionicons name="chevron-forward" size={22} color="#0037B0" />
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -572,11 +574,11 @@ export default function MotoristProfileScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setAddVehicleVisible(false)}
       >
-        <View style={[styles.detailScreen, { backgroundColor: colors.bg }]}>
+        <SafeAreaView style={[styles.detailScreen, { backgroundColor: colors.bg }]}>
           <View style={[styles.detailHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
             <Text style={[styles.detailTitle, { color: colors.text }]}>Add Vehicle</Text>
             <TouchableOpacity onPress={() => setAddVehicleVisible(false)} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={colors.text} />
+              <Ionicons name="close" size={26} color={colors.text} />
             </TouchableOpacity>
           </View>
           <View style={styles.addVehicleForm}>
@@ -595,10 +597,10 @@ export default function MotoristProfileScreen() {
                     resizeMode="contain"
                     style={[
                       styles.vehicleTypeIcon,
-                      { opacity: vehicleType === type ? 1 : 0.7 },
+                      { opacity: vehicleType === type ? 1 : 0.7, tintColor: vehicleType === type ? '#FFFFFF' : '#0037B0' },
                     ]}
                   />
-                  <Text style={{ color: vehicleType === type ? '#FFFFFF' : colors.text, fontWeight: '700' }}>
+                  <Text style={{ color: vehicleType === type ? '#FFFFFF' : colors.text, fontWeight: '700', fontSize: normalizeText(15) }}>
                     {type === 'car' ? 'Car' : 'Motorcycle'}
                   </Text>
                 </TouchableOpacity>
@@ -612,7 +614,7 @@ export default function MotoristProfileScreen() {
               {savingVehicle ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveVehicleText}>Save Vehicle</Text>}
             </TouchableOpacity>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
 
       <Modal
@@ -621,11 +623,11 @@ export default function MotoristProfileScreen() {
         presentationStyle="fullScreen"
         onRequestClose={() => setSettingsVisible(false)}
       >
-        <View style={[styles.detailScreen, { backgroundColor: colors.bg }]}>
+        <SafeAreaView style={[styles.detailScreen, { backgroundColor: colors.bg }]}>
           <View style={[styles.detailHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
             <Text style={[styles.detailTitle, { color: colors.text }]}>Settings & Preferences</Text>
             <TouchableOpacity onPress={() => setSettingsVisible(false)} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={colors.text} />
+              <Ionicons name="close" size={26} color={colors.text} />
             </TouchableOpacity>
           </View>
           <View style={[styles.settingsPanel, { backgroundColor: colors.card }]}>
@@ -636,14 +638,14 @@ export default function MotoristProfileScreen() {
                 router.push('/payment-methods');
               }}
             >
-              <Ionicons name="card-outline" size={21} color="#0037B0" style={styles.settingsRowIcon} />
+              <Ionicons name="card-outline" size={24} color="#0037B0" style={styles.settingsRowIcon} />
               <View style={styles.settingsRowCopy}>
                 <Text style={[styles.settingsRowText, { color: colors.text }]}>Payment Method</Text>
               </View>
-              <Ionicons name="chevron-forward" size={19} color="#0037B0" />
+              <Ionicons name="chevron-forward" size={21} color="#0037B0" />
             </TouchableOpacity>
             <View style={styles.settingsRow}>
-              <Ionicons name="moon-outline" size={21} color="#0037B0" style={styles.settingsRowIcon} />
+              <Ionicons name="moon-outline" size={24} color="#0037B0" style={styles.settingsRowIcon} />
               <View style={styles.settingsRowCopy}>
                 <Text style={[styles.settingsRowText, { color: colors.text }]}>Dark Mode</Text>
               </View>
@@ -655,7 +657,7 @@ export default function MotoristProfileScreen() {
               />
             </View>
             <View style={[styles.settingsRow, styles.radiusSettingsRow, { borderBottomColor: colors.border }]}>
-              <Ionicons name="radio-outline" size={21} color="#0037B0" style={styles.settingsRowIcon} />
+              <Ionicons name="radio-outline" size={24} color="#0037B0" style={styles.settingsRowIcon} />
               <View style={styles.settingsRowCopy}>
                 <Text style={[styles.settingsRowText, { color: colors.text }]}>Mechanic Search Radius</Text>
                 <Text style={[styles.settingsRowHint, { color: colors.textMuted }]}>
@@ -686,7 +688,7 @@ export default function MotoristProfileScreen() {
               </View>
             </View>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
 
       <Modal
@@ -695,7 +697,7 @@ export default function MotoristProfileScreen() {
         presentationStyle="fullScreen"
         onRequestClose={() => setAccountDetailsVisible(false)}
       >
-        <View style={[styles.detailScreen, { backgroundColor: colors.bg }]}>
+        <SafeAreaView style={[styles.detailScreen, { backgroundColor: colors.bg }]}>
           <View style={[styles.detailHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
             <Text style={[styles.detailTitle, { color: colors.text }]}>Account Details</Text>
             <TouchableOpacity
@@ -703,7 +705,7 @@ export default function MotoristProfileScreen() {
               style={styles.closeButton}
               accessibilityLabel="Close account details"
             >
-              <Ionicons name="close" size={24} color={colors.text} />
+              <Ionicons name="close" size={26} color={colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -740,7 +742,7 @@ export default function MotoristProfileScreen() {
               {savingDetails ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveDetailsText}>Save changes</Text>}
             </TouchableOpacity>
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );
@@ -767,111 +769,111 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16, borderBottomWidth: 1 },
   backButton: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: '800' },
+  headerTitle: { fontSize: normalizeText(20), fontWeight: '800' },
   content: { paddingHorizontal: 16, paddingBottom: 40 },
   card: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 18 },
   profileInfo: { flex: 1, position: 'relative' },
   avatar: { width: 82, height: 82, borderRadius: 41, alignItems: 'center', justifyContent: 'center', marginRight: 14, borderWidth: 2, overflow: 'visible' },
   avatarImage: { width: '100%', height: '100%', borderRadius: 42 },
-  avatarInitials: { fontSize: 30, fontWeight: '800' },
-  cameraBadge: { position: 'absolute', right: -2, bottom: -2, width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  avatarInitials: { fontSize: normalizeText(32), fontWeight: '800' },
+  cameraBadge: { position: 'absolute', right: -2, bottom: -2, width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   avatarPickerOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.52)' },
-  avatarPickerCard: { borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 28 },
-  avatarPickerHandle: { width: 42, height: 5, borderRadius: 3, backgroundColor: '#C7CBD4', alignSelf: 'center', marginBottom: 18 },
-  avatarPickerTitle: { fontSize: 21, fontWeight: '800', textAlign: 'center' },
-  avatarPickerSubtitle: { fontSize: 13, textAlign: 'center', marginTop: 6, marginBottom: 20 },
+  avatarPickerCard: { borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
+  avatarPickerHandle: { width: 46, height: 6, borderRadius: 3, backgroundColor: '#C7CBD4', alignSelf: 'center', marginBottom: 20 },
+  avatarPickerTitle: { fontSize: normalizeText(23), fontWeight: '800', textAlign: 'center' },
+  avatarPickerSubtitle: { fontSize: normalizeText(15), textAlign: 'center', marginTop: 6, marginBottom: 20 },
   avatarPickerOptions: { gap: 10 },
-  avatarPickerOption: { minHeight: 72, borderRadius: 14, borderWidth: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13 },
-  avatarPickerIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
-  avatarPickerCopy: { flex: 1, marginLeft: 12 },
-  avatarPickerOptionTitle: { fontSize: 15, fontWeight: '800' },
-  avatarPickerOptionText: { fontSize: 12, marginTop: 3 },
-  avatarPickerCancel: { minHeight: 48, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 16 },
-  avatarPickerCancelText: { fontSize: 14, fontWeight: '800' },
-  profileNameRow: { minHeight: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  settingsButton: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
-  editProfileContainer: { width: '100%', minHeight: 46, justifyContent: 'center', paddingHorizontal: 8, backgroundColor: '#EEF0FF', borderRadius: 8, marginTop: 10 },
-  editProfileButton: { alignSelf: 'flex-start', minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 12, borderRadius: 8 },
-  editProfileText: { color: '#0037B0', fontSize: 13, fontWeight: '800' },
-  name: { fontSize: 21, fontWeight: '800' },
-  meta: { fontSize: 13, marginTop: 2 },
-  status: { fontSize: 14, fontWeight: '700', marginTop: 4 },
-  sectionTitle: { fontSize: 15, fontWeight: '800', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 10 },
+  avatarPickerOption: { minHeight: 76, borderRadius: 14, borderWidth: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
+  avatarPickerIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  avatarPickerCopy: { flex: 1, marginLeft: 14 },
+  avatarPickerOptionTitle: { fontSize: normalizeText(17), fontWeight: '800' },
+  avatarPickerOptionText: { fontSize: normalizeText(14), marginTop: 3 },
+  avatarPickerCancel: { minHeight: 52, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 18 },
+  avatarPickerCancelText: { fontSize: normalizeText(16), fontWeight: '800' },
+  profileNameRow: { minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  settingsButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  editProfileContainer: { width: '100%', minHeight: 48, justifyContent: 'center', paddingHorizontal: 8, backgroundColor: '#EEF0FF', borderRadius: 10, marginTop: 12 },
+  editProfileButton: { alignSelf: 'flex-start', minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 14, borderRadius: 8 },
+  editProfileText: { color: '#0037B0', fontSize: normalizeText(15), fontWeight: '800' },
+  name: { fontSize: normalizeText(23), fontWeight: '800' },
+  meta: { fontSize: normalizeText(15), marginTop: 2 },
+  status: { fontSize: normalizeText(16), fontWeight: '700', marginTop: 4 },
+  sectionTitle: { fontSize: normalizeText(17), fontWeight: '800', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 10 },
   menuGroup: { marginBottom: 24 },
   row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1 },
   iconBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255, 107, 0, 0.08)', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
   settingIconImage: { width: 26, height: 26, resizeMode: 'contain' },
   rowText: { flex: 1 },
-  rowTitle: { fontSize: 15, fontWeight: '700' },
-  rowSubtitle: { fontSize: 12, marginTop: 2 },
-  garageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  garageTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  garageTitle: { fontSize: 20, fontWeight: '800' },
-  addVehicleButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 15, borderRadius: 9 },
-  addVehicleText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
-  vehicleCard: { minHeight: 96, flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1, marginBottom: 8 },
-  vehicleIconBox: { width: 44, height: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF0FF' },
-  vehicleIconImage: { width: 29, height: 29 },
-  vehicleCardCopy: { flex: 1, marginLeft: 14 },
-  vehicleName: { fontSize: 16, fontWeight: '800' },
-  vehiclePlate: { fontSize: 11, marginTop: 4 },
-  primaryVehicleButton: { alignSelf: 'flex-start', minHeight: 28, flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8, paddingHorizontal: 8, borderRadius: 7, borderWidth: 1 },
-  primaryVehicleText: { fontSize: 11, fontWeight: '800' },
-  deleteVehicleButton: { width: 40, height: 40, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8ECFF', marginLeft: 8 },
-  deleteVehicleIcon: { width: 22, height: 22 },
-  emptyVehicleCard: { minHeight: 80, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 18, borderRadius: 10, borderWidth: 1, marginBottom: 8 },
-  emptyVehicleText: { fontSize: 13, fontWeight: '600' },
-  systemLabel: { fontSize: 11, fontWeight: '700', marginBottom: 10 },
+  rowTitle: { fontSize: normalizeText(17), fontWeight: '700' },
+  rowSubtitle: { fontSize: normalizeText(14), marginTop: 2 },
+  garageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  garageTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  garageTitle: { fontSize: normalizeText(22), fontWeight: '800' },
+  addVehicleButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, borderRadius: 9 },
+  addVehicleText: { color: '#FFFFFF', fontSize: normalizeText(15), fontWeight: '800' },
+  vehicleCard: { minHeight: 100, flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: 10 },
+  vehicleIconBox: { width: 48, height: 48, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EEF0FF' },
+  vehicleIconImage: { width: 32, height: 32 },
+  vehicleCardCopy: { flex: 1, marginLeft: 16 },
+  vehicleName: { fontSize: normalizeText(18), fontWeight: '800' },
+  vehiclePlate: { fontSize: normalizeText(13), marginTop: 4 },
+  primaryVehicleButton: { alignSelf: 'flex-start', minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingHorizontal: 10, borderRadius: 7, borderWidth: 1 },
+  primaryVehicleText: { fontSize: normalizeText(13), fontWeight: '800' },
+  deleteVehicleButton: { width: 44, height: 44, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8ECFF', marginLeft: 10 },
+  deleteVehicleIcon: { width: 24, height: 24 },
+  emptyVehicleCard: { minHeight: 86, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 20, borderRadius: 12, borderWidth: 1, marginBottom: 10 },
+  emptyVehicleText: { fontSize: normalizeText(15), fontWeight: '600' },
+  systemLabel: { fontSize: normalizeText(13), fontWeight: '700', marginBottom: 10 },
   systemCard: { overflow: 'hidden', borderRadius: 12, marginBottom: 22 },
-  systemRow: { minHeight: 88, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 18, borderBottomWidth: 1 },
-  systemIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF1E5' },
+  systemRow: { minHeight: 92, flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 20, borderBottomWidth: 1 },
+  systemIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF1E5' },
   systemCopy: { flex: 1 },
-  systemTitle: { fontSize: 15, fontWeight: '800' },
-  systemSubtitle: { fontSize: 12, marginTop: 5 },
+  systemTitle: { fontSize: normalizeText(17), fontWeight: '800' },
+  systemSubtitle: { fontSize: normalizeText(14), marginTop: 5 },
   logoutModalOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: 'rgba(15, 23, 42, 0.48)' },
   logoutModalCard: { width: '100%', maxWidth: 380, borderRadius: 22, padding: 26, alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
-  logoutModalIcon: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF0F3', marginBottom: 14 },
-  logoutModalTitle: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
-  logoutModalMessage: { fontSize: 14, lineHeight: 21, textAlign: 'center', marginBottom: 22 },
-  logoutModalActions: { width: '100%', flexDirection: 'row', gap: 10 },
-  logoutModalCancel: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  logoutModalCancelText: { fontSize: 14, fontWeight: '800' },
-  logoutModalConfirm: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center', backgroundColor: '#D92D20' },
-  logoutModalConfirmText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  logoutButton: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 10, marginTop: 8 },
-  logoutButtonText: { color: '#D92D20', fontSize: 14, fontWeight: '800' },
-  settingsPanel: { marginTop: 32, borderRadius: 10, overflow: 'hidden' },
-  settingsRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 0, paddingHorizontal: 20, borderBottomWidth: 1 },
-  settingsRowIcon: { width: 28, height: 28, marginRight: 16, textAlign: 'center' },
-  settingsRowCopy: { flex: 1, minHeight: 28, justifyContent: 'center' },
-  settingsRowText: { fontSize: 15, lineHeight: 20, fontWeight: '700' },
-  settingsRowHint: { fontSize: 12, lineHeight: 17, marginTop: 2 },
-  radiusSettingsRow: { alignItems: 'flex-start', paddingVertical: 16 },
-  radiusOptions: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  radiusOption: { minWidth: 58, minHeight: 34, paddingHorizontal: 10, borderWidth: 1, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  logoutModalIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF0F3', marginBottom: 16 },
+  logoutModalTitle: { fontSize: normalizeText(22), fontWeight: '800', marginBottom: 8 },
+  logoutModalMessage: { fontSize: normalizeText(16), lineHeight: normalizeText(24), textAlign: 'center', marginBottom: 24 },
+  logoutModalActions: { width: '100%', flexDirection: 'row', gap: 12 },
+  logoutModalCancel: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
+  logoutModalCancelText: { fontSize: normalizeText(16), fontWeight: '800' },
+  logoutModalConfirm: { flex: 1, borderRadius: 12, paddingVertical: 15, alignItems: 'center', backgroundColor: '#D92D20' },
+  logoutModalConfirmText: { color: '#FFFFFF', fontSize: normalizeText(16), fontWeight: '800' },
+  logoutButton: { minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, marginTop: 10 },
+  logoutButtonText: { color: '#D92D20', fontSize: normalizeText(16), fontWeight: '800' },
+  settingsPanel: { marginTop: 32, borderRadius: 12, overflow: 'hidden' },
+  settingsRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 0, paddingHorizontal: 22, borderBottomWidth: 1 },
+  settingsRowIcon: { width: 30, height: 30, marginRight: 18, textAlign: 'center' },
+  settingsRowCopy: { flex: 1, minHeight: 30, justifyContent: 'center' },
+  settingsRowText: { fontSize: normalizeText(17), lineHeight: normalizeText(24), fontWeight: '700' },
+  settingsRowHint: { fontSize: normalizeText(14), lineHeight: normalizeText(22), marginTop: 2 },
+  radiusSettingsRow: { alignItems: 'flex-start', paddingVertical: 18 },
+  radiusOptions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  radiusOption: { minWidth: 64, minHeight: 38, paddingHorizontal: 12, borderWidth: 1, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   radiusOptionSelected: { backgroundColor: '#0037B0', borderColor: '#0037B0' },
-  radiusOptionText: { fontSize: 12, fontWeight: '800' },
-  settingsRowSubtitle: { fontSize: 12, marginTop: 2 },
-  addVehicleForm: { padding: 20, gap: 14 },
-  vehicleTypeRow: { flexDirection: 'row', gap: 10 },
-  vehicleTypeButton: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderRadius: 9 },
-  vehicleTypeIcon: { width: 23, height: 23 },
-  vehicleInput: { minHeight: 48, borderWidth: 1, borderRadius: 9, paddingHorizontal: 14, fontSize: 15 },
-  saveVehicleButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: '#0037B0' },
-  saveVehicleText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  radiusOptionText: { fontSize: normalizeText(14), fontWeight: '800' },
+  settingsRowSubtitle: { fontSize: normalizeText(14), marginTop: 2 },
+  addVehicleForm: { padding: 22, gap: 16 },
+  vehicleTypeRow: { flexDirection: 'row', gap: 12 },
+  vehicleTypeButton: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderRadius: 10 },
+  vehicleTypeIcon: { width: 25, height: 25 },
+  vehicleInput: { minHeight: 52, borderWidth: 1, borderRadius: 10, paddingHorizontal: 16, fontSize: normalizeText(17) },
+  saveVehicleButton: { minHeight: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#0037B0', marginTop: 4 },
+  saveVehicleText: { color: '#FFFFFF', fontSize: normalizeText(17), fontWeight: '800' },
   disabled: { opacity: 0.6 },
   detailScreen: { flex: 1 },
-  detailHeader: { minHeight: 60, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1 },
-  detailTitle: { fontSize: 18, fontWeight: '800' },
-  closeButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  detailHeader: { minHeight: 64, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1 },
+  detailTitle: { fontSize: normalizeText(20), fontWeight: '800' },
+  closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   detailsList: { marginTop: 16 },
-  detailRow: { minHeight: 58, paddingHorizontal: 20, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
-  editableDetailRow: { minHeight: 58, paddingHorizontal: 20, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
-  detailLabel: { fontSize: 13, fontWeight: '600' },
-  detailValue: { flex: 1, fontSize: 15, fontWeight: '700', marginLeft: 20, textAlign: 'right' },
-  detailInput: { flex: 1, minHeight: 38, borderWidth: 0, paddingHorizontal: 0, paddingVertical: 4, fontSize: 15, fontWeight: '600', marginLeft: 20, textAlign: 'right' },
-  saveDetailsButton: { minHeight: 46, margin: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  saveDetailsText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
-  detailLogoutRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 18, borderTopWidth: 1 },
-  logoutText: { color: '#EF4444', fontSize: 15, fontWeight: '800', flex: 1 }
+  detailRow: { minHeight: 62, paddingHorizontal: 22, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
+  editableDetailRow: { minHeight: 62, paddingHorizontal: 22, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
+  detailLabel: { fontSize: normalizeText(15), fontWeight: '600' },
+  detailValue: { flex: 1, fontSize: normalizeText(17), fontWeight: '700', marginLeft: 22, textAlign: 'right' },
+  detailInput: { flex: 1, minHeight: 42, borderWidth: 0, paddingHorizontal: 0, paddingVertical: 4, fontSize: normalizeText(17), fontWeight: '600', marginLeft: 22, textAlign: 'right' },
+  saveDetailsButton: { minHeight: 50, margin: 22, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  saveDetailsText: { color: '#FFFFFF', fontSize: normalizeText(17), fontWeight: '800' },
+  detailLogoutRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 22, paddingVertical: 20, borderTopWidth: 1 },
+  logoutText: { color: '#EF4444', fontSize: normalizeText(17), fontWeight: '800', flex: 1 }
 });

@@ -3,10 +3,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { normalizeText } from "@/lib/typography";
 
 const gradientColors = [
-  "#F5F7FA",
-  "#F5F7FA",
+  "#F8FAFC",
+  "#F1F5F9",
 ] as const;
 
 export default function QuickAccountSetupScreen() {
@@ -88,7 +89,7 @@ export default function QuickAccountSetupScreen() {
             }}
             style={styles.backButton}
           >
-            <Ionicons name="arrow-back" size={25} color="#000000" />
+            <Ionicons name="arrow-back" size={28} color="#0F172A" />
           </Pressable>
 
           <View
@@ -214,7 +215,7 @@ function SetupItem({
             style={styles.rideIcon}
           />
         ) : (
-          <Ionicons name={icon ?? "person"} size={22} color="#1E3A8A" />
+          <Ionicons name={icon ?? "person"} size={24} color="#1E3A8A" />
         )}
       </View>
       <View style={styles.itemCopy}>
@@ -235,38 +236,35 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 18,
+    paddingHorizontal: 22,
     paddingTop: 25,
-    paddingBottom: 76,
+    paddingBottom: 48,
   },
   onboardingTopBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     width: "100%",
-    paddingHorizontal: 18,
   },
   progress: {
     width: 260,
-    height: 10,
+    height: 8,
     flexDirection: "row",
-    gap: 10,
+    gap: 8,
   },
   progressItem: {
     flex: 1,
-    height: 10,
+    height: 8,
     borderRadius: 4,
-    backgroundColor: "#E8E8E8",
+    backgroundColor: "#E2E8F0",
   },
   progressItemActive: {
     backgroundColor: "#24439A",
-    borderWidth: 1,
-    borderColor: "#FFFFFF",
   },
   skip: {
-    color: "#24439A",
-    fontSize: 16,
-    fontWeight: "400",
+    color: "#1E3A8A",
+    fontSize: normalizeText(16),
+    fontWeight: "600",
   },
   backButton: {
     position: "absolute",
@@ -276,9 +274,9 @@ const styles = StyleSheet.create({
   },
   setupCard: {
     width: "100%",
-    minHeight: 360,
+    minHeight: 380,
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: "#DCE3EF",
     shadowColor: "#17213D",
@@ -286,11 +284,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 3,
-    padding: 20,
-    marginTop: 70,
+    padding: 24,
+    marginTop: 76,
   },
   completedSetupCard: {
-    marginTop: 70,
+    marginTop: 76,
   },
   cardHeader: {
     flexDirection: "row",
@@ -298,36 +296,35 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   title: {
-    color: "#18213D",
-    fontSize: 21,
-    fontWeight: "700",
-    lineHeight: 26,
+    color: "#0F172A",
+    fontSize: normalizeText(23),
+    fontWeight: "800",
   },
   subtitle: {
-    color: "#2C2F35",
-    fontSize: 12,
-    lineHeight: 17,
+    color: "#475569",
+    fontSize: normalizeText(14),
+    marginTop: 4,
   },
   progressBadge: {
     color: "#D97706",
     backgroundColor: "#E6E8FF",
     borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    fontSize: 11,
-    fontWeight: "700",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    fontSize: normalizeText(12),
+    fontWeight: "800",
   },
   progressTrack: {
-    height: 6,
-    borderRadius: 3,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: "#E7E9FA",
-    marginTop: 16,
-    marginBottom: 16,
+    marginTop: 20,
+    marginBottom: 20,
   },
   progressFill: {
     width: "12%",
     height: "100%",
-    borderRadius: 3,
+    borderRadius: 4,
     backgroundColor: "#1748B5",
   },
   progressFillCompleted: {
@@ -343,23 +340,23 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   setupItem: {
-    minHeight: 64,
+    minHeight: 72,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F1F2FF",
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    marginBottom: 8,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    marginBottom: 10,
   },
   itemIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 9,
+    width: 46,
+    height: 46,
+    borderRadius: 10,
     overflow: "hidden",
     backgroundColor: "#DCE3FF",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: 14,
   },
   personIcon: {
     backgroundColor: "#DCE3FF",
@@ -370,27 +367,27 @@ const styles = StyleSheet.create({
   rideIcon: {
     width: 28,
     height: 28,
+    tintColor: "#1E3A8A", // Forces the white PNG to render as blue!
   },
   itemCopy: {
     flex: 1,
   },
   itemTitle: {
-    color: "#2C2F35",
-    fontSize: 13,
-    fontWeight: "600",
-    lineHeight: 17,
+    color: "#0F172A",
+    fontSize: normalizeText(15),
+    fontWeight: "700",
   },
   itemDescription: {
-    color: "#2C2F35",
-    fontSize: 11,
-    lineHeight: 15,
+    color: "#334155",
+    fontSize: normalizeText(13),
+    marginTop: 2,
   },
   status: {
     borderRadius: 14,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    fontSize: 10,
-    fontWeight: "700",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: normalizeText(11),
+    fontWeight: "800",
   },
   pendingStatus: {
     color: "#D97706",
@@ -409,32 +406,31 @@ const styles = StyleSheet.create({
   },
   proceedButton: {
     alignSelf: "stretch",
-    minHeight: 52,
-    borderRadius: 12,
+    minHeight: 56,
+    borderRadius: 14,
     backgroundColor: "#24439A",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     shadowColor: "#132D73",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   proceedPressed: {
-    opacity: 0.82,
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
   },
   proceedText: {
     color: "#FFFFFF",
-    fontSize: 17,
-    fontWeight: "600",
-    lineHeight: 20,
+    fontSize: normalizeText(18),
+    fontWeight: "700",
   },
   proceedArrow: {
     color: "#FFFFFF",
-    fontSize: 21,
-    lineHeight: 21,
-    marginLeft: 8,
+    fontSize: normalizeText(24),
+    marginLeft: 10,
     marginTop: -2,
   },
 });

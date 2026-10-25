@@ -273,17 +273,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void (async () => {
       if (!isSupabaseConfigured) {
-        if (!active) return;
-        setSession(null);
-        setLoading(false);
+        if (active) {
+          setSession(null);
+          setLoading(false);
+        }
         return;
       }
 
-      const { data } = await supabase.auth.getSession();
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      
       if (!active) return;
 
-      if (data.session) {
-        setSession(data.session);
+      if (sessionError) {
+        console.warn("Error fetching Supabase session:", sessionError.message);
+        setSession(null);
+      } else if (currentSession) {
+        setSession(currentSession);
       } else {
         setSession(null);
       }
@@ -500,10 +505,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             };
           }
         } else if (userId && application) {
-          // When email confirmation is enabled, the database trigger persists
-          // the complete text application from the signup metadata.
-          // Document uploads require an authenticated session and are handled
-          // above when one is returned by signUp.
         } else if (userId) {
           const profileError = await upsertProfile(
             userId,
@@ -534,6 +535,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!isSupabaseConfigured) {
           setSession(null);
           return;
+        }
+        // Force the database to register the mechanic as offline before they log out
+        if (session?.user?.id) {
+          await supabase
+            .from("profiles")
+            .update({ is_online: false })
+            .eq("id", session.user.id);
         }
         await supabase.auth.signOut();
         setSession(null);

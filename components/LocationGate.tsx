@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { colors } from "@/lib/theme";
+import { normalizeText } from "@/lib/typography";
 
 async function checkLocationAccess() {
   const permission = await Location.getForegroundPermissionsAsync();
@@ -268,52 +269,52 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   warningIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: "#B9C4E5",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 22,
+    marginBottom: 26,
   },
   warningIconText: {
     color: "#24439A",
-    fontSize: 24,
+    fontSize: normalizeText(28),
     fontWeight: "800",
   },
   locationTitle: {
     color: "#2C2F35",
-    fontSize: 20,
-    lineHeight: 28,
-    fontWeight: "700",
-    marginBottom: 8,
+    fontSize: normalizeText(22),
+    lineHeight: normalizeText(30),
+    fontWeight: "800",
+    marginBottom: 10,
   },
   locationText: {
     color: "#434655",
-    fontSize: 13,
-    lineHeight: 20,
-    marginBottom: 34,
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(24),
+    marginBottom: 40,
   },
   primaryButton: {
     backgroundColor: "#24439A",
-    height: 50,
+    minHeight: 56,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
   primaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: normalizeText(16),
+    fontWeight: "800",
   },
   secondaryButton: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 20,
+    paddingVertical: 24,
   },
   secondaryButtonText: {
     color: "#24439A",
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: normalizeText(15),
+    fontWeight: "800",
   },
 });

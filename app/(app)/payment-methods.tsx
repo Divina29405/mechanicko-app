@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { normalizeText } from '@/lib/typography';
 
 export default function PaymentMethodsScreen() {
   const router = useRouter();
@@ -64,10 +65,10 @@ export default function PaymentMethodsScreen() {
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.replace('/motorist-profile')} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#000000" />
+          <Ionicons name="arrow-back" size={26} color="#000000" />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Payment Methods</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 26 }} />
       </View>
 
       <FlatList
@@ -83,7 +84,7 @@ export default function PaymentMethodsScreen() {
             onPress={() => handleSetDefault(item.id)}
           >
             <View style={[styles.iconBox, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-              <Ionicons name={getIconForType(item.type)} size={24} color="#0037B0" />
+              <Ionicons name={getIconForType(item.type)} size={26} color="#0037B0" />
             </View>
             <View style={styles.paymentInfo}>
               <Text style={[styles.paymentName, { color: colors.text }]}>{item.name}</Text>
@@ -96,7 +97,7 @@ export default function PaymentMethodsScreen() {
               </View>
             ) : item.type !== 'cash' ? (
               <TouchableOpacity onPress={() => handleDelete(item.id, item.name)} style={styles.deleteButton}>
-                <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                <Ionicons name="trash-outline" size={22} color="#EF4444" />
               </TouchableOpacity>
             ) : null}
           </TouchableOpacity>
@@ -105,7 +106,7 @@ export default function PaymentMethodsScreen() {
 
       <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
         <TouchableOpacity style={[styles.addButton, { backgroundColor: '#0037B0' }]} onPress={() => setIsAdding(true)}>
-          <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
+          <Ionicons name="add-circle-outline" size={22} color="#FFFFFF" />
           <Text style={styles.addButtonText}>Add Payment Method</Text>
         </TouchableOpacity>
       </View>
@@ -124,13 +125,13 @@ export default function PaymentMethodsScreen() {
             <TouchableOpacity 
               style={[styles.typeButton, newType === 'gcash' ? { backgroundColor: '#0037B0', borderColor: '#0037B0' } : { backgroundColor: colors.card, borderColor: colors.border }]} 
               onPress={() => setNewType('gcash')}>
-              <Ionicons name="phone-portrait-outline" size={20} color={newType === 'gcash' ? '#FFFFFF' : colors.text} />
+              <Ionicons name="phone-portrait-outline" size={22} color={newType === 'gcash' ? '#FFFFFF' : colors.text} />
               <Text style={[styles.typeText, { color: newType === 'gcash' ? '#FFFFFF' : colors.text }]}>GCash</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.typeButton, newType === 'card' ? { backgroundColor: '#0037B0', borderColor: '#0037B0' } : { backgroundColor: colors.card, borderColor: colors.border }]} 
               onPress={() => setNewType('card')}>
-              <Ionicons name="card-outline" size={20} color={newType === 'card' ? '#FFFFFF' : colors.text} />
+              <Ionicons name="card-outline" size={22} color={newType === 'card' ? '#FFFFFF' : colors.text} />
               <Text style={[styles.typeText, { color: newType === 'card' ? '#FFFFFF' : colors.text }]}>Card</Text>
             </TouchableOpacity>
           </View>
@@ -161,40 +162,40 @@ export default function PaymentMethodsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16, borderBottomWidth: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingTop: 60, paddingBottom: 16, borderBottomWidth: 1 },
   backButton: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: '800' },
+  headerTitle: { fontSize: normalizeText(20), fontWeight: '800' },
   
-  listContent: { padding: 20, paddingBottom: 100 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 0.5 },
+  listContent: { padding: 22, paddingBottom: 110 },
+  sectionTitle: { fontSize: normalizeText(15), fontWeight: '700', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 0.5 },
   
-  paymentCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, borderWidth: 2, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 4 },
-  iconBox: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 16, borderWidth: 1 },
+  paymentCard: { flexDirection: 'row', alignItems: 'center', padding: 18, borderRadius: 16, borderWidth: 2, marginBottom: 14, elevation: 2, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 4 },
+  iconBox: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginRight: 16, borderWidth: 1 },
   paymentInfo: { flex: 1 },
-  paymentName: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
-  paymentDetails: { fontSize: 13, fontWeight: '600' },
+  paymentName: { fontSize: normalizeText(18), fontWeight: 'bold', marginBottom: 6 },
+  paymentDetails: { fontSize: normalizeText(15), fontWeight: '600' },
   
-  defaultBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  defaultText: { fontSize: 12, fontWeight: 'bold' },
+  defaultBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  defaultText: { fontSize: normalizeText(14), fontWeight: 'bold' },
   deleteButton: { padding: 8 },
 
-  footer: { position: 'absolute', bottom: 0, width: '100%', padding: 20, borderTopWidth: 1 },
-  addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 12, gap: 8 },
-  addButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
+  footer: { position: 'absolute', bottom: 0, width: '100%', padding: 22, borderTopWidth: 1 },
+  addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 18, borderRadius: 12, gap: 8 },
+  addButtonText: { color: '#FFFFFF', fontSize: normalizeText(18), fontWeight: 'bold' },
 
   modalRoot: { flex: 1, padding: 24, paddingTop: Platform.OS === 'ios' ? 60 : 40 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold' },
-  modalCancel: { fontSize: 16, fontWeight: '600' },
+  modalTitle: { fontSize: normalizeText(22), fontWeight: 'bold' },
+  modalCancel: { fontSize: normalizeText(18), fontWeight: '600' },
   
-  typeSelector: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  typeButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 12, borderWidth: 1, gap: 8 },
-  typeText: { fontSize: 15, fontWeight: 'bold' },
+  typeSelector: { flexDirection: 'row', gap: 12, marginBottom: 28 },
+  typeButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 18, borderRadius: 12, borderWidth: 1, gap: 8 },
+  typeText: { fontSize: normalizeText(17), fontWeight: 'bold' },
   
-  formGroup: { marginBottom: 32 },
-  inputLabel: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
-  input: { padding: 16, borderRadius: 12, fontSize: 16, borderWidth: 1, letterSpacing: 1 },
+  formGroup: { marginBottom: 36 },
+  inputLabel: { fontSize: normalizeText(16), fontWeight: '700', marginBottom: 10 },
+  input: { padding: 18, borderRadius: 12, fontSize: normalizeText(18), borderWidth: 1, letterSpacing: 1 },
   
-  saveButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
-  saveButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
+  saveButton: { paddingVertical: 18, borderRadius: 12, alignItems: 'center' },
+  saveButtonText: { color: '#FFFFFF', fontSize: normalizeText(18), fontWeight: 'bold' },
 });

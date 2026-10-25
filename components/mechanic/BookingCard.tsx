@@ -3,6 +3,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Booking } from '@/lib/mechanic-mock';
 import { colors, radii, spacing } from '@/lib/theme';
+import { normalizeText } from '@/lib/typography';
 
 type Props = {
   booking: Booking;
@@ -61,23 +62,24 @@ const styles = StyleSheet.create({
   time: {
     color: colors.amber,
     fontWeight: '800',
-    fontSize: 12,
+    fontSize: normalizeText(12),
   },
   service: {
     color: colors.text,
     fontWeight: '700',
     flex: 1,
+    fontSize: normalizeText(14),
   },
   name: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: normalizeText(16),
     fontWeight: '700',
   },
   meta: {
     marginTop: 2,
     color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: normalizeText(13),
+    lineHeight: normalizeText(18),
   },
   actions: {
     flexDirection: 'row',
@@ -94,12 +96,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 6,
   },
   actionText: {
     color: colors.text,
     fontWeight: '700',
-    fontSize: 12,
+    fontSize: normalizeText(12),
   },
   pressed: {
     opacity: 0.8,
