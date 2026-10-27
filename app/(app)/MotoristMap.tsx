@@ -2860,10 +2860,11 @@ export default function MotoristMap() {
                   mode="date"
                   display="default"
                   minimumDate={new Date()}
-                  onValueChange={(_, selectedDate) => {
+                  onValueChange={(_event, selectedDate) => {
                     if (Platform.OS === "android") {
                       setShowBookingDatePicker(false);
                     }
+                    if (!selectedDate) return;
                     const nextDate = new Date(bookingDate);
                     nextDate.setFullYear(
                       selectedDate.getFullYear(),
@@ -2917,10 +2918,11 @@ export default function MotoristMap() {
                   value={bookingDate}
                   mode="time"
                   display="default"
-                  onValueChange={(_, selectedTime) => {
+                  onValueChange={(_event, selectedTime) => {
                     if (Platform.OS === "android") {
                       setShowBookingTimePicker(false);
                     }
+                    if (!selectedTime) return;
                     const nextDate = new Date(bookingDate);
                     nextDate.setHours(
                       selectedTime.getHours(),

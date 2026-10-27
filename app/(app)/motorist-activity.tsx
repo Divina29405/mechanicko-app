@@ -1519,7 +1519,8 @@ export default function MotoristActivityScreen() {
                 mode={schedulePicker}
                 display="default"
                 minimumDate={schedulePicker === "date" ? new Date() : undefined}
-                onValueChange={(_, value) => {
+                onValueChange={(_event, value) => {
+                  if (!value) return;
                   const next = new Date(scheduleDate);
                   if (schedulePicker === "date") {
                     next.setFullYear(value.getFullYear(), value.getMonth(), value.getDate());
