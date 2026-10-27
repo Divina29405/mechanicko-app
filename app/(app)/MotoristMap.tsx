@@ -11,7 +11,9 @@ import {
 import { listVehicles } from "@/services/vehicleService";
 import type { Vehicle } from "@/types/vehicle";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+} from "@react-native-community/datetimepicker";
 import * as Linking from "expo-linking";
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
@@ -217,6 +219,56 @@ export default function MotoristMap() {
   });
   const [showBookingDatePicker, setShowBookingDatePicker] = useState(false);
   const [showBookingTimePicker, setShowBookingTimePicker] = useState(false);
+  const updateBookingDate = useCallback(
+    (mode: "date" | "time", selectedValue: Date) => {
+      setBookingDate((currentDate) => {
+        const nextDate = new Date(currentDate);
+        if (mode === "date") {
+          nextDate.setFullYear(
+            selectedValue.getFullYear(),
+            selectedValue.getMonth(),
+            selectedValue.getDate(),
+          );
+        } else {
+          nextDate.setHours(
+            selectedValue.getHours(),
+            selectedValue.getMinutes(),
+            0,
+            0,
+          );
+        }
+        return nextDate;
+      });
+    },
+    [],
+  );
+  const openBookingPicker = useCallback(
+    (mode: "date" | "time") => {
+      if (Platform.OS === "android") {
+        DateTimePickerAndroid.open({
+          value: bookingDate,
+          mode,
+          display: "default",
+          minimumDate: mode === "date" ? new Date() : undefined,
+          onValueChange: (_event, selectedValue) =>
+            updateBookingDate(mode, selectedValue),
+        });
+        return;
+      }
+
+      if (mode === "date") {
+        setShowBookingDatePicker(true);
+      } else {
+        setShowBookingTimePicker(true);
+      }
+    },
+    [
+      bookingDate,
+      setShowBookingDatePicker,
+      setShowBookingTimePicker,
+      updateBookingDate,
+    ],
+  );
   const [submittingBooking, setSubmittingBooking] = useState(false);
   const [mechanicPanelAnimation] = useState(() => new Animated.Value(0));
   const [activeRequest, setActiveRequest] = useState<any>(() =>
@@ -2835,7 +2887,7 @@ export default function MotoristMap() {
                       borderColor: bookingSosColors.border,
                     },
                   ]}
-                  onPress={() => setShowBookingDatePicker(true)}
+                  onPress={() => openBookingPicker("date")}
                 >
                   <Ionicons
                     name="calendar-outline"
@@ -2854,28 +2906,16 @@ export default function MotoristMap() {
                   </Text>
                 </TouchableOpacity>
               </View>
-              {showBookingDatePicker ? (
+              {Platform.OS !== "android" && showBookingDatePicker ? (
                 <DateTimePicker
                   value={bookingDate}
                   mode="date"
                   display="default"
                   minimumDate={new Date()}
-                  onValueChange={(_event, selectedDate) => {
-                    if (Platform.OS === "android") {
-                      setShowBookingDatePicker(false);
-                    }
-                    if (!selectedDate) return;
-                    const nextDate = new Date(bookingDate);
-                    nextDate.setFullYear(
-                      selectedDate.getFullYear(),
-                      selectedDate.getMonth(),
-                      selectedDate.getDate(),
-                    );
-                    setBookingDate(nextDate);
-                  }}
-                  onDismiss={() => {
-                    setShowBookingDatePicker(false);
-                  }}
+                  onValueChange={(_event, selectedDate) =>
+                    updateBookingDate("date", selectedDate)
+                  }
+                  onDismiss={() => setShowBookingDatePicker(false)}
                 />
               ) : null}
               <View style={styles.bookingScheduleField}>
@@ -2895,7 +2935,7 @@ export default function MotoristMap() {
                       borderColor: bookingSosColors.border,
                     },
                   ]}
-                  onPress={() => setShowBookingTimePicker(true)}
+                  onPress={() => openBookingPicker("time")}
                 >
                   <Ionicons
                     name="time-outline"
@@ -2913,28 +2953,15 @@ export default function MotoristMap() {
                   </Text>
                 </TouchableOpacity>
               </View>
-              {showBookingTimePicker ? (
+              {Platform.OS !== "android" && showBookingTimePicker ? (
                 <DateTimePicker
                   value={bookingDate}
                   mode="time"
                   display="default"
-                  onValueChange={(_event, selectedTime) => {
-                    if (Platform.OS === "android") {
-                      setShowBookingTimePicker(false);
-                    }
-                    if (!selectedTime) return;
-                    const nextDate = new Date(bookingDate);
-                    nextDate.setHours(
-                      selectedTime.getHours(),
-                      selectedTime.getMinutes(),
-                      0,
-                      0,
-                    );
-                    setBookingDate(nextDate);
-                  }}
-                  onDismiss={() => {
-                    setShowBookingTimePicker(false);
-                  }}
+                  onValueChange={(_event, selectedTime) =>
+                    updateBookingDate("time", selectedTime)
+                  }
+                  onDismiss={() => setShowBookingTimePicker(false)}
                 />
               ) : null}
             </View>

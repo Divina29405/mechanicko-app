@@ -3,7 +3,9 @@ import { useAppTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
 import { setCachedActiveBooking } from "@/lib/activeBookingStore";
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+} from "@react-native-community/datetimepicker";
 import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
@@ -679,6 +681,47 @@ export default function MotoristActivityScreen() {
   });
   const [schedulePicker, setSchedulePicker] = useState<"date" | "time" | null>(
     null,
+  );
+  const updateScheduleDate = useCallback(
+    (mode: "date" | "time", selectedValue: Date) => {
+      setScheduleDate((currentDate) => {
+        const nextDate = new Date(currentDate);
+        if (mode === "date") {
+          nextDate.setFullYear(
+            selectedValue.getFullYear(),
+            selectedValue.getMonth(),
+            selectedValue.getDate(),
+          );
+        } else {
+          nextDate.setHours(
+            selectedValue.getHours(),
+            selectedValue.getMinutes(),
+            0,
+            0,
+          );
+        }
+        return nextDate;
+      });
+    },
+    [],
+  );
+  const openSchedulePicker = useCallback(
+    (mode: "date" | "time") => {
+      if (Platform.OS === "android") {
+        DateTimePickerAndroid.open({
+          value: scheduleDate,
+          mode,
+          display: "default",
+          minimumDate: mode === "date" ? new Date() : undefined,
+          onValueChange: (_event, selectedValue) =>
+            updateScheduleDate(mode, selectedValue),
+        });
+        return;
+      }
+
+      setSchedulePicker(mode);
+    },
+    [scheduleDate, updateScheduleDate],
   );
   const [submittingSchedule, setSubmittingSchedule] = useState(false);
   const previousStatuses = useRef(new Map<string, string>());
@@ -1490,7 +1533,7 @@ export default function MotoristActivityScreen() {
                   </Text>
                   <TouchableOpacity
                     style={[styles.scheduleDateButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-                    onPress={() => setSchedulePicker(kind)}
+                    onPress={() => openSchedulePicker(kind)}
                   >
                     <Ionicons
                       name={kind === "date" ? "calendar-outline" : "time-outline"}
@@ -1513,7 +1556,7 @@ export default function MotoristActivityScreen() {
                 </View>
               ))}
             </View>
-            {schedulePicker ? (
+            {Platform.OS !== "android" && schedulePicker ? (
               <DateTimePicker
                 value={scheduleDate}
                 mode={schedulePicker}
@@ -1521,13 +1564,7 @@ export default function MotoristActivityScreen() {
                 minimumDate={schedulePicker === "date" ? new Date() : undefined}
                 onValueChange={(_event, value) => {
                   if (!value) return;
-                  const next = new Date(scheduleDate);
-                  if (schedulePicker === "date") {
-                    next.setFullYear(value.getFullYear(), value.getMonth(), value.getDate());
-                  } else {
-                    next.setHours(value.getHours(), value.getMinutes(), 0, 0);
-                  }
-                  setScheduleDate(next);
+                  updateScheduleDate(schedulePicker, value);
                   setSchedulePicker(null);
                 }}
                 onDismiss={() => setSchedulePicker(null)}
