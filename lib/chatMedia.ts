@@ -1,4 +1,30 @@
 import type * as ImagePicker from "expo-image-picker";
+import { supabase } from "@/lib/supabase";
+
+export async function refreshChatImageUrl(imageUrl: string): Promise<string> {
+  const signedPathMarker = "/storage/v1/object/sign/chat-media/";
+  const markerIndex = imageUrl.indexOf(signedPathMarker);
+  if (markerIndex === -1) return imageUrl;
+
+  const encodedPath = imageUrl
+    .slice(markerIndex + signedPathMarker.length)
+    .split(/[?#]/, 1)[0];
+  if (!encodedPath) return imageUrl;
+
+  let path: string;
+  try {
+    path = decodeURIComponent(encodedPath);
+  } catch {
+    throw new Error("Unable to read the stored chat photo path.");
+  }
+
+  const { data, error: signedUrlError } = await supabase.storage
+    .from("chat-media")
+    .createSignedUrl(path, 60 * 60 * 24);
+  if (signedUrlError) throw new Error(signedUrlError.message);
+  if (!data.signedUrl) throw new Error("Unable to refresh the chat photo link.");
+  return data.signedUrl;
+}
 
 function decodeBase64(value: string): Uint8Array {
   const alphabet =

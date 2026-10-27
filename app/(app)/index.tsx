@@ -6,6 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
 import {
   Animated,
+  Dimensions,
   Image,
   Modal,
   PanResponder,
@@ -16,7 +17,10 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import { ComingSoonModal } from "@/components/ComingSoonModal";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -135,12 +139,22 @@ function displayName(fullName: string | undefined, email: string | undefined) {
 export default function MechanicHomeScreen() {
   const { session } = useAuth();
   const { online, setOnline, rating, avatarUrl } = useMechanic();
+  const insets = useSafeAreaInsets();
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [sidebarProgress] = useState(() => new Animated.Value(0));
   const [availableJobs, setAvailableJobs] = useState<AvailableJob[]>([]);
   const [acceptingJobId, setAcceptingJobId] = useState<string | null>(null);
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<AvailableJob | null>(null);
+  const [selectedJobAddress, setSelectedJobAddress] = useState<{
+    key: string;
+    value: string;
+  } | null>(null);
+  const [mapChoice, setMapChoice] = useState<{
+    googleMapsUrl: string;
+    wazeUrl: string;
+  } | null>(null);
+  const [mapChoiceError, setMapChoiceError] = useState<string | null>(null);
   const [declineJobId, setDeclineJobId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState("");
   const [mechanicLocation, setMechanicLocation] = useState<Coordinates | null>(
@@ -150,6 +164,51 @@ export default function MechanicHomeScreen() {
   const [comingSoonVisible, setComingSoonVisible] = useState(false);
   const [sliderActivated, setSliderActivated] = useState(false);
   const [slidePosition] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    if (
+      !selectedJob ||
+      selectedJob.latitude === null ||
+      selectedJob.longitude === null
+    ) {
+      return;
+    }
+
+    let active = true;
+    const key = `${selectedJob.latitude},${selectedJob.longitude}`;
+    void Location.reverseGeocodeAsync({
+      latitude: selectedJob.latitude,
+      longitude: selectedJob.longitude,
+    })
+      .then(([address]) => {
+        if (!active) return;
+        const value = address
+          ? [
+              address.name,
+              address.street,
+              address.district,
+              address.city,
+              address.region,
+              address.postalCode,
+              address.country,
+            ]
+              .filter(Boolean)
+              .filter((part, index, parts) => parts.indexOf(part) === index)
+              .join(", ")
+          : "";
+        setSelectedJobAddress({
+          key,
+          value: value || "Address unavailable",
+        });
+      })
+      .catch(() => {
+        if (active) setSelectedJobAddress({ key, value: "Address unavailable" });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedJob]);
 
   useEffect(() => {
     if (!sliderActivated && online) {
@@ -194,10 +253,22 @@ export default function MechanicHomeScreen() {
       setJobsError("Customer location is not available.");
       return;
     }
-    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${job.latitude},${job.longitude}`;
-    void Linking.openURL(mapsUrl).catch(() => {
-      setJobsError("Unable to open maps.");
+    const coordinates = `${job.latitude},${job.longitude}`;
+    setMapChoiceError(null);
+    setMapChoice({
+      googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(coordinates)}`,
+      wazeUrl: `https://waze.com/ul?ll=${encodeURIComponent(coordinates)}&navigate=yes`,
     });
+  }
+
+  async function selectMapApp(url: string) {
+    try {
+      await Linking.openURL(url);
+      setMapChoice(null);
+      setMapChoiceError(null);
+    } catch {
+      setMapChoiceError("Unable to open that map app. Please try the other option.");
+    }
   }
 
   useEffect(() => {
@@ -357,6 +428,7 @@ export default function MechanicHomeScreen() {
     } else {
       setAvailableJobs((jobs) => jobs.filter((job) => job.id !== id));
       setSelectedJob(null);
+      router.navigate({ pathname: "/jobs", params: { filter: "ongoing" } });
     }
     setAcceptingJobId(null);
   }
@@ -428,7 +500,7 @@ export default function MechanicHomeScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.root} edges={["top"]}>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
       <ScrollView
         style={styles.homeScroll}
@@ -803,107 +875,185 @@ export default function MechanicHomeScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Close booking details"
               >
-                <Ionicons name="arrow-back" size={24} color="#000000" />
+                <Ionicons name="arrow-back" size={24} color={colors.white} />
               </Pressable>
               <Text style={styles.jobDetailHeaderTitle}>Booking details</Text>
               <View style={styles.detailHeaderSpacer} />
             </View>
             <ScrollView
-              contentContainerStyle={styles.jobDetailContent}
+              contentContainerStyle={[
+                styles.jobDetailContent,
+                selectedJob.request_type === "scheduled" &&
+                  styles.scheduledJobDetailContent,
+              ]}
               showsVerticalScrollIndicator={false}
             >
-              <Text
-                style={[
-                  styles.jobDetailType,
-                  selectedJob.request_type !== "emergency" &&
-                    styles.scheduledDetailText,
-                ]}
-              >
-                {selectedJob.request_type === "emergency"
-                  ? "URGENT REQUEST"
-                  : "SCHEDULED SERVICE"}
-              </Text>
-              <Text style={styles.jobDetailCustomer}>
-                {selectedJob.customer_name}
-              </Text>
-              <Pressable
-                style={styles.detailRoute}
-                onPress={() => openCustomerLocation(selectedJob)}
-                disabled={
-                  selectedJob.latitude === null ||
-                  selectedJob.longitude === null
-                }
-                accessibilityRole="button"
-                accessibilityLabel="View customer location on map"
-              >
-                <View style={styles.detailRouteRow}>
-                  <Ionicons
-                    name="location"
-                    size={20}
-                    color={
-                      selectedJob.request_type === "emergency"
-                        ? colors.amber
-                        : colors.blue
-                    }
-                  />
-                  <View style={styles.detailRouteText}>
-                    <Text style={styles.detailRouteLabel}>
-                      Customer location
+              {selectedJob.request_type === "scheduled" ? (
+                <>
+                  {selectedJob.latitude !== null &&
+                  selectedJob.longitude !== null ? (
+                    <MiniMapPreview
+                      compact
+                      mapHeight={Math.min(
+                        270,
+                        Math.max(190, Dimensions.get("window").height * 0.3),
+                      )}
+                      mechanicLocation={mechanicLocation}
+                      customerLocation={{
+                        latitude: selectedJob.latitude,
+                        longitude: selectedJob.longitude,
+                      }}
+                      distanceLabel={formatDistance(mechanicLocation, selectedJob)}
+                    />
+                  ) : (
+                    <Text style={styles.bookingMapHint}>
+                      Customer location is not available for this booking.
                     </Text>
-                    <Text style={styles.detailRouteValue}>
+                  )}
+                  <Pressable
+                    style={styles.scheduledCompactLocation}
+                    onPress={() => openCustomerLocation(selectedJob)}
+                    disabled={
+                      selectedJob.latitude === null ||
+                      selectedJob.longitude === null
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel="View customer location on map"
+                  >
+                    <Ionicons name="location" size={18} color={colors.blue} />
+                    <View style={styles.detailRouteText}>
+                      <Text style={styles.scheduledCompactValue} numberOfLines={2}>
+                        {selectedJob.latitude !== null &&
+                        selectedJob.longitude !== null
+                          ? selectedJobAddress?.key ===
+                            `${selectedJob.latitude},${selectedJob.longitude}`
+                            ? selectedJobAddress.value
+                            : "Loading address..."
+                          : "Location not provided"}
+                      </Text>
+                    </View>
+                    <Ionicons name="open-outline" size={17} color={colors.textMuted} />
+                  </Pressable>
+                  <View style={styles.scheduledBookingSummary}>
+                    <View style={styles.scheduledBookingHeader}>
+                      <View style={styles.scheduledBookingCustomer}>
+                        <Text style={styles.scheduledBookingEyebrow}>
+                          SCHEDULED SERVICE
+                        </Text>
+                        <Text
+                          style={styles.scheduledCompactCustomer}
+                          numberOfLines={1}
+                        >
+                          {selectedJob.customer_name}
+                        </Text>
+                      </View>
+                      <View style={styles.scheduledDistanceBadge}>
+                        <Ionicons
+                          name="navigate-outline"
+                          size={15}
+                          color={colors.blue}
+                        />
+                        <Text
+                          style={styles.scheduledCompactDistance}
+                          numberOfLines={1}
+                        >
+                          {formatDistance(mechanicLocation, selectedJob)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.scheduledDetailsCard}>
+                      <View style={styles.scheduledDateField}>
+                        <Text style={styles.scheduledCompactValue}>
+                          {selectedJob.scheduled_at
+                            ? formatBookingSchedule(selectedJob.scheduled_at)
+                            : "As soon as possible"}
+                        </Text>
+                      </View>
+                      <View style={styles.scheduledVehicleRow}>
+                        <View style={styles.scheduledVehicleField}>
+                          <Text style={styles.scheduledCompactValue}>
+                            {selectedJob.vehicle_type || "Not provided"}
+                          </Text>
+                        </View>
+                        <View style={styles.scheduledPlateField}>
+                          <Text style={styles.scheduledCompactValue}>
+                            {selectedJob.plate_number || "Not provided"}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.scheduledServiceField}>
+                        <Text style={styles.scheduledCompactValue}>
+                          {selectedJob.vehicle_issue ||
+                            "No issue description provided."}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.jobDetailType}>URGENT REQUEST</Text>
+                  <Text style={styles.jobDetailCustomer}>
+                    {selectedJob.customer_name}
+                  </Text>
+                  <Pressable
+                    style={styles.detailRoute}
+                    onPress={() => openCustomerLocation(selectedJob)}
+                    disabled={
+                      selectedJob.latitude === null ||
+                      selectedJob.longitude === null
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel="View customer location on map"
+                  >
+                    <View style={styles.detailRouteRow}>
+                      <Ionicons name="location" size={20} color={colors.amber} />
+                      <View style={styles.detailRouteText}>
+                        <Text style={styles.detailRouteLabel}>
+                          Customer location
+                        </Text>
+                        <Text style={styles.detailRouteValue}>
+                          {selectedJob.latitude !== null &&
+                          selectedJob.longitude !== null
+                            ? `${selectedJob.latitude.toFixed(5)}, ${selectedJob.longitude.toFixed(5)}`
+                            : "Location not provided"}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.detailRouteHint}>
                       {selectedJob.latitude !== null &&
                       selectedJob.longitude !== null
-                        ? `${selectedJob.latitude.toFixed(5)}, ${selectedJob.longitude.toFixed(5)}`
-                        : "Location not provided"}
+                        ? "Tap to open in maps"
+                        : "Location not available"}
+                    </Text>
+                  </Pressable>
+                  <View style={styles.fullDetailSection}>
+                    <Text style={styles.distanceLabel}>DISTANCE FROM YOU</Text>
+                    <Text style={styles.distanceValue}>
+                      {formatDistance(mechanicLocation, selectedJob)}
+                    </Text>
+                    <Text style={styles.fullDetailLabel}>DATE SCHEDULED</Text>
+                    <Text style={styles.fullDetailValue}>
+                      {selectedJob.scheduled_at
+                        ? new Date(selectedJob.scheduled_at).toLocaleString()
+                        : "As soon as possible"}
+                    </Text>
+                    <Text style={styles.fullDetailLabel}>VEHICLE</Text>
+                    <Text style={styles.fullDetailValue}>
+                      {selectedJob.vehicle_type || "Not provided"}
+                    </Text>
+                    <Text style={styles.fullDetailLabel}>PLATE NUMBER</Text>
+                    <Text style={styles.fullDetailValue}>
+                      {selectedJob.plate_number || "Not provided"}
+                    </Text>
+                    <Text style={styles.fullDetailLabel}>SERVICE DETAILS</Text>
+                    <Text style={styles.fullDetailValue}>
+                      {selectedJob.vehicle_issue ||
+                        "No issue description provided."}
                     </Text>
                   </View>
-                </View>
-                <Text style={styles.detailRouteHint}>
-                  {selectedJob.latitude !== null &&
-                  selectedJob.longitude !== null
-                    ? "Tap to open in maps"
-                    : "Location not available"}
-                </Text>
-              </Pressable>
-              <View style={styles.fullDetailSection}>
-                <Text
-                  style={[
-                    styles.distanceLabel,
-                    selectedJob.request_type !== "emergency" &&
-                      styles.scheduledDetailText,
-                  ]}
-                >
-                  DISTANCE FROM YOU
-                </Text>
-                <Text
-                  style={[
-                    styles.distanceValue,
-                    selectedJob.request_type !== "emergency" &&
-                      styles.scheduledDistanceValue,
-                  ]}
-                >
-                  {formatDistance(mechanicLocation, selectedJob)}
-                </Text>
-                <Text style={styles.fullDetailLabel}>DATE SCHEDULED</Text>
-                <Text style={styles.fullDetailValue}>
-                  {selectedJob.scheduled_at
-                    ? new Date(selectedJob.scheduled_at).toLocaleString()
-                    : "As soon as possible"}
-                </Text>
-                <Text style={styles.fullDetailLabel}>VEHICLE</Text>
-                <Text style={styles.fullDetailValue}>
-                  {selectedJob.vehicle_type || "Not provided"}
-                </Text>
-                <Text style={styles.fullDetailLabel}>PLATE NUMBER</Text>
-                <Text style={styles.fullDetailValue}>
-                  {selectedJob.plate_number || "Not provided"}
-                </Text>
-                <Text style={styles.fullDetailLabel}>SERVICE DETAILS</Text>
-                <Text style={styles.fullDetailValue}>
-                  {selectedJob.vehicle_issue ||
-                    "No issue description provided."}
-                </Text>
-              </View>
+                </>
+              )}
             </ScrollView>
             <View style={styles.fullDetailActions}>
               <Pressable
@@ -935,6 +1085,114 @@ export default function MechanicHomeScreen() {
             </View>
           </SafeAreaView>
         ) : null}
+      </Modal>
+
+      <Modal
+        visible={mapChoice !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setMapChoice(null);
+          setMapChoiceError(null);
+        }}
+      >
+        <View style={styles.mapChoiceOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              setMapChoice(null);
+              setMapChoiceError(null);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Close map app selection"
+          />
+          <View style={styles.mapChoiceCard}>
+            <View style={styles.mapChoiceHeading}>
+              <View style={styles.mapChoiceIcon}>
+                <Ionicons name="navigate" size={21} color={colors.blue} />
+              </View>
+              <View style={styles.mapChoiceHeadingText}>
+                <Text style={styles.mapChoiceTitle}>Open directions</Text>
+                <Text style={styles.mapChoiceSubtitle}>
+                  Choose your preferred maps app
+                </Text>
+              </View>
+            </View>
+            {selectedJob &&
+            selectedJob.latitude !== null &&
+            selectedJob.longitude !== null ? (
+              <Text style={styles.mapChoiceAddress} numberOfLines={2}>
+                {selectedJobAddress?.key ===
+                `${selectedJob.latitude},${selectedJob.longitude}`
+                  ? selectedJobAddress.value
+                  : "Customer address"}
+              </Text>
+            ) : null}
+            {mapChoiceError ? (
+              <Text style={styles.mapChoiceError}>{mapChoiceError}</Text>
+            ) : null}
+            <Pressable
+              style={styles.mapChoiceOption}
+              onPress={() => {
+                if (mapChoice) void selectMapApp(mapChoice.googleMapsUrl);
+              }}
+              accessibilityRole="button"
+            >
+              <Image
+                source={require("../../assets/images/googlemap.png")}
+                style={styles.mapChoiceOptionIcon}
+                resizeMode="contain"
+                accessibilityLabel="Google Maps"
+              />
+              <View style={styles.mapChoiceOptionText}>
+                <Text style={styles.mapChoiceOptionTitle}>Google Maps</Text>
+                <Text style={styles.mapChoiceOptionHint}>
+                  Open turn-by-turn directions
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={19}
+                color={colors.textMuted}
+              />
+            </Pressable>
+            <Pressable
+              style={styles.mapChoiceOption}
+              onPress={() => {
+                if (mapChoice) void selectMapApp(mapChoice.wazeUrl);
+              }}
+              accessibilityRole="button"
+            >
+              <Image
+                source={require("../../assets/images/waze.webp")}
+                style={styles.mapChoiceOptionIcon}
+                resizeMode="contain"
+                accessibilityLabel="Waze"
+              />
+              <View style={styles.mapChoiceOptionText}>
+                <Text style={styles.mapChoiceOptionTitle}>Waze</Text>
+                <Text style={styles.mapChoiceOptionHint}>
+                  Open live navigation
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={19}
+                color={colors.textMuted}
+              />
+            </Pressable>
+            <Pressable
+              style={styles.mapChoiceCancel}
+              onPress={() => {
+                setMapChoice(null);
+                setMapChoiceError(null);
+              }}
+              accessibilityRole="button"
+            >
+              <Text style={styles.mapChoiceCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
       </Modal>
 
       <Modal
@@ -1058,7 +1316,7 @@ export default function MechanicHomeScreen() {
         visible={comingSoonVisible}
         onClose={() => setComingSoonVisible(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1991,6 +2249,11 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.xl,
   },
+  scheduledJobDetailContent: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
   jobDetailType: {
     color: colors.amber,
     fontSize: normalizeText(13),
@@ -2006,6 +2269,118 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginTop: spacing.sm,
     marginBottom: spacing.lg,
+  },
+  bookingDistanceSection: {
+    marginBottom: spacing.md,
+  },
+  bookingMapHint: {
+    color: colors.textMuted,
+    fontSize: normalizeText(13),
+    height: 145,
+    textAlign: "center",
+    textAlignVertical: "center",
+    backgroundColor: colors.mapBg,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  scheduledBookingSummary: {
+    marginTop: spacing.xs,
+  },
+  scheduledBookingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  scheduledBookingCustomer: {
+    flex: 1,
+  },
+  scheduledBookingEyebrow: {
+    color: colors.blue,
+    fontSize: normalizeText(13),
+    fontWeight: "800",
+    letterSpacing: 0.7,
+    marginBottom: 2,
+  },
+  scheduledCompactDistance: {
+    color: colors.blue,
+    fontSize: normalizeText(16),
+    fontWeight: "800",
+  },
+  scheduledDistanceBadge: {
+    maxWidth: "48%",
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 999,
+    backgroundColor: colors.blueSoft,
+  },
+  scheduledCompactCustomer: {
+    color: colors.text,
+    fontSize: normalizeText(25),
+    fontWeight: "800",
+  },
+  scheduledDetailsCard: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgElevated,
+  },
+  scheduledCompactLocation: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+  },
+  scheduledDateField: {
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  scheduledVehicleRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  scheduledVehicleField: {
+    flex: 1,
+    paddingVertical: spacing.xs,
+    paddingRight: spacing.sm,
+  },
+  scheduledPlateField: {
+    flex: 1,
+    paddingVertical: spacing.xs,
+    paddingLeft: spacing.md,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+  },
+  scheduledServiceField: {
+    paddingTop: spacing.xs,
+    paddingBottom: 2,
+  },
+  scheduledCompactLabel: {
+    color: colors.textMuted,
+    fontSize: normalizeText(11),
+    fontWeight: "800",
+    letterSpacing: 0.7,
+  },
+  scheduledCompactValue: {
+    color: colors.text,
+    fontSize: normalizeText(18),
+    lineHeight: normalizeText(24),
+    marginTop: 2,
   },
   detailRoute: {
     paddingVertical: spacing.lg,
@@ -2091,6 +2466,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   fullDetailActions: {
+    flexDirection: "row",
     gap: spacing.sm,
     padding: spacing.md,
     borderTopWidth: 1,
@@ -2098,6 +2474,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgElevated,
   },
   detailAcceptButton: {
+    flex: 1,
     minHeight: 50,
     backgroundColor: colors.amber,
     alignItems: "center",
@@ -2107,7 +2484,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.blue,
   },
   detailDeclineButton: {
-    minHeight: 46,
+    flex: 1,
+    minHeight: 50,
     borderWidth: 1,
     borderColor: colors.sos,
     alignItems: "center",
@@ -2115,6 +2493,108 @@ const styles = StyleSheet.create({
   },
   scheduledDeclineButton: {
     borderColor: colors.blue,
+  },
+  mapChoiceOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
+    backgroundColor: "rgba(16, 24, 40, 0.56)",
+  },
+  mapChoiceCard: {
+    padding: spacing.lg,
+    borderRadius: 22,
+    backgroundColor: colors.bgElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  mapChoiceHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  mapChoiceIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.blueSoft,
+  },
+  mapChoiceHeadingText: {
+    flex: 1,
+  },
+  mapChoiceTitle: {
+    color: colors.text,
+    fontSize: normalizeText(20),
+    fontWeight: "800",
+  },
+  mapChoiceSubtitle: {
+    color: colors.textMuted,
+    fontSize: normalizeText(14),
+    marginTop: 3,
+  },
+  mapChoiceAddress: {
+    color: colors.textMuted,
+    fontSize: normalizeText(14),
+    lineHeight: normalizeText(19),
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    borderRadius: 10,
+    backgroundColor: colors.bg,
+  },
+  mapChoiceError: {
+    color: colors.error,
+    fontSize: normalizeText(13),
+    lineHeight: normalizeText(18),
+    marginBottom: spacing.sm,
+  },
+  mapChoiceOption: {
+    minHeight: 68,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    marginTop: spacing.xs,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+  },
+  mapChoiceOptionIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  mapChoiceOptionText: {
+    flex: 1,
+  },
+  mapChoiceOptionTitle: {
+    color: colors.text,
+    fontSize: normalizeText(16),
+    fontWeight: "800",
+  },
+  mapChoiceOptionHint: {
+    color: colors.textMuted,
+    fontSize: normalizeText(13),
+    marginTop: 2,
+  },
+  mapChoiceCancel: {
+    minHeight: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: spacing.sm,
+  },
+  mapChoiceCancelText: {
+    color: colors.textMuted,
+    fontSize: normalizeText(15),
+    fontWeight: "700",
   },
   declineModalOverlay: {
     flex: 1,

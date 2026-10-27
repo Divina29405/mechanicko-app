@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { type ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -52,12 +52,17 @@ export function MechanicScreen({
   );
 
   return (
-    <SafeAreaView
-      style={[styles.root, { backgroundColor: theme.colors.bg }]}
-      edges={safeAreaTop ? ['top'] : []}
+    <View
+      style={[
+        styles.root,
+        {
+          backgroundColor: theme.colors.bg,
+          paddingTop: safeAreaTop ? insets.top : 0,
+        },
+      ]}
     >
       {profileHeader ? (
-        <View style={[styles.profileHeader, { backgroundColor: theme.colors.card, paddingTop: Platform.OS === 'android' ? Math.max(insets.top, 12) : 10 }]}>
+        <View style={[styles.profileHeader, { backgroundColor: theme.colors.card }]}>
           <Pressable
             style={styles.profileIdentity}
             onPress={() => router.push('./profile')}
@@ -68,7 +73,7 @@ export function MechanicScreen({
               <ProfileAvatar
                 uri={avatarUrl}
                 name={name}
-                size={46}
+                size={48}
                 backgroundColor={colors.amberSoft}
               />
               <View
@@ -90,7 +95,7 @@ export function MechanicScreen({
           </Pressable>
           <View style={styles.profileActions}>
             <View style={styles.profileRating}>
-              <Ionicons name="star" size={18} color={colors.amber} />
+              <Ionicons name="star" size={20} color={colors.amber} />
               <Text style={[styles.profileRatingValue, { color: theme.colors.text }]}>
                 {rating.toFixed(2)}
               </Text>
@@ -100,7 +105,7 @@ export function MechanicScreen({
         </View>
       ) : null}
       {!hideHeader ? (
-        <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border, paddingTop: Platform.OS === 'android' ? Math.max(insets.top, 12) : 0 }]}>
+        <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
           {back ? (
             <Pressable
               onPress={() => {
@@ -123,7 +128,7 @@ export function MechanicScreen({
         </View>
       ) : null}
       {children}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -156,9 +161,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgElevated,
   },
   profileHeader: {
-    minHeight: 70,
     paddingHorizontal: spacing.md,
-    paddingBottom: 10,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -177,8 +181,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
     top: 1,
-    width: 12,
-    height: 12,
+    width: 11,
+    height: 11,
     borderRadius: 6,
     backgroundColor: colors.sos,
     borderWidth: 2,
@@ -190,11 +194,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileName: {
-    fontSize: normalizeText(17),
+    fontSize: normalizeText(19),
     fontWeight: '800',
   },
   profileAvailability: {
-    fontSize: normalizeText(12),
+    fontSize: normalizeText(13),
     marginTop: 2,
   },
   profileActions: {
@@ -208,7 +212,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   profileRatingValue: {
-    fontSize: normalizeText(15),
+    fontSize: normalizeText(16),
     fontWeight: '700',
   },
   profileNotification: {

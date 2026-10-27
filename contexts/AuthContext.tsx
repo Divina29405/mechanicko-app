@@ -50,7 +50,8 @@ type AuthContextValue = {
     application?: MechanicApplication,
     mobileNumber?: string,
   ) => Promise<AuthResult>;
-  signOut: () => Promise<void>;
+  signOut: (returnTo?: "mechanic" | "customer") => Promise<void>;
+  signedOutRole: "mechanic" | "customer" | null;
 };
 
 async function getAccountStatus(userId: string) {
@@ -210,7 +211,11 @@ WebBrowser.maybeCompleteAuthSession();
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [signedOutRole, setSignedOutRole] = useState<
+    "mechanic" | "customer" | null
+  >(null);
   const signupInProgress = useRef(false);
+  const authOperationInProgress = useRef(false);
 
   useEffect(() => {
     if (!session?.user.id) return;
@@ -297,7 +302,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const { data: listener } = supabase.auth.onAuthStateChange(
         (_event, nextSession) => {
-          if (!signupInProgress.current) {
+          if (!signupInProgress.current && !authOperationInProgress.current) {
+            if (nextSession) setSignedOutRole(null);
             setSession(nextSession);
           }
         },
@@ -315,8 +321,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       session,
       loading,
+      signedOutRole,
       async signIn(email, password) {
-        setSession(null);
         if (!isSupabaseConfigured) {
           return {
             error:
@@ -324,19 +330,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
         }
 
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
+        authOperationInProgress.current = true;
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          });
 
-        if (error) {
-          return { error: error.message };
+          if (error) {
+            return { error: error.message };
+          }
+
+          const result = await completeSignIn(data.user, "customer");
+          if (!result.error) {
+            setSignedOutRole(null);
+            setSession(data.session);
+          }
+          return result;
+        } finally {
+          authOperationInProgress.current = false;
         }
-
-        return completeSignIn(data.user, "customer");
       },
       async signInAsMechanic(email, password) {
-        setSession(null);
         if (!isSupabaseConfigured) {
           return {
             error:
@@ -344,89 +359,106 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
         }
 
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
+        authOperationInProgress.current = true;
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          });
 
-        if (error) {
-          return { error: error.message };
-        }
+          if (error) {
+            return { error: error.message };
+          }
 
-        const result = await completeSignIn(data.user, "mechanic");
-        if (result.error) {
-          setSession(null);
+          const result = await completeSignIn(data.user, "mechanic");
+          if (!result.error) {
+            setSignedOutRole(null);
+            setSession(data.session);
+          }
+          return result;
+        } finally {
+          authOperationInProgress.current = false;
         }
-        return result;
       },
       async signInWithGoogle() {
         if (!isSupabaseConfigured) {
           return { error: "Google login needs Supabase to be configured." };
         }
 
-        const isWeb = Platform.OS === "web";
-        const redirectTo =
-          isWeb && typeof window !== "undefined"
-            ? `${window.location.origin}/?google_login=1`
-            : ExpoLinking.createURL("auth/callback");
-        const { data, error } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo,
-            skipBrowserRedirect: !isWeb,
-            queryParams: { prompt: "select_account" },
-          },
-        });
+        authOperationInProgress.current = true;
+        try {
+          const isWeb = Platform.OS === "web";
+          const redirectTo =
+            isWeb && typeof window !== "undefined"
+              ? `${window.location.origin}/?google_login=1`
+              : ExpoLinking.createURL("auth/callback");
+          const { data, error } = await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+              redirectTo,
+              skipBrowserRedirect: !isWeb,
+              queryParams: { prompt: "select_account" },
+            },
+          });
 
-        if (error || !data.url) {
-          return { error: error?.message ?? "Could not start Google login." };
-        }
-
-        if (isWeb) {
-          return { error: null };
-        }
-
-        const result = await WebBrowser.openAuthSessionAsync(
-          data.url,
-          redirectTo,
-        );
-
-        if (result.type !== "success") {
-          return { error: "Google login was cancelled." };
-        }
-
-        const callbackUrl = new URL(result.url);
-        const code = callbackUrl.searchParams.get("code");
-
-        if (code) {
-          const exchanged = await supabase.auth.exchangeCodeForSession(code);
-          if (exchanged.error) return { error: exchanged.error.message };
-        } else {
-          const hash = new URLSearchParams(callbackUrl.hash.replace(/^#/, ""));
-          const accessToken = hash.get("access_token");
-          const refreshToken = hash.get("refresh_token");
-
-          if (!accessToken || !refreshToken) {
-            return { error: "Google login did not return a valid session." };
+          if (error || !data.url) {
+            return { error: error?.message ?? "Could not start Google login." };
           }
 
-          const sessionResult = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-          if (sessionResult.error)
-            return { error: sessionResult.error.message };
-        }
+          if (isWeb) {
+            return { error: null };
+          }
 
-        const sessionResult = await supabase.auth.getSession();
-        const user = sessionResult.data.session?.user;
-        if (sessionResult.error || !user) {
-          return {
-            error: sessionResult.error?.message ?? "Google login failed.",
-          };
-        }
+          const result = await WebBrowser.openAuthSessionAsync(
+            data.url,
+            redirectTo,
+          );
 
-        return completeSignIn(user);
+          if (result.type !== "success") {
+            return { error: "Google login was cancelled." };
+          }
+
+          const callbackUrl = new URL(result.url);
+          const code = callbackUrl.searchParams.get("code");
+
+          if (code) {
+            const exchanged = await supabase.auth.exchangeCodeForSession(code);
+            if (exchanged.error) return { error: exchanged.error.message };
+          } else {
+            const hash = new URLSearchParams(callbackUrl.hash.replace(/^#/, ""));
+            const accessToken = hash.get("access_token");
+            const refreshToken = hash.get("refresh_token");
+
+            if (!accessToken || !refreshToken) {
+              return { error: "Google login did not return a valid session." };
+            }
+
+            const sessionResult = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (sessionResult.error)
+              return { error: sessionResult.error.message };
+          }
+
+          const sessionResult = await supabase.auth.getSession();
+          const currentSession = sessionResult.data.session;
+          const user = currentSession?.user;
+          if (sessionResult.error || !user || !currentSession) {
+            return {
+              error: sessionResult.error?.message ?? "Google login failed.",
+            };
+          }
+
+          const signInResult = await completeSignIn(user);
+          if (!signInResult.error) {
+            setSignedOutRole(null);
+            setSession(currentSession);
+          }
+          return signInResult;
+        } finally {
+          authOperationInProgress.current = false;
+        }
       },
       async signUp(
         email,
@@ -540,7 +572,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         return { error: null };
       },
-      async signOut() {
+      async signOut(returnTo = "customer") {
+        setSignedOutRole(returnTo);
         if (!isSupabaseConfigured) {
           setSession(null);
           return;
@@ -556,7 +589,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null);
       },
     }),
-    [session, loading],
+    [session, loading, signedOutRole],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -569,6 +569,56 @@ export default function MotoristMap() {
     [searchRadius],
   );
 
+  const liveMechanicIds = liveMechanics
+    .map((mechanic) => String(mechanic.id))
+    .sort()
+    .join(",");
+
+  useEffect(() => {
+    if (!motoristId || !liveMechanicIds) return;
+
+    const channels = liveMechanicIds.split(",").map((mechanicId) =>
+      supabase
+        .channel(`motorist_mechanic_availability_${motoristId}_${mechanicId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "profiles",
+            filter: `id=eq.${mechanicId}`,
+          },
+          (payload) => {
+            if (typeof payload.new.is_online !== "boolean") return;
+            const isOnline = payload.new.is_online;
+            setLiveMechanics((current) =>
+              current.map((mechanic) =>
+                mechanic.id === mechanicId ? { ...mechanic, isOnline } : mechanic,
+              ),
+            );
+            setSelectedMechanic((current: any) =>
+              current?.id === mechanicId ? { ...current, isOnline } : current,
+            );
+            setDisplayedMechanic((current: any) =>
+              current?.id === mechanicId ? { ...current, isOnline } : current,
+            );
+          },
+        )
+        .subscribe((status, error) => {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            console.warn(
+              "Mechanic availability updates unavailable:",
+              error?.message ?? status,
+            );
+          }
+        }),
+    );
+
+    return () => {
+      channels.forEach((channel) => void supabase.removeChannel(channel));
+    };
+  }, [liveMechanicIds, motoristId]);
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -1266,14 +1316,31 @@ export default function MotoristMap() {
     setIsCancelling(true);
 
     if (activeRequest?.id) {
-      await supabase
+      const { data: cancelledBooking, error } = await supabase
         .from("service_requests")
         .update({
           status: "cancelled",
           cancelled_by: "motorist",
           cancellation_reason: cancelReason,
         })
-        .eq("id", activeRequest.id);
+        .eq("id", activeRequest.id)
+        .eq("motorist_id", session?.user.id ?? "")
+        .select("id")
+        .maybeSingle();
+
+      if (error) {
+        Alert.alert("Unable to cancel booking", error.message);
+        setIsCancelling(false);
+        return;
+      }
+      if (!cancelledBooking) {
+        Alert.alert(
+          "Unable to cancel booking",
+          "The booking has changed. Refresh and check its current status.",
+        );
+        setIsCancelling(false);
+        return;
+      }
 
       if (
         cancelReason === "Issue was resolved locally" ||

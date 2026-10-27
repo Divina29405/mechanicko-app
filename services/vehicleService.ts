@@ -48,11 +48,13 @@ export async function listVehicles(
 export async function setPrimaryVehicle(
   ownerId: string,
   vehicleId: string,
+  ownerRole: "customer" | "mechanic" = "customer",
 ): Promise<{ error: string | null }> {
+  const ownerColumn = ownerRole === "mechanic" ? "mechanic_id" : "motorist_id";
   const { error: clearError } = await supabase
     .from("vehicles")
     .update({ is_primary: false })
-    .eq("motorist_id", ownerId);
+    .eq(ownerColumn, ownerId);
 
   if (clearError) {
     return { error: clearError.message };
@@ -62,7 +64,7 @@ export async function setPrimaryVehicle(
     .from("vehicles")
     .update({ is_primary: true })
     .eq("id", vehicleId)
-    .eq("motorist_id", ownerId);
+    .eq(ownerColumn, ownerId);
 
   return { error: primaryError?.message ?? null };
 }

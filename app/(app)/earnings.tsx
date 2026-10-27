@@ -1,7 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { MechanicScreen } from "@/components/mechanic/MechanicScreen";
 import { useMechanic } from "@/contexts/MechanicContext";
@@ -24,6 +31,7 @@ export default function EarningsScreen() {
     completedThisWeek,
     completedThisMonth,
     refreshEarnings,
+    earningsLoading,
   } = useMechanic();
   const [period, setPeriod] = useState<EarningsPeriod>("today");
 
@@ -89,19 +97,65 @@ export default function EarningsScreen() {
           </View>
           <View style={styles.totalText}>
             <Text style={styles.totalLabel}>{summary.label} earnings</Text>
-            <Text style={styles.totalValue}>{formatPeso(summary.total)}</Text>
+            <View style={styles.totalValueSlot}>
+              <Text
+                style={[
+                  styles.totalValue,
+                  earningsLoading && styles.loadingValue,
+                ]}
+              >
+                {formatPeso(summary.total)}
+              </Text>
+              {earningsLoading ? (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.blue}
+                  style={styles.valueLoader}
+                />
+              ) : null}
+            </View>
           </View>
         </View>
 
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{summary.completed}</Text>
+            <View style={styles.statValueSlot}>
+              <Text
+                style={[
+                  styles.statValue,
+                  earningsLoading && styles.loadingValue,
+                ]}
+              >
+                {summary.completed}
+              </Text>
+              {earningsLoading ? (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.blue}
+                  style={styles.valueLoader}
+                />
+              ) : null}
+            </View>
             <Text style={styles.statLabel}>Completed services</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>
-              {formatPeso(summary.total / Math.max(summary.completed, 1))}
-            </Text>
+            <View style={styles.statValueSlot}>
+              <Text
+                style={[
+                  styles.statValue,
+                  earningsLoading && styles.loadingValue,
+                ]}
+              >
+                {formatPeso(summary.total / Math.max(summary.completed, 1))}
+              </Text>
+              {earningsLoading ? (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.blue}
+                  style={styles.valueLoader}
+                />
+              ) : null}
+            </View>
             <Text style={styles.statLabel}>Average per service</Text>
           </View>
         </View>
@@ -161,12 +215,16 @@ const styles = StyleSheet.create({
   },
   totalText: { flex: 1 },
   totalLabel: { color: colors.textMuted, fontSize: 13, fontWeight: "600" },
+  totalValueSlot: { position: "relative", justifyContent: "center" },
   totalValue: {
     color: colors.text,
     fontSize: 26,
     fontWeight: "900",
     marginTop: 2,
   },
+  statValueSlot: { position: "relative", justifyContent: "center" },
+  loadingValue: { opacity: 0 },
+  valueLoader: { position: "absolute", alignSelf: "flex-start" },
   statsRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
   statCard: {
     flex: 1,

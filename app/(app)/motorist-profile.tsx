@@ -689,8 +689,8 @@ export default function MotoristProfileScreen() {
             <TouchableOpacity
               style={[styles.settingsRow, { borderBottomColor: colors.border }]}
               onPress={() => {
-                router.navigate('/(app)/payment-methods');
                 setSettingsVisible(false);
+                router.push('/(app)/payment-methods');
               }}
             >
               <Ionicons name="card-outline" size={24} color={colors.primary} style={styles.settingsRowIcon} />

@@ -68,6 +68,11 @@ const CANCELLATION_REASONS = [
   "Issue was resolved locally",
   "Other",
 ];
+const TRIP_STARTED_STATUSES = ["in_transit", "arrived", "in_progress", "ongoing"];
+
+function hasMechanicStartedTrip(status: unknown) {
+  return TRIP_STARTED_STATUSES.includes(String(status ?? "").trim().toLowerCase());
+}
 
 function ScheduledBookingCard({
   request,
@@ -935,6 +940,50 @@ export default function MotoristActivityScreen() {
     }
   }, []);
 
+  const nearbyMechanicIds = nearbyMechanics
+    .map((mechanic) => mechanic.id)
+    .sort()
+    .join(",");
+
+  useEffect(() => {
+    if (!session?.user.id || !nearbyMechanicIds) return;
+
+    const channels = nearbyMechanicIds.split(",").map((mechanicId) =>
+      supabase
+        .channel(`motorist_activity_mechanic_availability_${session.user.id}_${mechanicId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "profiles",
+            filter: `id=eq.${mechanicId}`,
+          },
+          (payload) => {
+            if (typeof payload.new.is_online !== "boolean") return;
+            const isOnline = payload.new.is_online;
+            setNearbyMechanics((current) =>
+              current.map((mechanic) =>
+                mechanic.id === mechanicId ? { ...mechanic, isOnline } : mechanic,
+              ),
+            );
+          },
+        )
+        .subscribe((status, error) => {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            console.warn(
+              "Nearby mechanic availability updates unavailable:",
+              error?.message ?? status,
+            );
+          }
+        }),
+    );
+
+    return () => {
+      channels.forEach((channel) => void supabase.removeChannel(channel));
+    };
+  }, [nearbyMechanicIds, session?.user.id]);
+
   useEffect(() => {
     if (!acceptanceNotice) return;
     const timeout = setTimeout(() => setAcceptanceNotice(null), 7000);
@@ -1021,8 +1070,51 @@ export default function MotoristActivityScreen() {
     null,
   );
   const [isCancelling, setIsCancelling] = useState(false);
+  const [unableToCancelMessage, setUnableToCancelMessage] = useState<string | null>(
+    null,
+  );
 
-  const handleCancel = (id: string) => {
+  const showUnableToCancel = (message: string) => {
+    setCancelModalVisible(false);
+    setConfirmationReason(null);
+    setUnableToCancelMessage(message);
+  };
+
+  const handleCancel = async (id: string) => {
+    const request = requests.find((item) => String(item.id) === id);
+    if (hasMechanicStartedTrip(request?.status)) {
+      showUnableToCancel(
+        "The mechanic has already started the trip. For safety, this booking can no longer be cancelled.",
+      );
+      return;
+    }
+
+    const { data: latestRequest, error } = await supabase
+      .from("service_requests")
+      .select("status")
+      .eq("id", id)
+      .eq("motorist_id", session?.user.id ?? "")
+      .maybeSingle();
+
+    if (error) {
+      showUnableToCancel(
+        "We couldn't verify the booking status right now. Please try again in a moment.",
+      );
+      return;
+    }
+    if (!latestRequest) {
+      showUnableToCancel(
+        "This booking is no longer available. Refresh your bookings and try again.",
+      );
+      return;
+    }
+    if (hasMechanicStartedTrip(latestRequest.status)) {
+      showUnableToCancel(
+        "The mechanic has already started the trip. For safety, this booking can no longer be cancelled.",
+      );
+      return;
+    }
+
     setCancelBookingId(id);
     setCancelReason("");
     setEnteringOtherReason(false);
@@ -1047,7 +1139,13 @@ export default function MotoristActivityScreen() {
       .eq("id", cancelBookingId ?? "");
 
     if (error) {
-      Alert.alert("Unable to cancel booking", error.message);
+      if (error.message.toLowerCase().includes("already started the trip")) {
+        showUnableToCancel(
+          "The mechanic has already started the trip. For safety, this booking can no longer be cancelled.",
+        );
+      } else {
+        Alert.alert("Unable to cancel booking", error.message);
+      }
     } else if (
       session?.user.id
     ) {
@@ -2133,6 +2231,63 @@ export default function MotoristActivityScreen() {
         </View>
       </Modal>
       <Modal
+        visible={unableToCancelMessage !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setUnableToCancelMessage(null)}
+      >
+        <View style={styles.unableToCancelOverlay}>
+          <View
+            style={[
+              styles.unableToCancelCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.unableToCancelHeader}>
+              <View style={styles.unableToCancelIcon}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={25}
+                  color="#C2413A"
+                />
+              </View>
+              <Pressable
+                style={[
+                  styles.unableToCancelClose,
+                  { backgroundColor: colors.bg },
+                ]}
+                onPress={() => setUnableToCancelMessage(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Close message"
+              >
+                <Ionicons name="close" size={20} color={colors.textMuted} />
+              </Pressable>
+            </View>
+            <Text style={[styles.unableToCancelTitle, { color: colors.text }]}>
+              Unable to cancel booking
+            </Text>
+            <Text
+              style={[
+                styles.unableToCancelDescription,
+                { color: colors.textMuted },
+              ]}
+            >
+              {unableToCancelMessage}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.unableToCancelButton,
+                { backgroundColor: colors.primary },
+              ]}
+              onPress={() => setUnableToCancelMessage(null)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.unableToCancelButtonText}>Understood</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal
         visible={confirmationReason !== null}
         transparent
         animationType="fade"
@@ -2908,6 +3063,65 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   issueModalCard: { padding: 24, borderWidth: 1, borderRadius: 18 },
+  unableToCancelOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 22,
+    backgroundColor: "rgba(16, 24, 40, 0.58)",
+  },
+  unableToCancelCard: {
+    padding: 22,
+    borderWidth: 1,
+    borderRadius: 22,
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 22,
+    elevation: 12,
+  },
+  unableToCancelHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  unableToCancelIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(194, 65, 58, 0.12)",
+  },
+  unableToCancelClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unableToCancelTitle: {
+    fontSize: normalizeText(20),
+    lineHeight: normalizeText(26),
+    fontWeight: "800",
+  },
+  unableToCancelDescription: {
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(22),
+    marginTop: 8,
+  },
+  unableToCancelButton: {
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 22,
+    borderRadius: 13,
+  },
+  unableToCancelButtonText: {
+    color: "#FFFFFF",
+    fontSize: normalizeText(15),
+    fontWeight: "800",
+  },
   issueModalTitle: { fontSize: normalizeText(22), fontWeight: "800" },
   issueModalHint: {
     fontSize: normalizeText(15),

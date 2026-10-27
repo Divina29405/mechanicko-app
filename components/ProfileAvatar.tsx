@@ -20,6 +20,14 @@ export function ProfileAvatar({
   const validUri = uri || null;
   const [displayedUri, setDisplayedUri] = useState<string | null>(validUri);
   const radius = size / 2;
+  const imageUris = [
+    ...(validUri && displayedUri && displayedUri !== failedUri
+      ? [displayedUri]
+      : []),
+    ...(validUri && validUri !== displayedUri && validUri !== failedUri
+      ? [validUri]
+      : []),
+  ];
 
   return (
     <View
@@ -35,22 +43,33 @@ export function ProfileAvatar({
         },
       ]}
     >
-      {displayedUri ? (
+      {imageUris.map((imageUri) => (
         <Image
-          source={{ uri: displayedUri }}
-          style={[StyleSheet.absoluteFill, { borderRadius: radius }]}
-        />
-      ) : null}
-      {validUri && validUri !== failedUri && validUri !== displayedUri ? (
-        <Image
-          source={{ uri: validUri }}
-          onLoad={() => setDisplayedUri(validUri)}
-          onError={() => {
-            setFailedUri(validUri);
+          key={imageUri}
+          source={{ uri: imageUri }}
+          fadeDuration={0}
+          onLoad={() => {
+            if (validUri === imageUri) {
+              setDisplayedUri(imageUri);
+            }
           }}
-          style={[StyleSheet.absoluteFill, { borderRadius: radius, opacity: 0 }]}
+          onError={() => {
+            if (validUri === imageUri) {
+              setFailedUri(imageUri);
+            }
+            if (validUri === imageUri && displayedUri === imageUri) {
+              setDisplayedUri(null);
+            }
+          }}
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              borderRadius: radius,
+              opacity: imageUri === displayedUri ? 1 : 0,
+            },
+          ]}
         />
-      ) : null}
+      ))}
     </View>
   );
 }

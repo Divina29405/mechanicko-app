@@ -130,9 +130,25 @@ on conflict (id) do nothing;
 drop policy if exists "chat_media_participants_select" on storage.objects;
 create policy "chat_media_participants_select"
 on storage.objects for select
+to authenticated
 using (
   bucket_id = 'chat-media'
-  and (storage.foldername(name))[1] = auth.uid()::text
+  and (
+    (storage.foldername(name))[1] = auth.uid()::text
+    or exists (
+      select 1
+      from public.chat_messages message
+      join public.service_requests request
+        on request.id = message.service_request_id
+      where message.image_url is not null
+        and message.sender_id::text = (storage.foldername(name))[1]
+        and message.service_request_id::text = (storage.foldername(name))[2]
+        and (
+          request.motorist_id = auth.uid()::text
+          or request.mechanic_id::text = auth.uid()::text
+        )
+    )
+  )
 );
 
 drop policy if exists "chat_media_own_insert" on storage.objects;
@@ -368,8 +384,54 @@ begin
 end;
 $$;
 
+do $$
+begin
+  if exists (
+    select 1 from pg_publication where pubname = 'supabase_realtime'
+  ) and not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'profiles'
+  ) then
+    alter publication supabase_realtime add table public.profiles;
+  end if;
+end;
+$$;
+
 create index if not exists service_requests_mechanic_id_idx
   on public.service_requests (mechanic_id);
+
+create or replace function public.prevent_cancellation_after_trip_start()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if lower(coalesce(new.status, '')) in ('cancelled', 'canceled')
+    and lower(coalesce(old.status, '')) in (
+      'in_transit',
+      'arrived',
+      'in_progress',
+      'ongoing'
+    ) then
+    raise exception using
+      errcode = '23514',
+      message = 'This booking cannot be cancelled because the mechanic has already started the trip.';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists service_request_prevent_cancellation_after_trip_start
+on public.service_requests;
+
+create trigger service_request_prevent_cancellation_after_trip_start
+before update of status on public.service_requests
+for each row
+execute function public.prevent_cancellation_after_trip_start();
 
 alter table if exists public.service_requests enable row level security;
 

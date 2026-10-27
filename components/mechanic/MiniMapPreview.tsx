@@ -38,19 +38,35 @@ function buildLeafletHtml() {
       let motoristMarker = null;
       let routeLine = null;
       window.updateRoute = function(mechanicLat, mechanicLng, motoristLat, motoristLng, distanceLabel) {
-        const mechanic = [mechanicLat, mechanicLng];
         const motorist = [motoristLat, motoristLng];
-        if (!mechanicMarker) {
-          mechanicMarker = L.marker(mechanic, { icon: mechanicIcon }).addTo(map).bindTooltip('Mechanic', { permanent: true, direction: 'bottom', offset: [0, 12] });
-          motoristMarker = L.marker(motorist, { icon: motoristIcon }).addTo(map).bindTooltip('Motorist', { permanent: true, direction: 'bottom', offset: [0, 12] });
-          routeLine = L.polyline([mechanic, motorist], { color: '#2450D8', weight: 4, dashArray: '8 7' }).addTo(map);
+        const hasMechanic = Number.isFinite(mechanicLat) && Number.isFinite(mechanicLng);
+        if (!motoristMarker) {
+          motoristMarker = L.marker(motorist, { icon: motoristIcon }).addTo(map).bindTooltip('Customer', { permanent: true, direction: 'bottom', offset: [0, 12] });
         } else {
-          mechanicMarker.setLatLng(mechanic);
           motoristMarker.setLatLng(motorist);
-          routeLine.setLatLngs([mechanic, motorist]);
         }
-        document.getElementById('distance').textContent = distanceLabel + ' between mechanic and motorist';
-        map.fitBounds([mechanic, motorist], { padding: [35, 35], maxZoom: 15 });
+        if (hasMechanic) {
+          const mechanic = [mechanicLat, mechanicLng];
+          if (!mechanicMarker) {
+            mechanicMarker = L.marker(mechanic, { icon: mechanicIcon }).addTo(map).bindTooltip('Mechanic', { permanent: true, direction: 'bottom', offset: [0, 12] });
+          } else {
+            mechanicMarker.setLatLng(mechanic);
+          }
+          if (!routeLine) {
+            routeLine = L.polyline([mechanic, motorist], { color: '#2450D8', weight: 4, dashArray: '8 7' }).addTo(map);
+          } else {
+            routeLine.setLatLngs([mechanic, motorist]);
+          }
+          document.getElementById('distance').textContent = distanceLabel + ' between mechanic and customer';
+          map.fitBounds([mechanic, motorist], { padding: [35, 35], maxZoom: 15 });
+        } else {
+          if (mechanicMarker) map.removeLayer(mechanicMarker);
+          if (routeLine) map.removeLayer(routeLine);
+          mechanicMarker = null;
+          routeLine = null;
+          document.getElementById('distance').textContent = distanceLabel;
+          map.setView(motorist, 15);
+        }
       };
     </script>
   </body>
@@ -59,24 +75,25 @@ function buildLeafletHtml() {
 
 export function MiniMapPreview({
   compact = false,
+  mapHeight,
   mechanicLocation,
   customerLocation,
   distanceLabel,
 }: {
   compact?: boolean;
+  mapHeight?: number;
   mechanicLocation?: Coordinates | null;
   customerLocation?: Coordinates | null;
   distanceLabel?: string;
 }) {
   const mapRef = useRef<MapWebViewHandle | null>(null);
   const [mapHtml] = useState(buildLeafletHtml);
-  const hasLocations = mechanicLocation && customerLocation;
   const updateRoute = useCallback(() => {
-    if (!hasLocations) return;
+    if (!customerLocation) return;
     mapRef.current?.injectJavaScript(
-      `window.updateRoute(${mechanicLocation.latitude},${mechanicLocation.longitude},${customerLocation.latitude},${customerLocation.longitude},${JSON.stringify(distanceLabel ?? 'Distance unavailable')}); true;`,
+      `window.updateRoute(${JSON.stringify(mechanicLocation?.latitude ?? null)},${JSON.stringify(mechanicLocation?.longitude ?? null)},${customerLocation.latitude},${customerLocation.longitude},${JSON.stringify(distanceLabel ?? 'Distance unavailable')}); true;`,
     );
-  }, [customerLocation, distanceLabel, hasLocations, mechanicLocation]);
+  }, [customerLocation, distanceLabel, mechanicLocation]);
 
   useEffect(() => {
     updateRoute();
@@ -84,10 +101,10 @@ export function MiniMapPreview({
 
   return (
     <View
-      style={[styles.map, compact && styles.compactMap]}
+      style={[styles.map, compact && styles.compactMap, mapHeight ? { height: mapHeight } : null]}
       accessibilityLabel="Preview ng ruta papunta sa customer"
     >
-      {hasLocations ? (
+      {customerLocation ? (
         <MapWebView
           ref={mapRef}
           originWhitelist={["*"]}

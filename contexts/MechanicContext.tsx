@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -28,6 +29,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 
 type MechanicContextValue = {
+  isMechanic: boolean;
   online: boolean;
   setOnline: (value: boolean) => void;
   rating: number;
@@ -53,6 +55,7 @@ type MechanicContextValue = {
   unreadNotifications: number;
   unreadMessages: number;
   refreshEarnings: () => Promise<void>;
+  earningsLoading: boolean;
   markNotificationsRead: () => void;
   avatarUrl: string | null;
   setAvatarUrl: (url: string | null) => void;
@@ -61,9 +64,20 @@ type MechanicContextValue = {
 
 const MechanicContext = createContext<MechanicContextValue | undefined>(undefined);
 
-export function MechanicProvider({ children }: { children: ReactNode }) {
+export function MechanicProvider({
+  children,
+  isMechanic,
+}: {
+  children: ReactNode;
+  isMechanic: boolean;
+}) {
   const { session } = useAuth();
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrlState] = useState<string | null>(null);
+  const avatarRequestId = useRef(0);
+  const setAvatarUrl = useCallback((url: string | null) => {
+    avatarRequestId.current += 1;
+    setAvatarUrlState(url);
+  }, []);
   const [avatarLoading, setAvatarLoading] = useState(true);
   const [rating, setRating] = useState(5);
   const [earnings, setEarnings] = useState({
@@ -75,6 +89,13 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
     completedThisMonth: 0,
     wallet: 0,
   });
+  const [earningsLoading, setEarningsLoading] = useState(true);
+  const earningsRequestRef = useRef<{
+    userId: string;
+    promise: Promise<void>;
+  } | null>(null);
+  const earningsRequestId = useRef(0);
+  const earningsLoadedUserId = useRef<string | null>(null);
   const [payouts, setPayouts] = useState<PayoutRow[]>([]);
   const [online, setOnlineState] = useState(false);
   const [sosOffer, setSosOffer] = useState<SosOffer | null>(initialSosOffer);
@@ -86,33 +107,34 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    const requestId = ++avatarRequestId.current;
     async function loadProfileData() {
       if (!session?.user.id) {
-        setAvatarUrl(null);
+        if (active && requestId === avatarRequestId.current) {
+          setAvatarUrlState(null);
+        }
         setRating(5);
         setOnlineState(false);
         setAvatarLoading(false);
         return;
       }
       setAvatarLoading(true);
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('avatar_path,average_rating,is_online')
         .eq('id', session.user.id)
         .maybeSingle();
 
-      if (data === null) {
-        setAvatarUrl(null);
+      if (error) {
+        console.warn('Mechanic profile load failed:', error.message);
       }
-      if (active && data?.avatar_path) {
-        const signed = await supabase.storage
+      if (active && requestId === avatarRequestId.current && data?.avatar_path) {
+        const { data: avatar } = supabase.storage
           .from('mechanic-avatars')
-          .createSignedUrl(data.avatar_path, 60 * 60);
-        if (active && signed.data?.signedUrl) {
-          setAvatarUrl(
-            `${signed.data.signedUrl}${signed.data.signedUrl.includes('?') ? '&' : '?'}v=${Date.now()}`,
-          );
-        }
+          .getPublicUrl(data.avatar_path);
+        setAvatarUrlState(avatar.publicUrl);
+      } else if (active && requestId === avatarRequestId.current && data === null) {
+        setAvatarUrlState(null);
       }
       if (active && typeof data?.average_rating === 'number') {
         setRating(Math.min(5, Math.max(0, data.average_rating)));
@@ -202,18 +224,28 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
     [session],
   );
 
-  const refreshEarnings = useCallback(async () => {
-      if (!session?.user.id) return;
+  const refreshEarnings = useCallback(() => {
+    const userId = session?.user.id;
+    if (!userId) return Promise.resolve();
+
+    const inFlightRequest = earningsRequestRef.current;
+    if (inFlightRequest?.userId === userId) return inFlightRequest.promise;
+
+    const requestId = ++earningsRequestId.current;
+    if (earningsLoadedUserId.current !== userId) setEarningsLoading(true);
+    const request = (async () => {
       const { data, error } = await supabase
         .from('service_requests')
         .select('id,estimated_total,service_price,additional_charges,status,created_at,completed_at')
-        .eq('mechanic_id', session.user.id)
+        .eq('mechanic_id', userId)
         .order('created_at', { ascending: false });
+      if (requestId !== earningsRequestId.current) return;
       if (error) {
         console.warn('Mechanic earnings load failed:', error.message);
         return;
       }
       if (!data) return;
+
       const now = new Date();
       const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
       const startOfWeek = startOfDay - now.getDay() * 86400000;
@@ -225,20 +257,20 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
           ),
         )
         .map((row) => ({
-        ...row,
-        amount:
-          (Number(row.estimated_total ?? row.service_price) || 0) +
-          (Array.isArray(row.additional_charges)
-            ? row.additional_charges
-                .filter((charge: { status?: string }) => charge.status === 'approved')
-                .reduce(
-                  (sum: number, charge: { amount?: number }) =>
-                    sum + (Number(charge.amount) || 0),
-                  0,
-                )
-            : 0),
-        time: new Date(row.completed_at ?? row.created_at ?? now).getTime(),
-      }));
+          ...row,
+          amount:
+            (Number(row.estimated_total ?? row.service_price) || 0) +
+            (Array.isArray(row.additional_charges)
+              ? row.additional_charges
+                  .filter((charge: { status?: string }) => charge.status === 'approved')
+                  .reduce(
+                    (sum: number, charge: { amount?: number }) =>
+                      sum + (Number(charge.amount) || 0),
+                    0,
+                  )
+              : 0),
+          time: new Date(row.completed_at ?? row.created_at ?? now).getTime(),
+        }));
       setEarnings({
         today: rows.filter((row) => row.time >= startOfDay).reduce((sum, row) => sum + row.amount, 0),
         weekly: rows.filter((row) => row.time >= startOfWeek).reduce((sum, row) => sum + row.amount, 0),
@@ -256,6 +288,16 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
         method: 'GCash',
         status: 'completed',
       })));
+    })();
+    const settledRequest = request.finally(() => {
+      if (requestId === earningsRequestId.current) {
+        earningsRequestRef.current = null;
+        earningsLoadedUserId.current = userId;
+        setEarningsLoading(false);
+      }
+    });
+    earningsRequestRef.current = { userId, promise: settledRequest };
+    return settledRequest;
   }, [session]);
 
   useEffect(() => {
@@ -328,6 +370,7 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<MechanicContextValue>(
     () => ({
+      isMechanic,
       online,
       setOnline,
       rating,
@@ -353,12 +396,14 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
       unreadNotifications: notifications.filter((item) => !item.read).length,
       unreadMessages: initialThreads.reduce((sum, thread) => sum + thread.unread, 0),
       refreshEarnings,
+      earningsLoading,
       markNotificationsRead,
       avatarUrl,
       setAvatarUrl,
       avatarLoading,
     }),
     [
+      isMechanic,
       online,
       setOnline,
       sosOffer,
@@ -372,9 +417,11 @@ export function MechanicProvider({ children }: { children: ReactNode }) {
       notifications,
       markNotificationsRead,
       avatarUrl,
+      setAvatarUrl,
       avatarLoading,
       rating,
       earnings,
+      earningsLoading,
       payouts,
       refreshEarnings,
     ],

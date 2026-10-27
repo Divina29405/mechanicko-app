@@ -1,7 +1,15 @@
-import { Link, Stack, router } from "expo-router";
+import { Link, Stack } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useEffect, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, Image } from "react-native";
+import {
+  Image,
+  Keyboard,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { AuthInput } from "@/components/auth/AuthInput";
 import { AuthScreenShell } from "@/components/auth/AuthScreenShell";
@@ -63,6 +71,27 @@ async function clearRememberedMechanicLogin() {
   await SecureStore.deleteItemAsync(MECHANIC_REMEMBERED_LOGIN_KEY);
 }
 
+function dismissKeyboardBeforeLogin() {
+  if (!Keyboard.isVisible()) {
+    Keyboard.dismiss();
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve) => {
+    let timeout: ReturnType<typeof setTimeout>;
+    const subscription = Keyboard.addListener("keyboardDidHide", () => {
+      clearTimeout(timeout);
+      subscription.remove();
+      resolve();
+    });
+    timeout = setTimeout(() => {
+      subscription.remove();
+      resolve();
+    }, 1000);
+    Keyboard.dismiss();
+  });
+}
+
 export default function AdminLoginScreen() {
   const { signInAsMechanic } = useAuth();
   const [email, setEmail] = useState("");
@@ -91,6 +120,7 @@ export default function AdminLoginScreen() {
     if (nextEmailError || nextPasswordError) return;
 
     setLoading(true);
+    await dismissKeyboardBeforeLogin();
     const result = await signInAsMechanic(email, password);
     setLoading(false);
     if (result.error) {
@@ -110,13 +140,11 @@ export default function AdminLoginScreen() {
       );
       return;
     }
-
-    router.replace("/(app)");
   }
 
   return (
     <>
-      <Stack.Screen options={{ animation: "slide_from_right" }} />
+      <Stack.Screen options={{ animation: "none" }} />
       <AuthScreenShell>
       <View style={styles.loginContent}>
         

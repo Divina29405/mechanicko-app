@@ -321,7 +321,7 @@ function CustomerTabs() {
 }
 
 export default function AppLayout() {
-  const { session, loading } = useAuth();
+  const { session, loading, signedOutRole } = useAuth();
   const segments = useSegments();
   const { colors } = useAppTheme();
 
@@ -388,7 +388,15 @@ export default function AppLayout() {
   }
 
   if (!session) {
-    return <Redirect href="/(auth)/login" />;
+    return (
+      <Redirect
+        href={
+          signedOutRole === "mechanic"
+            ? "/(auth)/admin-login"
+            : "/(auth)/login"
+        }
+      />
+    );
   }
 
   if (role === "admin") {
@@ -407,7 +415,7 @@ export default function AppLayout() {
   }
 
   return (
-    <MechanicProvider>
+    <MechanicProvider isMechanic={role === "mechanic"}>
       {role === "mechanic" ? (
         <MechanicTabs key="mechanic-navigator" />
       ) : (

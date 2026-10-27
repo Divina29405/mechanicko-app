@@ -2,11 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { File } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   ActivityIndicator,
+  Alert,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,19 +17,17 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useEffect, useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
+import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { MechanicScreen } from '@/components/mechanic/MechanicScreen';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMechanic } from '@/contexts/MechanicContext';
-import { colors, radii, spacing } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
-
-function withCacheBust(url: string) {
-  return `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`;
-}
+import { colors, radii, spacing } from '@/lib/theme';
+import { createVehicle, listVehicles, setPrimaryVehicle } from '@/services/vehicleService';
+import type { FuelType, Vehicle, VehicleType } from '@/types/vehicle';
 
 type MaintenancePrice = {
   service: string;
@@ -38,6 +39,20 @@ type SelectedAddress = {
   latitude: number;
   longitude: number;
 };
+
+function formatHomeAddress(address: string) {
+  return address
+    .split(',')
+    .map((part) => part.trim())
+    .filter(
+      (part) =>
+        part.length > 0 &&
+        !/^northern manila district$/i.test(part) &&
+        !/^philippines$/i.test(part) &&
+        !/^\d{4}$/.test(part),
+    )
+    .join(', ');
+}
 
 function createAddressMapHtml(latitude: number, longitude: number) {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>*{box-sizing:border-box}body{margin:0;font-family:sans-serif}#map{position:fixed;inset:0}.search{position:fixed;z-index:1000;top:16px;left:16px;right:16px;display:flex;gap:8px}input{flex:1;padding:13px;border:1px solid #E5E7EB;border-radius:12px;font-size:15px}button{border:0;border-radius:12px;padding:0 16px;background:#F0A202;color:white;font-weight:700}#results{position:fixed;z-index:1000;top:70px;left:16px;right:16px;max-height:230px;overflow:auto}.result{display:block;width:100%;padding:12px;margin-bottom:6px;text-align:left;background:white;color:#101828;border:1px solid #E5E7EB}.hint{position:fixed;z-index:999;left:16px;right:16px;bottom:18px;padding:12px;border-radius:12px;background:rgba(16,24,40,.88);color:white;text-align:center;font-size:13px}</style></head><body><div id="map"></div><div class="search"><input id="query" placeholder="Search home address"><button onclick="searchAddress()">Search</button></div><div id="results"></div><div class="hint">Tap the map to place your pin.</div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
@@ -54,15 +69,33 @@ export default function ProfileScreen() {
   const { session, signOut } = useAuth();
   const { rating, online, avatarUrl, setAvatarUrl, avatarLoading } = useMechanic();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarPreviewUri, setAvatarPreviewUri] = useState<string | null>(null);
+  const [logoutConfirmationVisible, setLogoutConfirmationVisible] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [expandedSection, setExpandedSection] = useState<
     | 'specializations'
     | 'documents'
     | 'certifications'
     | 'maintenance-pricing'
     | 'account-details'
+    | 'garage'
     | null
   >(null);
+  const [garageVehicles, setGarageVehicles] = useState<Vehicle[]>([]);
+  const [garageLoading, setGarageLoading] = useState(false);
+  const [garageLoadedFor, setGarageLoadedFor] = useState<string | null>(null);
+  const [garageVehicleType, setGarageVehicleType] = useState<VehicleType>('motorcycle');
+  const [garageMake, setGarageMake] = useState('');
+  const [garageModel, setGarageModel] = useState('');
+  const [garageYear, setGarageYear] = useState('');
+  const [garagePlate, setGaragePlate] = useState('');
+  const [garageFuelType, setGarageFuelType] = useState<FuelType>('Gasoline');
+  const [savingGarageVehicle, setSavingGarageVehicle] = useState(false);
+  const primaryVehicleRequest = useRef(false);
   const [maintenancePrices, setMaintenancePrices] = useState<MaintenancePrice[]>([]);
+  const [editingPriceIndex, setEditingPriceIndex] = useState<number | null>(null);
+  const [editingService, setEditingService] = useState('');
+  const [editingPrice, setEditingPrice] = useState('');
   const [specializationDraft, setSpecializationDraft] = useState('');
   const [newService, setNewService] = useState('');
   const [newPrice, setNewPrice] = useState('');
@@ -159,6 +192,25 @@ export default function ProfileScreen() {
     };
   }, [session?.user.id, session?.user.user_metadata]);
 
+  useEffect(() => {
+    if (expandedSection !== 'garage' || !session?.user.id) return;
+    if (garageLoadedFor === session.user.id) return;
+    let active = true;
+    void listVehicles(session.user.id).then(({ data, error }) => {
+      if (!active) return;
+      setGarageLoading(false);
+      if (error) {
+        Alert.alert('Unable to load garage', error);
+        return;
+      }
+      setGarageVehicles(data.filter((vehicle) => vehicle.mechanic_id === session.user.id));
+      setGarageLoadedFor(session.user.id);
+    });
+    return () => {
+      active = false;
+    };
+  }, [expandedSection, garageLoadedFor, session?.user.id]);
+
   const specializations = (profile?.skills ?? '')
     .split(/[,\n]/)
     .map((item) => item.trim())
@@ -185,13 +237,118 @@ export default function ProfileScreen() {
       | 'documents'
       | 'certifications'
       | 'maintenance-pricing'
-      | 'account-details',
+      | 'account-details'
+      | 'garage',
   ) {
+    if (section === 'garage' && garageLoadedFor !== session?.user.id) {
+      setGarageLoading(true);
+    }
     setExpandedSection(section);
   }
 
+  async function saveGarageVehicle() {
+    if (!session?.user.id || savingGarageVehicle || garageLoading) return;
+    if (garageVehicles.length >= 2) {
+      Alert.alert(
+        'Vehicle limit reached',
+        'Your garage can hold up to two vehicles. Remove an existing vehicle before adding a new one.',
+      );
+      return;
+    }
+    if (
+      !garageMake.trim() ||
+      !garageModel.trim() ||
+      !garageYear.trim() ||
+      !garagePlate.trim()
+    ) {
+      Alert.alert('Missing Details', 'Please fill out all vehicle fields.');
+      return;
+    }
+    setSavingGarageVehicle(true);
+    const { data, error } = await createVehicle({
+      ownerId: session.user.id,
+      ownerRole: 'mechanic',
+      type: garageVehicleType,
+      make: garageMake,
+      model: garageModel,
+      year: garageYear,
+      plateNumber: garagePlate,
+      fuelType: garageFuelType,
+      isPrimary: garageVehicles.length === 0,
+    });
+    setSavingGarageVehicle(false);
+    if (error || !data) {
+      Alert.alert('Unable to add vehicle', error ?? 'The vehicle could not be saved.');
+      return;
+    }
+    setGarageVehicles((current) => [data, ...current]);
+    setGarageMake('');
+    setGarageModel('');
+    setGarageYear('');
+    setGaragePlate('');
+  }
+
+  async function makeGarageVehiclePrimary(vehicle: Vehicle) {
+    if (!session?.user.id || vehicle.is_primary || primaryVehicleRequest.current) return;
+    const previousVehicles = garageVehicles;
+    primaryVehicleRequest.current = true;
+    setGarageVehicles((current) =>
+      current.map((item) => ({ ...item, is_primary: item.id === vehicle.id })),
+    );
+    try {
+      const { error } = await setPrimaryVehicle(
+        session.user.id,
+        vehicle.id,
+        'mechanic',
+      );
+      if (error) {
+        setGarageVehicles(previousVehicles);
+        Alert.alert('Unable to set primary vehicle', error);
+      }
+    } catch (error) {
+      setGarageVehicles(previousVehicles);
+      Alert.alert(
+        'Unable to set primary vehicle',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      primaryVehicleRequest.current = false;
+    }
+  }
+
+  function deleteGarageVehicle(vehicle: Vehicle) {
+    Alert.alert(
+      'Delete vehicle',
+      `Are you sure you want to delete ${vehicle.make} ${vehicle.model}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              if (!session?.user.id) return;
+              const { error } = await supabase
+                .from('vehicles')
+                .delete()
+                .eq('id', vehicle.id)
+                .eq('mechanic_id', session.user.id);
+              if (error) {
+                Alert.alert('Unable to delete vehicle', error.message);
+                return;
+              }
+              setGarageVehicles((current) =>
+                current.filter((item) => item.id !== vehicle.id),
+              );
+            })();
+          },
+        },
+      ],
+    );
+  }
+
   async function saveMaintenancePrices(nextPrices: MaintenancePrice[]) {
-    if (!session?.user.id) return false;
+    if (!session?.user.id || savingPrices) return false;
     setSavingPrices(true);
     const { error } = await supabase
       .from('profiles')
@@ -227,6 +384,28 @@ export default function ProfileScreen() {
       setNewPrice('');
       setPriceAdded(true);
       setTimeout(() => setPriceAdded(false), 1800);
+    }
+  }
+
+  async function saveEditedMaintenancePrice(index: number) {
+    const service = editingService.trim();
+    const price = editingPrice.trim();
+    if (!service || !price) {
+      Alert.alert('Incomplete pricing', 'Enter the labor name and price first.');
+      return;
+    }
+    const numericPrice = Number(price.replace(/,/g, '').replace(/^₱\s*/, ''));
+    if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+      Alert.alert('Invalid price', 'Enter a valid price greater than zero.');
+      return;
+    }
+    const nextPrices = maintenancePrices.map((item, itemIndex) =>
+      itemIndex === index ? { service, price } : item,
+    );
+    if (await saveMaintenancePrices(nextPrices)) {
+      setEditingPriceIndex(null);
+      setEditingService('');
+      setEditingPrice('');
     }
   }
 
@@ -317,7 +496,7 @@ export default function ProfileScreen() {
         typeof message.longitude === 'number'
       ) {
         setSelectedAddress({
-          address: message.address,
+          address: formatHomeAddress(message.address),
           latitude: message.latitude,
           longitude: message.longitude,
         });
@@ -418,7 +597,6 @@ export default function ProfileScreen() {
 
     setUploadingAvatar(true);
     const requestId = ++avatarRequestId.current;
-    setAvatarUrl(null);
     try {
       const converted = await ImageManipulator.manipulateAsync(result.assets[0].uri, [], {
         compress: 0.85,
@@ -428,6 +606,7 @@ export default function ProfileScreen() {
       if (!convertedFile.exists) {
         throw new Error('The converted photo was not created on the device.');
       }
+      setAvatarPreviewUri(converted.uri);
       const body = (await convertedFile.bytes()).buffer;
       const path = `${session.user.id}/avatar-${Date.now()}.jpg`;
       const upload = await supabase.storage
@@ -445,23 +624,31 @@ export default function ProfileScreen() {
         .eq('id', session.user.id);
       if (update.error) throw new Error(update.error.message);
 
-      const signed = await supabase.storage
+      const { data: avatar } = supabase.storage
         .from('mechanic-avatars')
-        .createSignedUrl(path, 60 * 60);
-      if (signed.error || !signed.data?.signedUrl) {
-        throw new Error(signed.error?.message ?? 'The photo was saved but could not be loaded.');
-      }
-      const imageResponse = await fetch(signed.data.signedUrl);
-      const contentType = imageResponse.headers.get('content-type') ?? '';
-      if (!imageResponse.ok || !contentType.startsWith('image/')) {
-        throw new Error(
-          `The uploaded file is not being served as an image (${imageResponse.status}, ${contentType || 'unknown content type'}).`,
+        .getPublicUrl(path);
+      const avatarReady = await Image.prefetch(avatar.publicUrl).catch((error) => {
+        console.warn(
+          'Uploaded mechanic avatar could not be preloaded:',
+          error instanceof Error ? error.message : error,
         );
+        return false;
+      });
+      if (!avatarReady) {
+        Alert.alert(
+          'Photo uploaded',
+          'Your photo was saved, but could not be prepared for the headers yet. Please try again shortly.',
+        );
+        return;
       }
       if (requestId === avatarRequestId.current) {
-        setAvatarUrl(withCacheBust(signed.data.signedUrl));
+        setAvatarUrl(avatar.publicUrl);
+        setAvatarPreviewUri(null);
       }
     } catch (error) {
+      if (requestId === avatarRequestId.current) {
+        setAvatarPreviewUri(null);
+      }
       Alert.alert('Profile photo failed', error instanceof Error ? error.message : 'Could not save the photo.');
     } finally {
       setUploadingAvatar(false);
@@ -476,29 +663,51 @@ export default function ProfileScreen() {
     ]);
   }
 
+  async function confirmSignOut() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await signOut('mechanic');
+      setLogoutConfirmationVisible(false);
+    } catch (error) {
+      setLogoutConfirmationVisible(false);
+      Alert.alert(
+        'Unable to log out',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
   return (
     <MechanicScreen back title="My Profile">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
           <Pressable onPress={chooseAvatar} style={styles.avatarButton} disabled={uploadingAvatar}>
-            {avatarLoading ? (
-              <View style={styles.avatarLoading} />
-            ) : avatarUrl ? (
-              <Image
-                source={{ uri: avatarUrl }}
-                style={styles.avatarImage}
-                onError={(event) => {
-                  setAvatarUrl(null);
-                  const nativeError = event.nativeEvent.error;
-                  Alert.alert(
-                    'Profile photo unavailable',
-                    nativeError ?? 'The image URL could not be loaded.',
-                  );
-                }}
+            {avatarPreviewUri ? (
+              <ProfileAvatar
+                uri={avatarPreviewUri}
+                size={80}
+                backgroundColor={colors.amberSoft}
               />
+            ) : avatarUrl ? (
+              <ProfileAvatar
+                uri={avatarUrl}
+                size={80}
+                backgroundColor={colors.amberSoft}
+              />
+            ) : avatarLoading ? (
+              <View style={styles.avatarLoading} />
             ) : (
               <Text style={styles.avatarText}>{fullName.slice(0, 1).toUpperCase()}</Text>
             )}
+            {uploadingAvatar ? (
+              <View style={styles.avatarUploadingOverlay} pointerEvents="none">
+                <ActivityIndicator size="small" color={colors.white} />
+                <Text style={styles.avatarUploadingText}>Uploading</Text>
+              </View>
+            ) : null}
             <View style={styles.cameraBadge}>
               <Ionicons name="camera-outline" size={14} color={colors.bg} />
             </View>
@@ -513,15 +722,27 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        <View style={styles.accordion}>
+          <Pressable
+            onPress={() => toggleSection('garage')}
+            style={({ pressed }) => [styles.sectionHeader, pressed && styles.pressed]}
+          >
+            <Ionicons name="car-sport-outline" size={24} color={colors.blue} />
+            <Text style={styles.section}>My Garage</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </Pressable>
+        </View>
+
         <View style={styles.accordionList}>
           <View style={styles.accordion}>
             <Pressable
               onPress={() => toggleSection('specializations')}
               style={({ pressed }) => [styles.sectionHeader, pressed && styles.pressed]}
             >
-              <View style={styles.sectionIcon}>
-                <Ionicons name="construct-outline" size={20} color={colors.amber} />
-              </View>
+              <Image
+                source={require('../../assets/images/specializations.png')}
+                style={styles.sectionIconImage}
+              />
               <Text style={styles.section}>Specializations</Text>
               <Ionicons
                 name={expandedSection === 'specializations' ? 'chevron-up' : 'chevron-forward'}
@@ -536,9 +757,10 @@ export default function ProfileScreen() {
               onPress={() => toggleSection('documents')}
               style={({ pressed }) => [styles.sectionHeader, pressed && styles.pressed]}
             >
-              <View style={styles.sectionIcon}>
-                <Ionicons name="document-text-outline" size={20} color={colors.amber} />
-              </View>
+              <Image
+                source={require('../../assets/images/documents.png')}
+                style={styles.sectionIconImage}
+              />
               <Text style={styles.section}>Documents</Text>
               <Ionicons
                 name={expandedSection === 'documents' ? 'chevron-up' : 'chevron-forward'}
@@ -553,9 +775,10 @@ export default function ProfileScreen() {
               onPress={() => toggleSection('certifications')}
               style={({ pressed }) => [styles.sectionHeader, pressed && styles.pressed]}
             >
-              <View style={styles.sectionIcon}>
-                <Ionicons name="ribbon-outline" size={20} color={colors.amber} />
-              </View>
+              <Image
+                source={require('../../assets/images/certifications.png')}
+                style={styles.sectionIconImage}
+              />
               <Text style={styles.section}>Certifications</Text>
               <Ionicons
                 name={expandedSection === 'certifications' ? 'chevron-up' : 'chevron-forward'}
@@ -569,9 +792,10 @@ export default function ProfileScreen() {
               onPress={() => toggleSection('maintenance-pricing')}
               style={({ pressed }) => [styles.sectionHeader, pressed && styles.pressed]}
             >
-              <View style={styles.sectionIcon}>
-                <Ionicons name="pricetag-outline" size={20} color={colors.amber} />
-              </View>
+              <Image
+                source={require('../../assets/images/maintenance-pricing.png')}
+                style={styles.sectionIconImage}
+              />
               <Text style={styles.section}>Maintenance Pricing</Text>
               <Ionicons
                 name={expandedSection === 'maintenance-pricing' ? 'chevron-up' : 'chevron-forward'}
@@ -586,9 +810,10 @@ export default function ProfileScreen() {
               onPress={() => toggleSection('account-details')}
               style={({ pressed }) => [styles.sectionHeader, pressed && styles.pressed]}
             >
-              <View style={styles.sectionIcon}>
-                <Ionicons name="person-circle-outline" size={20} color={colors.amber} />
-              </View>
+              <Image
+                source={require('../../assets/images/account-details.png')}
+                style={styles.sectionIconImage}
+              />
               <Text style={styles.section}>Account Details</Text>
               <Ionicons
                 name={expandedSection === 'account-details' ? 'chevron-up' : 'chevron-forward'}
@@ -599,40 +824,298 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <Pressable onPress={signOut} style={({ pressed }) => [styles.logout, pressed && styles.pressed]}>
+        <Pressable
+          onPress={() => setLogoutConfirmationVisible(true)}
+          style={({ pressed }) => [styles.logout, pressed && styles.pressed]}
+        >
+          <Image
+            source={require('../../assets/images/logout.png')}
+            style={styles.logoutIcon}
+          />
           <Text style={styles.logoutText}>Log out</Text>
         </Pressable>
       </ScrollView>
       <Modal
+        visible={logoutConfirmationVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!loggingOut) setLogoutConfirmationVisible(false);
+        }}
+      >
+        <View style={styles.logoutModalOverlay}>
+          <View style={styles.logoutModalCard}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close logout confirmation"
+              disabled={loggingOut}
+              onPress={() => setLogoutConfirmationVisible(false)}
+              style={({ pressed }) => [
+                styles.logoutModalClose,
+                pressed && !loggingOut && styles.pressed,
+              ]}
+            >
+              <Ionicons name="close" size={24} color={colors.textMuted} />
+            </Pressable>
+            <Image
+              source={require('../../assets/images/logoutconfirmation.jpg')}
+              style={styles.logoutModalImage}
+              resizeMode="contain"
+            />
+            <Text style={styles.logoutModalTitle}>Are You Logging Out?</Text>
+            <Text style={styles.logoutModalMessage}>
+              You can always log back in at any time.
+            </Text>
+            <View style={styles.logoutModalActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={loggingOut}
+                onPress={() => setLogoutConfirmationVisible(false)}
+                style={({ pressed }) => [
+                  styles.logoutModalCancel,
+                  pressed && !loggingOut && styles.pressed,
+                ]}
+              >
+                <Text style={styles.logoutModalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={loggingOut}
+                onPress={() => void confirmSignOut()}
+                style={({ pressed }) => [
+                  styles.logoutModalConfirm,
+                  pressed && !loggingOut && styles.pressed,
+                ]}
+              >
+                {loggingOut ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.logoutModalConfirmText}>Log out</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal
         visible={expandedSection !== null}
         animationType="slide"
-        presentationStyle="fullScreen"
+        transparent
         onRequestClose={() => setExpandedSection(null)}
       >
-        <SafeAreaView style={styles.detailScreen} edges={['top', 'bottom']}>
-          <View style={styles.detailTopRow}>
-            <Text style={styles.detailHeaderTitle}>
-              {expandedSection === 'specializations'
-                ? 'Specializations'
-                : expandedSection === 'documents'
-                  ? 'Documents'
-                  : expandedSection === 'certifications'
-                    ? 'Certifications'
-                    : expandedSection === 'account-details'
-                      ? 'Account Details'
-                      : 'Maintenance Pricing'}
-            </Text>
-            <Pressable
-              onPress={() => setExpandedSection(null)}
-              style={styles.closeButton}
-              accessibilityLabel="Close profile details"
+        <KeyboardAvoidingView
+          style={styles.detailOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setExpandedSection(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Close profile details"
+          />
+          <SafeAreaView style={styles.detailScreen} edges={['bottom']}>
+            <View style={styles.detailTopRow}>
+              <View style={styles.detailTitleGroup}>
+                <Text style={styles.detailHeaderTitle}>
+                  {expandedSection === 'garage'
+                    ? 'My Garage'
+                    : expandedSection === 'specializations'
+                    ? 'Specializations'
+                    : expandedSection === 'documents'
+                      ? 'Documents'
+                      : expandedSection === 'certifications'
+                        ? 'Certifications'
+                        : expandedSection === 'account-details'
+                          ? 'Account Details'
+                          : 'Maintenance Pricing'}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setExpandedSection(null)}
+                style={styles.closeButton}
+                accessibilityLabel="Close profile details"
+              >
+                <Ionicons name="close" size={24} color={colors.text} />
+              </Pressable>
+            </View>
+            <ScrollView
+              style={styles.detailScroll}
+              contentContainerStyle={styles.detailContent}
+              keyboardShouldPersistTaps="handled"
             >
-              <Ionicons name="close" size={24} color={colors.text} />
-            </Pressable>
-          </View>
-          <View style={styles.detailDivider} />
-          <ScrollView contentContainerStyle={styles.detailContent}>
-            {expandedSection === 'account-details' ? (
+            {expandedSection === 'garage' ? (
+              <>
+                <View style={styles.garageVehicleForm}>
+                  <View style={styles.garageFormTitleRow}>
+                    <Text style={styles.garageFormTitle}>Add a vehicle</Text>
+                    <Text style={styles.garageCapacity}>
+                      {garageVehicles.length} / 2
+                    </Text>
+                  </View>
+                  <View style={styles.garageChoiceRow}>
+                    {(['motorcycle', 'car'] as const).map((type) => (
+                      <Pressable
+                        key={type}
+                        onPress={() => setGarageVehicleType(type)}
+                        style={[
+                          styles.garageChoice,
+                          garageVehicleType === type && styles.garageChoiceSelected,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.garageChoiceText,
+                            garageVehicleType === type && styles.garageChoiceTextSelected,
+                          ]}
+                        >
+                          {type === 'motorcycle' ? 'Motorcycle' : 'Car'}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <View style={styles.garageInputRow}>
+                    <TextInput
+                      value={garageMake}
+                      onChangeText={setGarageMake}
+                      placeholder="Make"
+                      placeholderTextColor={colors.textMuted}
+                      style={[styles.priceInput, styles.garageHalfInput]}
+                    />
+                    <TextInput
+                      value={garageModel}
+                      onChangeText={setGarageModel}
+                      placeholder="Model"
+                      placeholderTextColor={colors.textMuted}
+                      style={[styles.priceInput, styles.garageHalfInput]}
+                    />
+                  </View>
+                  <View style={styles.garageInputRow}>
+                    <TextInput
+                      value={garageYear}
+                      onChangeText={setGarageYear}
+                      placeholder="Year"
+                      placeholderTextColor={colors.textMuted}
+                      keyboardType="number-pad"
+                      style={[styles.priceInput, styles.garageHalfInput]}
+                    />
+                    <TextInput
+                      value={garagePlate}
+                      onChangeText={setGaragePlate}
+                      placeholder="Plate number"
+                      placeholderTextColor={colors.textMuted}
+                      autoCapitalize="characters"
+                      style={[styles.priceInput, styles.garageHalfInput]}
+                    />
+                  </View>
+                  <View style={styles.garageChoiceRow}>
+                    {(['Gasoline', 'Diesel', 'Electric'] as const).map((fuelType) => (
+                      <Pressable
+                        key={fuelType}
+                        onPress={() => setGarageFuelType(fuelType)}
+                        style={[
+                          styles.fuelChoice,
+                          garageFuelType === fuelType && styles.garageChoiceSelected,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.fuelChoiceText,
+                            garageFuelType === fuelType && styles.garageChoiceTextSelected,
+                          ]}
+                        >
+                          {fuelType}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Pressable
+                    onPress={() => void saveGarageVehicle()}
+                    disabled={
+                      savingGarageVehicle ||
+                      garageLoading ||
+                      garageVehicles.length >= 2
+                    }
+                    style={({ pressed }) => [
+                      styles.addPriceButton,
+                      pressed && styles.pressed,
+                      (savingGarageVehicle ||
+                        garageLoading ||
+                        garageVehicles.length >= 2) &&
+                        styles.disabled,
+                    ]}
+                  >
+                    {savingGarageVehicle || garageLoading ? (
+                      <ActivityIndicator size="small" color={colors.white} />
+                    ) : (
+                      <Ionicons name="add" size={20} color={colors.white} />
+                    )}
+                    <Text style={styles.addPriceText}>
+                      {savingGarageVehicle
+                        ? 'Saving...'
+                        : garageLoading
+                          ? 'Loading garage...'
+                        : garageVehicles.length >= 2
+                          ? 'Vehicle limit reached'
+                          : 'Add vehicle'}
+                    </Text>
+                  </Pressable>
+                </View>
+                {garageLoading ? (
+                  <ActivityIndicator color={colors.blue} style={styles.garageLoader} />
+                ) : garageVehicles.length ? (
+                  garageVehicles.map((vehicle) => (
+                    <View key={vehicle.id} style={styles.garageVehicleCard}>
+                      <Ionicons
+                        name={vehicle.type === 'motorcycle' ? 'bicycle-outline' : 'car-outline'}
+                        size={22}
+                        color={colors.blue}
+                      />
+                      <View style={styles.garageVehicleCopy}>
+                        <Text style={styles.garageVehicleName}>
+                          {vehicle.make} {vehicle.model}
+                        </Text>
+                        <Text style={styles.garageVehicleMeta}>
+                          {vehicle.year} · {vehicle.plate_number}
+                        </Text>
+                        <Pressable
+                          onPress={() => void makeGarageVehiclePrimary(vehicle)}
+                          disabled={vehicle.is_primary}
+                          style={({ pressed }) => [
+                            styles.primaryVehicleButton,
+                            pressed && styles.pressed,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: vehicle.is_primary }}
+                          accessibilityLabel={
+                            vehicle.is_primary
+                              ? `${vehicle.make} ${vehicle.model} is the primary vehicle`
+                              : `Set ${vehicle.make} ${vehicle.model} as primary`
+                          }
+                        >
+                          <Ionicons
+                            name={vehicle.is_primary ? 'checkmark-circle' : 'radio-button-off-outline'}
+                            size={18}
+                            color={colors.blue}
+                          />
+                          <Text style={styles.primaryVehicleText}>
+                            {vehicle.is_primary ? 'Primary vehicle' : 'Set as primary'}
+                          </Text>
+                        </Pressable>
+                      </View>
+                      <Pressable
+                        onPress={() => deleteGarageVehicle(vehicle)}
+                        hitSlop={8}
+                        accessibilityLabel={`Delete ${vehicle.make} ${vehicle.model}`}
+                      >
+                        <Ionicons name="trash-outline" size={20} color={colors.error} />
+                      </Pressable>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.garageEmptyText}>No vehicles added yet.</Text>
+                )}
+              </>
+            ) : expandedSection === 'account-details' ? (
               <View style={styles.accountDetails}>
                 <View style={styles.accountDetailRow}>
                   <Text style={styles.accountDetailLabel}>Full name</Text>
@@ -655,7 +1138,9 @@ export default function ProfileScreen() {
                   <Text style={styles.accountDetailLabel}>Home address</Text>
                   <View style={styles.accountDetailValueRow}>
                     <Text style={styles.accountDetailValue}>
-                      {profile?.home_address || 'Not provided'}
+                      {profile?.home_address
+                        ? formatHomeAddress(profile.home_address)
+                        : 'Not provided'}
                     </Text>
                     <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                   </View>
@@ -677,7 +1162,7 @@ export default function ProfileScreen() {
                   <Text style={styles.deleteAccountLabel}>
                     {requestingDeletion ? 'Sending request...' : 'Request account deletion'}
                   </Text>
-                  <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+                  <Ionicons name="chevron-forward" size={20} color={colors.error} />
                 </Pressable>
               </View>
             ) : expandedSection === 'maintenance-pricing' ? (
@@ -716,15 +1201,34 @@ export default function ProfileScreen() {
                   </Pressable>
                 </View>
                 {maintenancePrices.length ? (
-                  maintenancePrices.map((item) => (
-                    <View key={`${item.service}-${item.price}`} style={styles.detailItem}>
-                      <Ionicons name="construct-outline" size={20} color={colors.amber} />
-                      <Text style={styles.detailItemText}>{item.service}</Text>
-                      <Text style={styles.priceValue}>{item.price}</Text>
+                  maintenancePrices.map((item, index) => (
+                    <View key={`${item.service}-${index}`}>
+                      <View style={styles.detailItem}>
+                        <Ionicons name="construct-outline" size={20} color={colors.amber} />
+                        <Text style={styles.detailItemText}>{item.service}</Text>
+                        <Text style={styles.priceValue}>{item.price}</Text>
+                        <Pressable
+                          onPress={() => {
+                            setEditingPriceIndex(index);
+                            setEditingService(item.service);
+                            setEditingPrice(item.price);
+                          }}
+                          disabled={savingPrices}
+                          hitSlop={8}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Edit ${item.service} price`}
+                          style={styles.editPriceAction}
+                        >
+                          <Ionicons name="create-outline" size={20} color={colors.blue} />
+                        </Pressable>
+                      </View>
                     </View>
                   ))
                 ) : (
-                  <Text style={styles.detailEmpty}>No maintenance labor prices added yet.</Text>
+                  <View style={styles.detailEmptyCard}>
+                    <Ionicons name="pricetag-outline" size={24} color={colors.blue} />
+                    <Text style={styles.detailEmpty}>No maintenance labor prices added yet.</Text>
+                  </View>
                 )}
               </>
             ) : expandedSection === 'specializations' ? (
@@ -770,9 +1274,12 @@ export default function ProfileScreen() {
                     ))}
                   </View>
                 ) : (
-                  <Text style={styles.detailEmpty}>
-                    No specializations added yet. Add them above to display your services.
-                  </Text>
+                  <View style={styles.detailEmptyCard}>
+                    <Ionicons name="construct-outline" size={24} color={colors.blue} />
+                    <Text style={styles.detailEmpty}>
+                      No specializations added yet. Add them above to display your services.
+                    </Text>
+                  </View>
                 )}
               </>
             ) : expandedSection === 'documents' ? (
@@ -781,11 +1288,16 @@ export default function ProfileScreen() {
                   <View key={doc.label} style={styles.detailItem}>
                     <Ionicons name="document-text-outline" size={20} color={colors.amber} />
                     <Text style={styles.detailItemText}>{doc.label}</Text>
-                    <Text style={styles.docStatus}>{doc.status}</Text>
+                    <View style={styles.statusBadge}>
+                      <Text style={styles.docStatus}>{doc.status}</Text>
+                    </View>
                   </View>
                 ))
               ) : (
-                <Text style={styles.detailEmpty}>No documents uploaded yet.</Text>
+                <View style={styles.detailEmptyCard}>
+                  <Ionicons name="document-text-outline" size={24} color={colors.blue} />
+                  <Text style={styles.detailEmpty}>No documents uploaded yet.</Text>
+                </View>
               )
             ) : certifications.length || profile?.experience ? (
               <>
@@ -793,7 +1305,9 @@ export default function ProfileScreen() {
                   <View key={label} style={styles.detailItem}>
                     <Ionicons name="ribbon-outline" size={20} color={colors.amber} />
                     <Text style={styles.detailItemText}>{label}</Text>
-                    <Text style={styles.docStatus}>Submitted</Text>
+                    <View style={styles.statusBadge}>
+                      <Text style={styles.docStatus}>Submitted</Text>
+                    </View>
                   </View>
                 ))}
                 {profile?.experience ? (
@@ -804,10 +1318,112 @@ export default function ProfileScreen() {
                 ) : null}
               </>
             ) : (
-              <Text style={styles.detailEmpty}>No certifications added yet.</Text>
+              <View style={styles.detailEmptyCard}>
+                <Ionicons name="ribbon-outline" size={24} color={colors.blue} />
+                <Text style={styles.detailEmpty}>No certifications added yet.</Text>
+              </View>
             )}
-          </ScrollView>
-        </SafeAreaView>
+            </ScrollView>
+            {expandedSection === 'maintenance-pricing' &&
+            editingPriceIndex !== null ? (
+              <View style={styles.editPriceOverlay}>
+                <Pressable
+                  style={StyleSheet.absoluteFill}
+                  onPress={() => {
+                    if (savingPrices) return;
+                    setEditingPriceIndex(null);
+                    setEditingService('');
+                    setEditingPrice('');
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close price editor"
+                />
+                <View style={styles.editPricePopup}>
+                  <View style={styles.editPricePopupHeader}>
+                    <View style={styles.editPricePopupIcon}>
+                      <Ionicons name="pricetag-outline" size={20} color={colors.blue} />
+                    </View>
+                    <View style={styles.editPricePopupTitleGroup}>
+                      <Text style={styles.editPriceTitle}>Edit service</Text>
+                      <Text style={styles.editPriceSubtitle}>
+                        Update the service name or price.
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        setEditingPriceIndex(null);
+                        setEditingService('');
+                        setEditingPrice('');
+                      }}
+                      disabled={savingPrices}
+                      hitSlop={8}
+                      accessibilityLabel="Close price editor"
+                    >
+                      <Ionicons name="close" size={22} color={colors.textMuted} />
+                    </Pressable>
+                  </View>
+                  <View style={styles.editPriceField}>
+                    <Text style={styles.editPriceLabel}>Service name</Text>
+                    <TextInput
+                      value={editingService}
+                      onChangeText={setEditingService}
+                      placeholder="Labor name"
+                      placeholderTextColor={colors.textMuted}
+                      style={styles.editPriceInput}
+                    />
+                  </View>
+                  <View style={styles.editPriceField}>
+                    <Text style={styles.editPriceLabel}>Price</Text>
+                    <TextInput
+                      value={editingPrice}
+                      onChangeText={setEditingPrice}
+                      placeholder="₱0.00"
+                      placeholderTextColor={colors.textMuted}
+                      keyboardType="decimal-pad"
+                      style={styles.editPriceInput}
+                    />
+                  </View>
+                  <View style={styles.editPriceButtons}>
+                    <Pressable
+                      onPress={() => {
+                        setEditingPriceIndex(null);
+                        setEditingService('');
+                        setEditingPrice('');
+                      }}
+                      disabled={savingPrices}
+                      style={({ pressed }) => [
+                        styles.editPriceCancelButton,
+                        pressed && styles.pressed,
+                        savingPrices && styles.disabled,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancel editing service"
+                    >
+                      <Text style={styles.editPriceCancelText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => void saveEditedMaintenancePrice(editingPriceIndex)}
+                      disabled={savingPrices}
+                      style={({ pressed }) => [
+                        styles.editPriceSaveButton,
+                        pressed && styles.pressed,
+                        savingPrices && styles.disabled,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Save service changes"
+                    >
+                      {savingPrices ? (
+                        <ActivityIndicator size="small" color={colors.white} />
+                      ) : (
+                        <Text style={styles.editPriceSaveText}>Save changes</Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+          </SafeAreaView>
+        </KeyboardAvoidingView>
       </Modal>
       <Modal
         visible={addressPickerVisible}
@@ -905,6 +1521,19 @@ const styles = StyleSheet.create({
     borderRadius: 42,
     backgroundColor: colors.bgElevated,
   },
+  avatarUploadingOverlay: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 42,
+    backgroundColor: 'rgba(16, 24, 40, 0.58)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  avatarUploadingText: {
+    color: colors.white,
+    fontSize: 9,
+    fontWeight: '700',
+  },
   cameraBadge: {
     position: 'absolute',
     right: -2,
@@ -953,17 +1582,13 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    minHeight: 60,
+    gap: spacing.sm,
+    minHeight: 58,
     paddingHorizontal: spacing.md,
   },
-  sectionIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: radii.sm,
-    backgroundColor: colors.amberSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
+  sectionIconImage: {
+    width: 28,
+    height: 28,
   },
   section: {
     flex: 1,
@@ -976,16 +1601,36 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   detailScreen: {
-    flex: 1,
+    width: '100%',
+    height: '88%',
     backgroundColor: colors.bg,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+    overflow: 'hidden',
+  },
+  detailOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+  },
+  detailScroll: {
+    flexGrow: 0,
+    flexShrink: 1,
   },
   detailTopRow: {
-    minHeight: 60,
+    minHeight: 56,
     paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.bg,
+    backgroundColor: colors.bgElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  detailTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   closeButton: {
     width: 40,
@@ -995,68 +1640,296 @@ const styles = StyleSheet.create({
   },
   detailHeaderTitle: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
   },
   detailDivider: {
-    height: 1,
-    marginHorizontal: spacing.md,
-    backgroundColor: colors.border,
+    height: 0,
   },
   detailContent: {
-    padding: spacing.md,
+    padding: 12,
+    paddingBottom: spacing.lg,
   },
   detailIntro: {
     color: colors.textMuted,
-    lineHeight: 20,
-    marginBottom: spacing.md,
+    lineHeight: 18,
+    marginBottom: spacing.sm,
   },
   priceForm: {
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
+    gap: 8,
+    marginBottom: spacing.md,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: colors.blueSoft,
+    borderRadius: radii.md,
+    backgroundColor: colors.blueSoft,
   },
   specializationInput: {
-    minHeight: 96,
-    padding: spacing.md,
+    minHeight: 76,
+    padding: 12,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.sm,
+    borderColor: colors.blueSoft,
+    borderRadius: radii.md,
     backgroundColor: colors.bgElevated,
     color: colors.text,
     textAlignVertical: 'top',
-    marginBottom: spacing.sm,
+    marginBottom: 8,
   },
   priceInput: {
-    minHeight: 48,
-    paddingHorizontal: spacing.md,
+    minHeight: 42,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: colors.blueSoft,
+    borderRadius: radii.md,
+    backgroundColor: colors.bgElevated,
+    color: colors.text,
+  },
+  garageVehicleForm: {
+    gap: 8,
+    marginBottom: spacing.md,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: colors.blueSoft,
+    borderRadius: radii.md,
+    backgroundColor: colors.blueSoft,
+  },
+  garageFormTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  garageFormTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  garageCapacity: {
+    color: colors.blue,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  garageChoiceRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  garageChoice: {
+    flex: 1,
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.sm,
     backgroundColor: colors.bgElevated,
+  },
+  garageChoiceSelected: {
+    borderColor: colors.blue,
+    backgroundColor: colors.blue,
+  },
+  garageChoiceText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  garageChoiceTextSelected: {
+    color: colors.white,
+  },
+  garageInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  garageHalfInput: {
+    flex: 1,
+    minWidth: 0,
+  },
+  fuelChoice: {
+    flex: 1,
+    minHeight: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.full,
+    backgroundColor: colors.bgElevated,
+  },
+  fuelChoiceText: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  garageVehicleCard: {
+    minHeight: 82,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    backgroundColor: colors.bgElevated,
+  },
+  garageVehicleCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  garageVehicleName: {
     color: colors.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  garageVehicleMeta: {
+    color: colors.textMuted,
+    fontSize: 12,
+  },
+  primaryVehicleButton: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: 2,
+    paddingHorizontal: 10,
+    borderRadius: radii.full,
+    backgroundColor: colors.blueSoft,
+  },
+  primaryVehicleText: {
+    color: colors.blue,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  garageLoader: {
+    marginVertical: spacing.md,
+  },
+  garageEmptyText: {
+    paddingVertical: spacing.md,
+    color: colors.textMuted,
+    textAlign: 'center',
   },
   addPriceButton: {
-    minHeight: 48,
+    minHeight: 42,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
-    borderRadius: radii.sm,
-    backgroundColor: colors.amber,
+    borderRadius: radii.md,
+    backgroundColor: colors.blue,
   },
   addPriceText: {
     color: colors.white,
     fontWeight: '800',
   },
   detailItem: {
-    minHeight: 60,
+    minHeight: 54,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+    paddingHorizontal: 10,
     backgroundColor: colors.bgElevated,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    marginBottom: 6,
+  },
+  editPriceOverlay: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.md,
+    backgroundColor: 'rgba(15, 23, 42, 0.48)',
+  },
+  editPricePopup: {
+    width: '100%',
+    maxWidth: 420,
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radii.lg,
+    backgroundColor: colors.bgElevated,
+    shadowColor: '#000000',
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  editPricePopupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  editPricePopupIcon: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.sm,
+    backgroundColor: colors.blueSoft,
+  },
+  editPricePopupTitleGroup: {
+    flex: 1,
+  },
+  editPriceTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  editPriceSubtitle: {
+    marginTop: 2,
+    color: colors.textMuted,
+    fontSize: 12,
+  },
+  editPriceField: {
+    gap: spacing.xs,
+  },
+  editPriceLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  editPriceInput: {
+    minHeight: 42,
+    backgroundColor: colors.bgElevated,
+  },
+  editPriceButtons: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  editPriceSaveButton: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.md,
+    backgroundColor: colors.blue,
+  },
+  editPriceSaveText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  editPriceCancelButton: {
+    minWidth: 92,
+    paddingHorizontal: spacing.md,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    backgroundColor: colors.bgElevated,
+  },
+  editPriceCancelText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  editPriceAction: {
+    minWidth: 40,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   detailItemText: {
     flex: 1,
@@ -1066,21 +1939,36 @@ const styles = StyleSheet.create({
   priceValue: {
     minWidth: 72,
     textAlign: 'right',
-    color: colors.success,
+    color: colors.blue,
     fontWeight: '800',
+  },
+  statusBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.full,
+    backgroundColor: colors.blueSoft,
   },
   detailEmpty: {
     color: colors.textMuted,
     textAlign: 'center',
-    paddingVertical: spacing.xl,
+    lineHeight: 20,
+  },
+  detailEmptyCard: {
+    alignItems: 'center',
+    gap: 8,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.blueSoft,
+    borderRadius: radii.md,
+    backgroundColor: colors.bgElevated,
   },
   experienceCard: {
-    marginTop: spacing.md,
-    padding: spacing.md,
-    backgroundColor: colors.bgElevated,
+    marginTop: spacing.sm,
+    padding: 12,
+    backgroundColor: colors.blueSoft,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.sm,
+    borderColor: colors.blueSoft,
+    borderRadius: radii.md,
   },
   experienceLabel: {
     color: colors.textMuted,
@@ -1094,28 +1982,32 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   accountDetails: {
-    marginHorizontal: -spacing.md,
-    marginBottom: -spacing.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    backgroundColor: colors.bgElevated,
   },
   accountDetailRow: {
-    minHeight: 60,
+    minHeight: 54,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 12,
     backgroundColor: colors.bgElevated,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    gap: 8,
   },
   accountDetailLabel: {
     color: colors.textMuted,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '700',
     flex: 1,
   },
   accountDetailValue: {
     color: colors.text,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     flex: 1.4,
     textAlign: 'right',
@@ -1149,22 +2041,20 @@ const styles = StyleSheet.create({
     minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radii.sm,
-    backgroundColor: colors.amber,
+    borderRadius: radii.md,
+    backgroundColor: colors.blue,
   },
   saveAddressButtonText: {
     color: colors.white,
     fontWeight: '800',
   },
   deleteAccountRow: {
-    minHeight: 60,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.bgElevated,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    gap: spacing.sm,
+    paddingHorizontal: 12,
+    backgroundColor: colors.errorSoft,
   },
   deleteAccountLabel: {
     flex: 1,
@@ -1175,19 +2065,19 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   chips: {
-    gap: 8,
-    marginTop: spacing.lg,
+    gap: 6,
+    marginTop: spacing.md,
   },
   specializationChip: {
-    minHeight: 48,
+    minHeight: 40,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.bgElevated,
+    gap: spacing.sm,
+    paddingHorizontal: 10,
+    backgroundColor: colors.blueSoft,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.sm,
+    borderColor: colors.blueSoft,
+    borderRadius: radii.md,
   },
   chip: {
     backgroundColor: colors.amberSoft,
@@ -1217,7 +2107,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   docStatus: {
-    color: colors.success,
+    color: colors.blue,
     fontWeight: '700',
     fontSize: 12,
   },
@@ -1226,15 +2116,105 @@ const styles = StyleSheet.create({
   },
   logout: {
     marginTop: spacing.xl,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    borderRadius: radii.md,
+    borderRadius: 0,
     minHeight: 50,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  logoutIcon: {
+    width: 22,
+    height: 22,
+    resizeMode: 'contain',
   },
   logoutText: {
     color: colors.text,
+    fontWeight: '700',
+  },
+  logoutModalOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.md,
+    backgroundColor: 'rgba(15, 23, 42, 0.48)',
+  },
+  logoutModalCard: {
+    width: '100%',
+    maxWidth: 380,
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.lg,
+    backgroundColor: '#FFFFFF',
+    borderRadius: radii.md,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  logoutModalClose: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    zIndex: 1,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutModalImage: {
+    width: 180,
+    height: 170,
+    marginBottom: spacing.sm,
+  },
+  logoutModalTitle: {
+    color: '#111111',
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  logoutModalMessage: {
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+    color: '#4B4B4B',
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  logoutModalActions: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  logoutModalCancel: {
+    flex: 1,
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#8A8A8A',
+    borderRadius: radii.full,
+  },
+  logoutModalCancelText: {
+    color: '#333333',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  logoutModalConfirm: {
+    flex: 1,
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#050505',
+    borderRadius: radii.full,
+  },
+  logoutModalConfirmText: {
+    color: '#FFFFFF',
+    fontSize: 17,
     fontWeight: '700',
   },
   pressed: {
