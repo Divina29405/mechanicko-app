@@ -128,7 +128,7 @@ export default function WelcomeScreen() {
                 WELCOME TO
               </Animated.Text>
               <Animated.Image
-                source={require("../assets/images/mechanikotext.png")}
+                source={require("../assets/images/MechanicKo_noBG.png")}
                 resizeMode="contain"
                 style={[styles.wordmark, wordmarkAnimatedStyle]}
               />
@@ -205,19 +205,17 @@ const styles = StyleSheet.create({
   },
   heading: {
     color: "#20439B",
-    fontFamily: "sans-serif",
-    width: 202,
-    fontSize: 30,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSansBold",
+    width: 280,
+    fontSize: normalizeText(28),
     lineHeight: 36,
-    letterSpacing: 0.14,
+    letterSpacing: 1.2,
     textAlign: "center",
   },
   wordmark: {
-    width: 220,
-    height: 36,
+    width: 280,
+    height: 140,
     marginTop: 16,
-    tintColor: "#1E3A8A",
   },
   bottomContent: {
     marginTop: "auto",

@@ -105,11 +105,10 @@ export default function Index() {
       <View style={styles.boot}>
         <Animated.View style={[styles.bootBrand, bootAnimatedStyle]}>
           <Image
-            source={require("../assets/images/logo.png")}
+            source={require("../assets/images/updated_appicon.png")}
             resizeMode="contain"
             style={styles.bootLogo}
           />
-          <Text style={styles.bootWordmark}>MECHANIC KO</Text>
           <View style={styles.bootProgressTrack}>
             <View
               style={[
@@ -156,12 +155,7 @@ export default function Index() {
         <View style={styles.content}>
           <Animated.View style={[styles.brand, contentAnimatedStyle]}>
             <Image
-              source={require("../assets/images/logo.png")}
-              resizeMode="contain"
-              style={styles.logo}
-            />
-            <Image
-              source={require("../assets/images/mechanicko.png")}
+              source={require("../assets/images/MechanicKo_noBG.png")}
               resizeMode="contain"
               style={styles.wordmark}
             />
@@ -215,15 +209,9 @@ const styles = StyleSheet.create({
   brand: {
     alignItems: "center",
   },
-  logo: {
-    width: 90,
-    height: 90,
-  },
   wordmark: {
-    width: 220,
-    height: 36,
-    marginTop: 24,
-    tintColor: "#1E3A8A", 
+    width: 320,
+    height: 160,
   },
   spacer: {
     flex: 1,
@@ -286,7 +274,7 @@ const styles = StyleSheet.create({
   },
   boot: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -297,13 +285,6 @@ const styles = StyleSheet.create({
   bootLogo: {
     width: 120,
     height: 120,
-  },
-  bootWordmark: {
-    marginTop: 24,
-    color: "#1E3A8A",
-    fontFamily: "PlusJakartaSansBold",
-    fontSize: normalizeText(24),
-    letterSpacing: 2,
   },
   bootProgressTrack: {
     width: 180,

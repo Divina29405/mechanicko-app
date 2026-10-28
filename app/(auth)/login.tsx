@@ -138,8 +138,11 @@ export default function LoginScreen() {
       <View style={styles.loginContent}>
         
         <View style={styles.brandContainer}>
-          <Image source={require("../../assets/images/logo.png")} style={styles.brandLogo} resizeMode="contain" />
-          <Image source={require("../../assets/images/mechanikotext.png")} style={styles.brandText} resizeMode="contain" />
+          <Image
+            source={require("../../assets/images/MechanicKo_noBG.png")}
+            style={styles.brandImage}
+            resizeMode="contain"
+          />
           <Text style={styles.roleKicker}>MOTORIST LOGIN</Text>
         </View>
 
@@ -277,16 +280,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     transform: [{ translateY: -20 }]
   },
-  brandLogo: {
-    width: 80,
-    height: 80,
-    marginBottom: 12
-  },
-  brandText: {
-    width: 170,
-    height: 24,
-    tintColor: "#1E3A8A",
-    marginBottom: 10
+  brandImage: {
+    width: 240,
+    height: 120,
+    marginBottom: 10,
   },
   roleKicker: {
     color: "#64748B",
