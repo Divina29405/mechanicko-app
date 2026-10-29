@@ -31,6 +31,8 @@ const SYMPTOM_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Others: 'ellipsis-horizontal-circle-outline',
 };
 
+const EMERGENCY_PRIMARY = '#2450D8';
+
 type EmergencyChecklistProps = {
   embedded?: boolean;
   initialLocation?: { lat: number; lng: number };
@@ -48,7 +50,8 @@ export default function EmergencyChecklistScreen({
 }: EmergencyChecklistProps = {}) {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { colors } = useAppTheme();
+  const { colors: themeColors } = useAppTheme();
+  const colors = { ...themeColors, primary: EMERGENCY_PRIMARY };
   const closeScreen = () => {
     if (embedded) {
       onClose?.();
@@ -284,7 +287,7 @@ export default function EmergencyChecklistScreen({
           <View style={[styles.feeCard, { backgroundColor: colors.softCard }]}>
             <View style={styles.feeHeader}><Text style={[styles.feeTitle, { color: colors.text }]}><Ionicons name="shield-checkmark-outline" size={19} color={colors.primary} /> Standard Roadside Guarantee</Text><Text style={[styles.fixedBadge, { color: colors.primary, backgroundColor: colors.btnSecondary }]}>FIXED DISPATCH</Text></View>
             <View style={styles.feeRow}><View><Text style={[styles.feeAmount, { color: colors.text }]}>₱350.00</Text><Text style={[styles.feeCaption, { color: colors.textMuted }]}>Base emergency dispatch fee</Text></View><View><Text style={[styles.cashText, { color: colors.primary }]}>Cash</Text><Text style={[styles.feeCaption, { color: colors.textMuted }]}>Paid directly upon arrival</Text></View></View>
-            <Text style={[styles.feeNote, { color: colors.textMuted }]}><Ionicons name="information-circle-outline" size={16} color="#F08A00" /> Parts and replacement labor are assessed & approved on-site before work begins.</Text>
+            <Text style={[styles.feeNote, { color: colors.textMuted }]}><Ionicons name="information-circle-outline" size={16} color={colors.primary} /> Parts and replacement labor are assessed & approved on-site before work begins.</Text>
           </View>
 
           <View style={styles.actionRow}>
@@ -302,8 +305,8 @@ export default function EmergencyChecklistScreen({
       >
         <KeyboardAvoidingView style={[styles.modalContainer, { backgroundColor: colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={saveNotesDraft} style={styles.modalCloseButton} accessibilityLabel="Close location editor">
-              <Ionicons name="close" size={22} color={colors.text} />
+            <TouchableOpacity onPress={saveNotesDraft} style={styles.modalCloseButton} accessibilityLabel="Back to emergency form">
+              <Ionicons name="arrow-back" size={22} color={colors.text} />
             </TouchableOpacity>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Your location & situation</Text>
             <View style={styles.modalHeaderSpacer} />
@@ -504,7 +507,7 @@ export default function EmergencyChecklistScreen({
             <TouchableOpacity
               style={[
                 styles.successButton,
-                { backgroundColor: colors.primary },
+                { backgroundColor: "#FF3800" },
               ]}
               onPress={() => {
                 setSosSentVisible(false);
@@ -554,7 +557,7 @@ const styles = StyleSheet.create({
   vehiclePickerName: { color: '#30323D', fontSize: 16, fontWeight: '900' },
   vehiclePickerPlate: { color: '#7D8295', fontSize: 11, fontWeight: '700', letterSpacing: 0.7, marginTop: 3 },
   issueHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  dispatchHint: { color: '#C44A00', fontSize: 11, fontWeight: '900' },
+  dispatchHint: { color: '#2450D8', fontSize: 11, fontWeight: '900' },
   issueGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   issueCard: { width: '48.5%', minHeight: 132, backgroundColor: '#FFFFFF', borderRadius: 15, padding: 14, justifyContent: 'space-between', borderWidth: 1, borderColor: '#E4E5EC', shadowColor: '#172B66', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
   issueCardSelected: { backgroundColor: '#FFFFFF', borderColor: '#E4E5EC', borderLeftColor: '#24439A', borderLeftWidth: 4 },
@@ -585,7 +588,7 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 10, paddingBottom: 12 },
   backAction: { width: 96, minHeight: 52, borderRadius: 15, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DCE0EA', alignItems: 'center', justifyContent: 'center' },
   backActionText: { color: '#536078', fontSize: 15, fontWeight: '800' },
-  submitAction: { flex: 1, minHeight: 52, borderRadius: 15, backgroundColor: '#E52C28', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, shadowColor: '#E52C28', shadowOpacity: 0.25, shadowRadius: 7, elevation: 3 },
+  submitAction: { flex: 1, minHeight: 52, borderRadius: 15, backgroundColor: '#FF3800', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, shadowColor: '#000000', shadowOpacity: 0.2, shadowRadius: 7, elevation: 3 },
   submitActionText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
   header: { minHeight: 58, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
   backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },

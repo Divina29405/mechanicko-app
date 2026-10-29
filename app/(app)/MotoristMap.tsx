@@ -291,6 +291,7 @@ export default function MotoristMap() {
   const [mechanicReviews, setMechanicReviews] = useState<any[]>([]);
   const [loadingMechanicReviews, setLoadingMechanicReviews] = useState(false);
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
+  const [bookingSubmittedVisible, setBookingSubmittedVisible] = useState(false);
   const [bookingReceiptVisible, setBookingReceiptVisible] = useState(false);
   const [receiptMechanicServicePrices, setReceiptMechanicServicePrices] =
     useState<BookingMechanicServicePrice[] | null>(null);
@@ -1332,6 +1333,7 @@ export default function MotoristMap() {
     setSelectedMechanic(null);
     setDisplayedMechanic(null);
     setBookingModalVisible(false);
+    setBookingSubmittedVisible(true);
   };
 
   useFocusEffect(
@@ -3620,6 +3622,43 @@ export default function MotoristMap() {
             <TouchableOpacity
               style={styles.cancelSuccessButton}
               onPress={() => setCancelSuccessVisible(false)}
+            >
+              <Text style={styles.actionBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={bookingSubmittedVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setBookingSubmittedVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalContent,
+              styles.cancelSuccessCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+            accessibilityRole="alert"
+          >
+            <View style={styles.cancelSuccessIcon}>
+              <Ionicons name="checkmark" size={32} color="#FFFFFF" />
+            </View>
+            <Text style={[styles.cancelSuccessTitle, { color: colors.text }]}>
+              Booking Submitted
+            </Text>
+            <Text
+              style={[styles.cancelSuccessMessage, { color: colors.textMuted }]}
+            >
+              Your scheduled service request was sent.
+            </Text>
+            <TouchableOpacity
+              style={styles.cancelSuccessButton}
+              onPress={() => setBookingSubmittedVisible(false)}
+              accessibilityRole="button"
             >
               <Text style={styles.actionBtnText}>Done</Text>
             </TouchableOpacity>

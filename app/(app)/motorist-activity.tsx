@@ -1211,6 +1211,7 @@ export default function MotoristActivityScreen() {
           filter: `motorist_id=eq.${motoristId}`,
         },
         (payload) => {
+          ordersFetchRequestId.current += 1;
           const updatedRequest = payload.new as Record<string, unknown>;
           setRequests((currentRequests) => {
             const updatedRequests = currentRequests.map((request) =>
@@ -1277,12 +1278,7 @@ export default function MotoristActivityScreen() {
           "ongoing",
         ].includes(String(request.status ?? "").toLowerCase()),
       );
-      if (
-        !hasCachedActiveBooking &&
-        loadedRequestsUserId.current !== motoristId
-      ) {
-        setLoading(true);
-      }
+      if (!hasCachedActiveBooking) setLoading(true);
 
       void fetchMyOrders();
       const interval = setInterval(() => void fetchMyOrders(), 5000);
@@ -1418,6 +1414,8 @@ export default function MotoristActivityScreen() {
       "ongoing",
     ].includes(String(req.status ?? "").toLowerCase()),
   );
+  const visibleBookings = filteredRequests;
+  const hasActiveRequests = filteredRequests.length > 0;
   const activeRequestIds = filteredRequests
     .map((request) => String(request.id))
     .sort()
@@ -1503,12 +1501,12 @@ export default function MotoristActivityScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (!showNearbyMechanics || loading || filteredRequests.length > 0)
+      if (!showNearbyMechanics || loading || hasActiveRequests)
         return;
       void fetchNearbyMechanics();
     }, [
       fetchNearbyMechanics,
-      filteredRequests.length,
+      hasActiveRequests,
       loading,
       showNearbyMechanics,
     ]),
@@ -2177,7 +2175,7 @@ export default function MotoristActivityScreen() {
         bounces={false}
         alwaysBounceVertical={false}
       >
-        {filteredRequests.length === 0 ? (
+        {visibleBookings.length === 0 ? (
           showNearbyMechanics ? (
             <View style={styles.nearbyBrowse}>
               <TouchableOpacity
@@ -2395,20 +2393,24 @@ export default function MotoristActivityScreen() {
             </View>
           )
         ) : (
-          filteredRequests.map((req) => {
+          visibleBookings.map((req) => {
             const requestType = String(req.request_type ?? "").toLowerCase();
             const requestStatus = String(req.status ?? "").toLowerCase();
+            const isWaitingForMechanic = ["pending", "scheduled"].includes(
+              requestStatus,
+            );
             const showScheduledStyle =
-              Boolean(req.mechanic_id) &&
-              (requestType === "scheduled" || requestType === "emergency") &&
-              (requestStatus === "scheduled" ||
-                [
-                  "accepted",
-                  "in_transit",
-                  "arrived",
-                  "in_progress",
-                  "ongoing",
-                ].includes(requestStatus));
+              (requestType === "emergency" && isWaitingForMechanic) ||
+              (Boolean(req.mechanic_id) &&
+                (requestType === "scheduled" || requestType === "emergency") &&
+                (requestStatus === "scheduled" ||
+                  [
+                    "accepted",
+                    "in_transit",
+                    "arrived",
+                    "in_progress",
+                    "ongoing",
+                  ].includes(requestStatus)));
             return showScheduledStyle ? (
               <ScheduledBookingCard
                 key={req.id}
@@ -2420,10 +2422,17 @@ export default function MotoristActivityScreen() {
             ) : (
               <View
                 key={req.id}
-                style={[
-                  styles.card,
-                  { backgroundColor: colors.card, borderColor: colors.border },
-                ]}
+                style={
+                  requestType === "emergency"
+                    ? styles.emergencyRequest
+                    : [
+                        styles.card,
+                        {
+                          backgroundColor: colors.card,
+                          borderColor: colors.border,
+                        },
+                      ]
+                }
               >
                 <View style={styles.cardHeader}>
                   <Text style={[styles.serviceType, { color: colors.text }]}>
@@ -3261,6 +3270,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 5,
   },
+  emergencyRequest: { paddingVertical: 12, marginBottom: 16 },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
