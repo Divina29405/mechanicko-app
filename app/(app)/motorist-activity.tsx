@@ -525,7 +525,10 @@ function ScheduledBookingCard({
               onPress={() =>
                 router.push({
                   pathname: "/messages",
-                  params: { serviceRequestId: String(request.id) },
+                  params: {
+                    serviceRequestId: String(request.id),
+                    counterpartId: String(request.mechanic_id ?? ""),
+                  },
                 })
               }
             >

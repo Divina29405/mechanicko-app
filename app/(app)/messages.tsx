@@ -1,10 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentRef,
+} from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   FlatList,
   Image,
   Keyboard,
@@ -28,6 +34,7 @@ import { imageAssetToBytes, refreshChatImageUrl } from '@/lib/chatMedia';
 import { supabase } from '@/lib/supabase';
 import { colors as palette } from '@/lib/theme';
 import { useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type ChatMessage = {
   id: string;
@@ -126,6 +133,7 @@ export default function MessagesScreen() {
   const { session } = useAuth();
   const { isMechanic } = useMechanic();
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { serviceRequestId, counterpartId } = useLocalSearchParams<{
     serviceRequestId?: string;
     counterpartId?: string;
@@ -149,7 +157,7 @@ export default function MessagesScreen() {
   const activeMessageFilter =
     messageFilter ?? (isMechanic ? 'resolved' : 'all');
   const [conversationOpen, setConversationOpen] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [keyboardOverlap, setKeyboardOverlap] = useState(0);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [hasUnlinkedBookings, setHasUnlinkedBookings] = useState(false);
   const [chatImageSizes, setChatImageSizes] = useState<
@@ -162,25 +170,38 @@ export default function MessagesScreen() {
   const chatImageSizeRequests = useRef(new Set<string>());
   const chatImageRefreshRequests = useRef(new Set<string>());
   const historyListRef = useRef<FlatList<ChatMessage>>(null);
+  const chatLayoutRef = useRef<ComponentRef<typeof View>>(null);
+  const keyboardTopRef = useRef<number | null>(null);
   const initialHistoryPositionSet = useRef(false);
   const newestFirstMessages = useMemo(() => [...messages].reverse(), [messages]);
 
+  const updateChatKeyboardOverlap = useCallback(() => {
+    if (Platform.OS !== 'android' || keyboardTopRef.current === null) return;
+    requestAnimationFrame(() => {
+      chatLayoutRef.current?.measureInWindow((_x, y, _width, height) => {
+        const keyboardTop = keyboardTopRef.current;
+        if (keyboardTop === null) return;
+        setKeyboardOverlap(Math.max(0, y + height - keyboardTop));
+      });
+    });
+  }, []);
+
   useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
     const showSubscription = Keyboard.addListener('keyboardDidShow', (event) => {
-      const screenHeight = Dimensions.get('screen').height;
-      setKeyboardHeight(
-        Math.max(0, screenHeight - event.endCoordinates.screenY),
-      );
+      keyboardTopRef.current = event.endCoordinates.screenY - insets.top;
+      updateChatKeyboardOverlap();
     });
     const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardHeight(0);
+      keyboardTopRef.current = null;
+      setKeyboardOverlap(0);
     });
 
     return () => {
       showSubscription.remove();
       hideSubscription.remove();
     };
-  }, []);
+  }, [insets.top, updateChatKeyboardOverlap]);
 
   const visibleConversations = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -834,6 +855,11 @@ export default function MessagesScreen() {
           <Text style={[styles.recentTitle, { color: colors.text }]}>RECENT CONVERSATIONS</Text>
         </View>
       </View>}
+      <View
+        ref={chatLayoutRef}
+        onLayout={updateChatKeyboardOverlap}
+        style={styles.root}
+      >
       <KeyboardAvoidingView
         style={[styles.root, { backgroundColor: colors.bg }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1052,7 +1078,7 @@ export default function MessagesScreen() {
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.messageList}
                 inverted
-                automaticallyAdjustKeyboardInsets
+                automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
                 keyboardShouldPersistTaps="handled"
                 onContentSizeChange={() => {
                   if (initialHistoryPositionSet.current || messages.length === 0) {
@@ -1261,11 +1287,11 @@ export default function MessagesScreen() {
               style={[
                 styles.composer,
                 { backgroundColor: colors.card, borderTopColor: colors.border },
-                Platform.OS === 'android' && keyboardHeight > 0 && {
+                Platform.OS === 'android' && keyboardOverlap > 0 && {
                   position: 'absolute',
                   left: 0,
                   right: 0,
-                  bottom: keyboardHeight,
+                  bottom: keyboardOverlap,
                 },
               ]}
             >
@@ -1299,6 +1325,7 @@ export default function MessagesScreen() {
           </>
         )}
       </KeyboardAvoidingView>
+      </View>
       <Modal
         visible={viewingChatImage !== null}
         transparent

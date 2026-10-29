@@ -303,7 +303,7 @@ export default function EmergencyChecklistScreen({
         presentationStyle="pageSheet"
         onRequestClose={saveNotesDraft}
       >
-        <KeyboardAvoidingView style={[styles.modalContainer, { backgroundColor: colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView style={[styles.modalContainer, { backgroundColor: colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
             <TouchableOpacity onPress={saveNotesDraft} style={styles.modalCloseButton} accessibilityLabel="Back to emergency form">
               <Ionicons name="arrow-back" size={22} color={colors.text} />
