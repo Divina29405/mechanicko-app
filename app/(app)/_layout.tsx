@@ -207,6 +207,7 @@ function CustomerTabs() {
 
   return (
     <Tabs
+      detachInactiveScreens={false}
       screenOptions={{
         headerShown: false,
         animation: "none",

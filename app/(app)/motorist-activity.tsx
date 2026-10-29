@@ -59,6 +59,12 @@ type NearbyMechanic = {
 
 const mechanicAvatarUrlCache = new Map<string, string>();
 const mechanicServicesCountCache = new Map<string, number>();
+const motoristOrdersCache = new Map<string, any[]>();
+const nearbyMechanicsCache = new Map<
+  string,
+  { mechanics: NearbyMechanic[]; cachedAt: number }
+>();
+const NEARBY_MECHANICS_CACHE_DURATION_MS = 2 * 60 * 1000;
 const mechanicServicesCountKey = (mechanicId: string) =>
   `mechanic_services_count_${mechanicId}`;
 const CANCELLATION_REASONS = [
@@ -77,10 +83,12 @@ function hasMechanicStartedTrip(status: unknown) {
 function ScheduledBookingCard({
   request,
   colors,
+  unreadMessageCount,
   onCancel,
 }: {
   request: any;
   colors: BookingColors;
+  unreadMessageCount: number;
   onCancel: (id: string) => void;
 }) {
   const mapRef = useRef<MapWebViewHandle | null>(null);
@@ -92,11 +100,14 @@ function ScheduledBookingCard({
   const isAwaitingMechanic = ["scheduled", "pending"].includes(
     normalizedStatus,
   );
-  const isTrackingActive = ["in_transit", "arrived", "in_progress"].includes(
-    normalizedStatus,
-  );
+  const isTrackingActive = [
+    "in_transit",
+    "arrived",
+    "in_progress",
+    "ongoing",
+  ].includes(normalizedStatus);
   const currentStep =
-    normalizedStatus === "in_progress"
+    normalizedStatus === "in_progress" || normalizedStatus === "ongoing"
       ? 3
       : normalizedStatus === "completed"
         ? 4
@@ -121,6 +132,64 @@ function ScheduledBookingCard({
   const payableTotal =
     Number(request.estimated_total ?? request.service_price ?? 0) +
     approvedAdditionalTotal;
+  const savedServiceBreakdown = Array.isArray(request.service_breakdown)
+    ? request.service_breakdown
+        .filter(
+          (item: any) =>
+            typeof (item?.service ?? item?.service_name ?? item?.name) ===
+              "string" &&
+            Number.isFinite(Number(item.price)),
+        )
+        .map((item: any) => ({
+          service: item.service ?? item.service_name ?? item.name,
+          price: Number(item.price),
+        }))
+    : [];
+  const serviceNames = String(request.service_name ?? "")
+    .split(",")
+    .map((service: string) => service.trim())
+    .filter(Boolean);
+  const servicePrice = Number(request.service_price ?? 0);
+  const mechanicPrices = Array.isArray(request.mechanic?.services)
+    ? request.mechanic.services
+    : [];
+  const pricesByService = new Map<string, number>(
+    mechanicPrices.flatMap((item: any): [string, number][] => {
+      const name = String(item.service ?? item.service_name ?? item.name ?? "")
+        .trim()
+        .toLowerCase();
+      const price = Number(String(item.price ?? item.amount ?? "").replace(/[^\d.]/g, ""));
+      return name && Number.isFinite(price) ? [[name, price]] : [];
+    }),
+  );
+  const currentServiceBreakdown = serviceNames.map((service: string) => ({
+    service,
+    price: pricesByService.get(service.toLowerCase()),
+  }));
+  const currentBreakdownTotal = currentServiceBreakdown.reduce(
+    (total: number, item: { price: number | undefined }) =>
+      total + (item.price ?? 0),
+    0,
+  );
+  const canUseCurrentServicePrices =
+    currentServiceBreakdown.length > 0 &&
+    currentServiceBreakdown.every(
+      (item: { price: number | undefined }) => item.price !== undefined,
+    ) &&
+    Math.abs(currentBreakdownTotal - servicePrice) < 0.01;
+  const serviceBreakdown: { service: string; price: number | null }[] =
+    savedServiceBreakdown.length > 0
+      ? savedServiceBreakdown
+      : canUseCurrentServicePrices
+        ? currentServiceBreakdown.map(
+            (item: { service: string; price: number | undefined }) => ({
+              service: item.service,
+              price: item.price ?? 0,
+            }),
+          )
+        : serviceNames.map((service: string) => ({ service, price: null }));
+  const showServiceSubtotal =
+    savedServiceBreakdown.length === 0 && !canUseCurrentServicePrices;
 
   useEffect(() => {
     let active = true;
@@ -211,7 +280,19 @@ function ScheduledBookingCard({
         <script>
           var mapCenter = [${latitude}, ${longitude}];
           var map = L.map('map', { zoomControl: false, attributionControl: false }).setView(mapCenter, 15);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+          var bookingTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+          window.refreshBookingMap = function(forceTileRedraw) {
+            requestAnimationFrame(function() {
+              map.invalidateSize({ pan: false, debounceMoveend: true });
+              var tileContainer = bookingTileLayer.getContainer();
+              var loadedTiles = tileContainer
+                ? tileContainer.querySelectorAll('.leaflet-tile-loaded').length
+                : 0;
+              if (forceTileRedraw || !loadedTiles) {
+                bookingTileLayer.redraw();
+              }
+            });
+          };
           var icon = L.divIcon({ html: '<div class="you-pin">⌖</div>', className: '', iconSize: [38, 38], iconAnchor: [19, 19] });
           L.marker(mapCenter, { icon: icon }).addTo(map);
           var mechanicMarker = null;
@@ -227,11 +308,27 @@ function ScheduledBookingCard({
             map.fitBounds([mapCenter, mechanicPoint], { padding: [32, 32], maxZoom: 16 });
           };
           ${hasMechanicLocation ? `window.updateMechanicLocation(${mechanicLatitude}, ${mechanicLongitude});` : ""}
-          setTimeout(function () { map.invalidateSize(); }, 100);
+          setTimeout(function () { window.refreshBookingMap(); }, 100);
         </script>
       </body>
     </html>
   `;
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isTrackingActive) return undefined;
+      const refreshMap = () =>
+        mapRef.current?.injectJavaScript(
+          "if (window.refreshBookingMap) { window.refreshBookingMap(true); } true;",
+        );
+      const firstRefresh = setTimeout(refreshMap, 250);
+      const settledRefresh = setTimeout(refreshMap, 700);
+      return () => {
+        clearTimeout(firstRefresh);
+        clearTimeout(settledRefresh);
+      };
+    }, [isTrackingActive]),
+  );
 
   useEffect(() => {
     if (!isTrackingActive || !hasMechanicLocation) return;
@@ -266,6 +363,11 @@ function ScheduledBookingCard({
             domStorageEnabled
             scrollEnabled={false}
             nestedScrollEnabled={false}
+            onLoadEnd={() =>
+              mapRef.current?.injectJavaScript(
+                "if (window.refreshBookingMap) { window.refreshBookingMap(true); } true;",
+              )
+            }
           />
           <View style={styles.bookingMapControls}>
             <TouchableOpacity
@@ -294,12 +396,6 @@ function ScheduledBookingCard({
                 color="#172B66"
               />
             </TouchableOpacity>
-          </View>
-          <View style={styles.bookingMapLabel}>
-            <Ionicons name="navigate-outline" size={18} color="#18A957" />
-            <Text style={styles.bookingMapLabelText}>
-              Real-Time Mechanic Tracking
-            </Text>
           </View>
         </View>
       ) : null}
@@ -340,12 +436,6 @@ function ScheduledBookingCard({
               <Ionicons name="locate-outline" size={24} color="#172B66" />
             </TouchableOpacity>
           </View>
-          <View style={styles.fullscreenMapLabel}>
-            <Ionicons name="navigate-outline" size={18} color="#18A957" />
-            <Text style={styles.bookingMapLabelText}>
-              Real-Time Mechanic Tracking
-            </Text>
-          </View>
         </View>
       </Modal>
 
@@ -380,11 +470,13 @@ function ScheduledBookingCard({
                 ) : null}
               </View>
               <Text style={styles.mechanicVehicleText}>
-                {request.vehicle_type || "Honda Click 125"}{" "}
+                {request.vehicle_type || "Honda Click 125"}
+              </Text>
+              <View style={styles.mechanicPlateBadge}>
                 <Text style={styles.mechanicPlateText}>
                   {request.plate_number || "884-NK"}
                 </Text>
-              </Text>
+              </View>
             </View>
             <View style={styles.moderateBadge}>
               <Text style={styles.moderateBadgeText}>
@@ -393,7 +485,11 @@ function ScheduledBookingCard({
             </View>
           </View>
           <View style={styles.vehicleSummary}>
-            <Ionicons name="construct-outline" size={20} color="#F08A00" />
+            <Image
+              source={require("../../assets/images/mechanic1.png")}
+              style={styles.mechanicSummaryIcon}
+              resizeMode="contain"
+            />
             <Text style={styles.vehicleSummaryText}>
               {isAwaitingMechanic
                 ? "Waiting for mechanic acceptance"
@@ -420,6 +516,12 @@ function ScheduledBookingCard({
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.squareBookingButton}
+              accessibilityRole="button"
+              accessibilityLabel={
+                unreadMessageCount > 0
+                  ? `Open chat, ${unreadMessageCount} unread messages`
+                  : "Open chat"
+              }
               onPress={() =>
                 router.push({
                   pathname: "/messages",
@@ -428,6 +530,13 @@ function ScheduledBookingCard({
               }
             >
               <Ionicons name="chatbox-outline" size={26} color="#172B66" />
+              {unreadMessageCount > 0 ? (
+                <View style={styles.chatUnreadBadge}>
+                  <Text style={styles.chatUnreadBadgeText}>
+                    {unreadMessageCount > 99 ? "99+" : unreadMessageCount}
+                  </Text>
+                </View>
+              ) : null}
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.squareBookingButton}
@@ -448,28 +557,32 @@ function ScheduledBookingCard({
           <Text style={styles.progressStep}>STEP {currentStep} OF 4</Text>
         </View>
         {[
-          [
-            isAwaitingMechanic ? "Waiting for Acceptance" : "Request Confirmed",
-            isAwaitingMechanic
+          {
+            title: isAwaitingMechanic
+              ? "Waiting for Acceptance"
+              : "Request Confirmed",
+            subtitle: isAwaitingMechanic
               ? "Your request was sent to the mechanic."
               : "Mechanic assigned and parts prepared.",
-            "✓",
-            "#18A957",
-          ],
-          ["Mechanic on the way", "Now on the way!", "⌃", "#C44A00"],
-          [
-            "Mechanic in service",
-            "Free 15-point electronic stator and battery health test.",
-            "≡",
-            "#A8B0C0",
-          ],
-          [
-            "Repair & Cash Settlement",
-            "Testing, digital receipt & 30-day warranty release.",
-            "♢",
-            "#A8B0C0",
-          ],
-        ].map(([title, subtitle, icon, color], index) => (
+            icon: null,
+          },
+          {
+            title: "Mechanic on the way",
+            subtitle: "Now on the way!",
+            icon: require("../../assets/images/ontheway.png"),
+          },
+          {
+            title: "Mechanic in service",
+            subtitle:
+              "Free 15-point electronic stator and battery health test.",
+            icon: require("../../assets/images/inservice.png"),
+          },
+          {
+            title: "Repair & Cash Settlement",
+            subtitle: "Testing, digital receipt & 30-day warranty release.",
+            icon: require("../../assets/images/settlement.png"),
+          },
+        ].map(({ title, subtitle, icon }, index) => (
           <View key={title} style={styles.progressRow}>
             <View
               style={[
@@ -486,7 +599,15 @@ function ScheduledBookingCard({
                 },
               ]}
             >
-              <Text style={styles.progressIconText}>{icon}</Text>
+              {icon ? (
+                <Image
+                  source={icon}
+                  style={styles.progressStepImage}
+                  resizeMode="contain"
+                />
+              ) : (
+                <Text style={styles.progressIconText}>✓</Text>
+              )}
             </View>
             <View style={styles.progressCopy}>
               <Text
@@ -524,7 +645,9 @@ function ScheduledBookingCard({
               {index + 1 < currentStep
                 ? "Done"
                 : index + 1 === currentStep
-                  ? progressStatusLabel
+                  ? isAwaitingMechanic && index === 0
+                    ? "Waiting"
+                    : progressStatusLabel
                   : "Pending"}
             </Text>
           </View>
@@ -561,23 +684,73 @@ function ScheduledBookingCard({
           </Text>
         </View>
         <View style={styles.estimatedFee}>
-          <View>
-            <Text style={styles.estimatedFeeLabel}>ESTIMATED SERVICE FEE</Text>
+          <View style={styles.estimatedFeeHeader}>
+            <View style={styles.estimatedFeeHeaderCopy}>
+              <Text style={styles.estimatedFeeLabel}>ESTIMATED SERVICE FEE</Text>
+              <Text
+                style={[
+                  styles.estimatedFeeDescription,
+                  { color: colors.textMuted },
+                ]}
+              >
+                Service and distance breakdown
+              </Text>
+            </View>
             <Text
-              style={[
-                styles.estimatedFeeDescription,
-                { color: colors.textMuted },
-              ]}
+              style={styles.estimatedFeeAmount}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
             >
-              Dispatch + Standard Labor
+              ₱
+              {payableTotal.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+              })}
             </Text>
           </View>
-          <Text style={styles.estimatedFeeAmount}>
-            ₱
-            {payableTotal.toLocaleString("en-PH", {
-              minimumFractionDigits: 2,
-            })}
-          </Text>
+          <View style={styles.estimatedFeeBreakdown}>
+            {serviceBreakdown.map((item, index) => (
+              <View
+                key={`${item.service}-${index}`}
+                style={styles.estimatedFeeBreakdownRow}
+              >
+                <Text style={styles.estimatedFeeBreakdownLabel}>
+                  {item.service}
+                </Text>
+                <Text style={styles.estimatedFeeBreakdownValue}>
+                  {item.price === null
+                    ? "Included"
+                    : `₱${item.price.toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                      })}`}
+                </Text>
+              </View>
+            ))}
+            {showServiceSubtotal ? (
+              <View style={styles.estimatedFeeBreakdownRow}>
+                <Text style={styles.estimatedFeeBreakdownLabel}>
+                  Services total
+                </Text>
+                <Text style={styles.estimatedFeeBreakdownValue}>
+                  ₱{servicePrice.toLocaleString("en-PH", {
+                    minimumFractionDigits: 2,
+                  })}
+                </Text>
+              </View>
+            ) : null}
+            {Number(request.delivery_fee ?? 0) > 0 ? (
+              <View style={styles.estimatedFeeBreakdownRow}>
+                <Text style={styles.estimatedFeeBreakdownLabel}>
+                  Distance fee
+                </Text>
+                <Text style={styles.estimatedFeeBreakdownValue}>
+                  ₱{Number(request.delivery_fee).toLocaleString("en-PH", {
+                    minimumFractionDigits: 2,
+                  })}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
         {additionalCharges.length > 0 ? (
           <View style={styles.additionalChargesBox}>
@@ -650,15 +823,28 @@ function ScheduledBookingCard({
 export default function MotoristActivityScreen() {
   const { session } = useAuth();
   const { colors } = useAppTheme();
+  const motoristId = session?.user.id;
 
-  const [requests, setRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [acceptanceNotice, setAcceptanceNotice] = useState<string | null>(null);
+  const [requests, setRequests] = useState<any[]>(
+    () => (motoristId ? motoristOrdersCache.get(motoristId) : undefined) ?? [],
+  );
+  const [unreadChatState, setUnreadChatState] = useState<{
+    userId: string | undefined;
+    requestIds: string;
+    counts: Record<string, number>;
+  }>({ userId: undefined, requestIds: "", counts: {} });
+  const [loading, setLoading] = useState(
+    () => Boolean(motoristId && !motoristOrdersCache.has(motoristId)),
+  );
   const [cancellationNotice, setCancellationNotice] = useState<string | null>(
     null,
   );
   const [cancelSuccessVisible, setCancelSuccessVisible] = useState(false);
-  const [nearbyMechanics, setNearbyMechanics] = useState<NearbyMechanic[]>([]);
+  const [warningRecordedVisible, setWarningRecordedVisible] = useState(false);
+  const [bookingSubmittedVisible, setBookingSubmittedVisible] = useState(false);
+  const [nearbyMechanics, setNearbyMechanics] = useState<NearbyMechanic[]>(
+    () => (motoristId ? nearbyMechanicsCache.get(motoristId)?.mechanics : undefined) ?? [],
+  );
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [nearbySearch, setNearbySearch] = useState("");
   const [nearbyFilter, setNearbyFilter] = useState<"all" | "nearby">("all");
@@ -730,17 +916,27 @@ export default function MotoristActivityScreen() {
   );
   const [submittingSchedule, setSubmittingSchedule] = useState(false);
   const previousStatuses = useRef(new Map<string, string>());
-  const hasLoadedRequests = useRef(false);
+  const loadedRequestsUserId = useRef<string | null>(null);
+  const ordersFetchRequestId = useRef(0);
+  const nearbyFetchInProgress = useRef(false);
 
   const fetchMyOrders = useCallback(async () => {
-    if (!session?.user.id) return;
+    if (!motoristId) return;
+    const requestId = ++ordersFetchRequestId.current;
     const { data, error } = await supabase
       .from("service_requests")
       .select("*")
-      .eq("motorist_id", session.user.id)
+      .eq("motorist_id", motoristId)
       .order("created_at", { ascending: false });
 
-    if (!error && data) {
+    if (requestId !== ordersFetchRequestId.current) return;
+    if (error) {
+      console.warn("Could not refresh motorist bookings:", error.message);
+      setLoading(false);
+      return;
+    }
+
+    if (data) {
       const mechanicIds = [
         ...new Set(
           data
@@ -756,6 +952,7 @@ export default function MotoristActivityScreen() {
           avatarUrl: string | null;
           rating: number;
           servicesCount: number | undefined;
+          services: any[];
         }
       >();
 
@@ -768,7 +965,9 @@ export default function MotoristActivityScreen() {
             await Promise.all([
               supabase
                 .from("profiles")
-                .select("full_name,mobile_number,avatar_path,average_rating")
+                .select(
+                  "full_name,mobile_number,avatar_path,average_rating,maintenance_pricing",
+                )
                 .eq("id", mechanicId)
                 .maybeSingle(),
               supabase
@@ -801,6 +1000,9 @@ export default function MotoristActivityScreen() {
               servicesCount ??
               mechanicServicesCountCache.get(mechanicId) ??
               (storedCount === null ? undefined : Number(storedCount)),
+            services: Array.isArray(profile?.maintenance_pricing)
+              ? profile.maintenance_pricing
+              : [],
           });
           if (servicesCount !== null) {
             mechanicServicesCountCache.set(mechanicId, servicesCount);
@@ -811,6 +1013,7 @@ export default function MotoristActivityScreen() {
           }
         }),
       );
+      if (requestId !== ordersFetchRequestId.current) return;
 
       const enrichedRequests = data.map((request) => ({
         ...request,
@@ -818,20 +1021,7 @@ export default function MotoristActivityScreen() {
           ? (mechanicProfiles.get(request.mechanic_id) ?? null)
           : null,
       }));
-      if (hasLoadedRequests.current) {
-        const newlyAccepted = enrichedRequests.find((request) => {
-          const previousStatus = previousStatuses.current.get(request.id);
-          return (
-            previousStatus &&
-            ["pending", "scheduled"].includes(previousStatus) &&
-            String(request.status).toLowerCase() === "accepted"
-          );
-        });
-        if (newlyAccepted) {
-          setAcceptanceNotice(
-            `${newlyAccepted.mechanic?.name || "Your mechanic"} accepted your booking.`,
-          );
-        }
+      if (loadedRequestsUserId.current === motoristId) {
         const newlyCancelled = enrichedRequests.find((request) => {
           const previousStatus = previousStatuses.current.get(request.id);
           return (
@@ -862,21 +1052,36 @@ export default function MotoristActivityScreen() {
           String(request.status).toLowerCase(),
         ]),
       );
-      hasLoadedRequests.current = true;
+      loadedRequestsUserId.current = motoristId;
+      motoristOrdersCache.set(motoristId, enrichedRequests);
       setRequests(enrichedRequests);
     }
     setLoading(false);
-  }, [session]);
+  }, [motoristId]);
 
   const fetchNearbyMechanics = useCallback(async () => {
-    setNearbyLoading(true);
+    if (!motoristId || nearbyFetchInProgress.current) return;
+    const cachedNearby = nearbyMechanicsCache.get(motoristId);
+    if (cachedNearby) {
+      setNearbyMechanics(cachedNearby.mechanics);
+      if (
+        Date.now() - cachedNearby.cachedAt <
+        NEARBY_MECHANICS_CACHE_DURATION_MS
+      ) {
+        setNearbyLoading(false);
+        return;
+      }
+    }
+
+    nearbyFetchInProgress.current = true;
+    if (!cachedNearby) setNearbyLoading(true);
     try {
       let permission = await Location.getForegroundPermissionsAsync();
       if (permission.status !== "granted") {
         permission = await Location.requestForegroundPermissionsAsync();
       }
       if (permission.status !== "granted") {
-        setNearbyMechanics([]);
+        if (!cachedNearby) setNearbyMechanics([]);
         return;
       }
 
@@ -893,7 +1098,6 @@ export default function MotoristActivityScreen() {
 
       if (error) {
         console.warn("Nearby mechanics unavailable:", error.message);
-        setNearbyMechanics([]);
         return;
       }
 
@@ -924,21 +1128,25 @@ export default function MotoristActivityScreen() {
           rating: Number(mechanic.average_rating) || 5,
           reviewCount: Number(mechanic.review_count) || 0,
           distanceKm,
-          distance: `${distanceKm.toFixed(distanceKm < 1 ? 1 : 1)} km away`,
+          distance: `${distanceKm.toFixed(1)} km away from you`,
           etaMinutes: Math.max(4, Math.round(distanceKm * 8)),
           isOnline: mechanic.is_online !== false,
           skills: mechanic.skills || "Comprehensive roadside assistance",
           services,
         };
       });
+      nearbyMechanicsCache.set(motoristId, {
+        mechanics: formattedMechanics,
+        cachedAt: Date.now(),
+      });
       setNearbyMechanics(formattedMechanics);
     } catch (error) {
       console.warn("Unable to load nearby mechanics:", error);
-      setNearbyMechanics([]);
     } finally {
+      nearbyFetchInProgress.current = false;
       setNearbyLoading(false);
     }
-  }, []);
+  }, [motoristId]);
 
   const nearbyMechanicIds = nearbyMechanics
     .map((mechanic) => mechanic.id)
@@ -985,38 +1193,36 @@ export default function MotoristActivityScreen() {
   }, [nearbyMechanicIds, session?.user.id]);
 
   useEffect(() => {
-    if (!acceptanceNotice) return;
-    const timeout = setTimeout(() => setAcceptanceNotice(null), 7000);
-    return () => clearTimeout(timeout);
-  }, [acceptanceNotice]);
-
-  useEffect(() => {
     if (!cancellationNotice) return;
     const timeout = setTimeout(() => setCancellationNotice(null), 7000);
     return () => clearTimeout(timeout);
   }, [cancellationNotice]);
 
   useEffect(() => {
-    if (!session?.user.id) return;
+    if (!motoristId) return;
     const channel = supabase
-      .channel(`motorist_booking_status_${session.user.id}`)
+      .channel(`motorist_booking_status_${motoristId}`)
       .on(
         "postgres_changes",
         {
           event: "UPDATE",
           schema: "public",
           table: "service_requests",
-          filter: `motorist_id=eq.${session.user.id}`,
+          filter: `motorist_id=eq.${motoristId}`,
         },
         (payload) => {
           const updatedRequest = payload.new as Record<string, unknown>;
-          setRequests((currentRequests) =>
-            currentRequests.map((request) =>
+          setRequests((currentRequests) => {
+            const updatedRequests = currentRequests.map((request) =>
               String(request.id) === String(updatedRequest.id)
                 ? { ...request, ...updatedRequest }
                 : request,
-            ),
-          );
+            );
+            if (motoristId) {
+              motoristOrdersCache.set(motoristId, updatedRequests);
+            }
+            return updatedRequests;
+          });
           const oldStatus = String(
             payload.old.status ??
               previousStatuses.current.get(String(payload.new.id)) ??
@@ -1027,7 +1233,6 @@ export default function MotoristActivityScreen() {
             ["pending", "scheduled"].includes(oldStatus) &&
             newStatus === "accepted"
           ) {
-            setAcceptanceNotice("Your mechanic accepted your booking.");
             void fetchMyOrders();
           } else if (
             [
@@ -1051,14 +1256,38 @@ export default function MotoristActivityScreen() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [fetchMyOrders, session?.user.id]);
+  }, [fetchMyOrders, motoristId]);
 
   useFocusEffect(
     useCallback(() => {
+      if (!motoristId) {
+        setLoading(false);
+        return undefined;
+      }
+
+      const cachedOrders = motoristOrdersCache.get(motoristId) ?? [];
+      const hasCachedActiveBooking = cachedOrders.some((request) =>
+        [
+          "pending",
+          "scheduled",
+          "accepted",
+          "in_transit",
+          "arrived",
+          "in_progress",
+          "ongoing",
+        ].includes(String(request.status ?? "").toLowerCase()),
+      );
+      if (
+        !hasCachedActiveBooking &&
+        loadedRequestsUserId.current !== motoristId
+      ) {
+        setLoading(true);
+      }
+
       void fetchMyOrders();
       const interval = setInterval(() => void fetchMyOrders(), 5000);
       return () => clearInterval(interval);
-    }, [fetchMyOrders]),
+    }, [fetchMyOrders, motoristId]),
   );
 
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
@@ -1066,6 +1295,9 @@ export default function MotoristActivityScreen() {
   const [cancelReason, setCancelReason] = useState("");
   const [enteringOtherReason, setEnteringOtherReason] = useState(false);
   const [otherCancelReason, setOtherCancelReason] = useState("");
+  const [reasonRequiredMessage, setReasonRequiredMessage] = useState<
+    string | null
+  >(null);
   const [confirmationReason, setConfirmationReason] = useState<string | null>(
     null,
   );
@@ -1124,7 +1356,7 @@ export default function MotoristActivityScreen() {
 
   const confirmCancel = async (selectedReason = cancelReason) => {
     if (!selectedReason) {
-      Alert.alert("Reason Required", "Please select a reason for cancelling.");
+      setReasonRequiredMessage("Please select a reason for cancelling.");
       return;
     }
 
@@ -1154,10 +1386,7 @@ export default function MotoristActivityScreen() {
       selectedReason === "Issue was resolved locally" ||
       selectedReason === "Other"
       ) {
-      Alert.alert(
-        "Warning Recorded",
-        "Cancelling because the issue was resolved locally wastes the dispatched mechanic's time and fuel. Repeated cancellations will result in a temporary account suspension.",
-      );
+      setWarningRecordedVisible(true);
       } else {
       setCancelSuccessVisible(true);
       }
@@ -1186,8 +1415,77 @@ export default function MotoristActivityScreen() {
       "in_transit",
       "arrived",
       "in_progress",
+      "ongoing",
     ].includes(String(req.status ?? "").toLowerCase()),
   );
+  const activeRequestIds = filteredRequests
+    .map((request) => String(request.id))
+    .sort()
+    .join(",");
+  const unreadChatCounts =
+    unreadChatState.userId === motoristId &&
+    unreadChatState.requestIds === activeRequestIds
+      ? unreadChatState.counts
+      : {};
+
+  useEffect(() => {
+    if (!motoristId || !activeRequestIds) return;
+
+    let active = true;
+    const requestIds = activeRequestIds.split(",");
+    const refreshUnreadCounts = async () => {
+      const { data, error } = await supabase
+        .from("app_notifications")
+        .select("service_request_id")
+        .eq("user_id", motoristId)
+        .eq("type", "chat_message")
+        .is("read_at", null)
+        .in("service_request_id", requestIds);
+      if (!active) return;
+      if (error) {
+        console.warn("Could not load unread booking messages:", error.message);
+        return;
+      }
+
+      const counts: Record<string, number> = {};
+      data?.forEach((notification) => {
+        const requestId = notification.service_request_id;
+        if (requestId) counts[requestId] = (counts[requestId] ?? 0) + 1;
+      });
+      setUnreadChatState({
+        userId: motoristId,
+        requestIds: activeRequestIds,
+        counts,
+      });
+    };
+
+    void refreshUnreadCounts();
+    const channel = supabase
+      .channel(`motorist_booking_chat_badges_${motoristId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "app_notifications",
+          filter: `user_id=eq.${motoristId}`,
+        },
+        () => void refreshUnreadCounts(),
+      )
+      .subscribe((status, error) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn(
+            "Booking chat badge realtime connection failed:",
+            error?.message ?? status,
+          );
+        }
+      });
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [activeRequestIds, motoristId]);
   const visibleNearbyMechanics = useMemo(() => {
     const normalizedSearch = nearbySearch.trim().toLowerCase();
     return nearbyMechanics.filter((mechanic) => {
@@ -1312,6 +1610,10 @@ export default function MotoristActivityScreen() {
       plate_number: scheduleVehicle.plate_number,
       service_name: serviceNames,
       service_price: servicePrice,
+      service_breakdown: scheduleSelected.map((service) => ({
+        service: service.name,
+        price: Number(service.price) || 0,
+      })),
       delivery_fee: deliveryFee,
       estimated_total: servicePrice + deliveryFee,
       vehicle_issue: scheduleNotes.trim()
@@ -1330,46 +1632,12 @@ export default function MotoristActivityScreen() {
     }
     setScheduleMechanic(null);
     await fetchMyOrders();
-    Alert.alert("Booking submitted", "Your scheduled service request was sent.");
+    setBookingSubmittedVisible(true);
   };
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <MotoristHomeHeader />
-      {acceptanceNotice ? (
-        <View
-          style={[
-            styles.acceptanceNotice,
-            { backgroundColor: colors.card, borderColor: "#B7E4C7" },
-          ]}
-        >
-          <View style={styles.acceptanceNoticeIcon}>
-            <Ionicons name="checkmark" size={19} color="#FFFFFF" />
-          </View>
-          <View style={styles.acceptanceNoticeCopy}>
-            <Text
-              style={[styles.acceptanceNoticeTitle, { color: colors.text }]}
-            >
-              Booking accepted
-            </Text>
-            <Text
-              style={[
-                styles.acceptanceNoticeMessage,
-                { color: colors.textMuted },
-              ]}
-            >
-              {acceptanceNotice}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => setAcceptanceNotice(null)}
-            accessibilityLabel="Dismiss booking accepted notification"
-            style={styles.acceptanceNoticeClose}
-          >
-            <Ionicons name="close" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-        </View>
-      ) : null}
       {cancellationNotice ? (
         <View
           style={[
@@ -1435,19 +1703,104 @@ export default function MotoristActivityScreen() {
         </View>
       </Modal>
       <Modal
+        visible={warningRecordedVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setWarningRecordedVisible(false)}
+      >
+        <View style={styles.reasonRequiredOverlay}>
+          <View
+            style={[
+              styles.reasonRequiredCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+            accessibilityRole="alert"
+          >
+            <View style={styles.warningRecordedIcon}>
+              <Ionicons name="warning-outline" size={25} color="#B76E00" />
+            </View>
+            <Text style={[styles.reasonRequiredTitle, { color: colors.text }]}>
+              Warning Recorded
+            </Text>
+            <Text
+              style={[
+                styles.reasonRequiredMessage,
+                { color: colors.textMuted },
+              ]}
+            >
+              Cancelling because the issue was resolved locally wastes the
+              dispatched mechanic&apos;s time and fuel. Repeated cancellations
+              will result in a temporary account suspension.
+            </Text>
+            <TouchableOpacity
+              style={styles.reasonRequiredButton}
+              onPress={() => setWarningRecordedVisible(false)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.reasonRequiredButtonText}>Understood</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={bookingSubmittedVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setBookingSubmittedVisible(false)}
+      >
+        <View style={styles.cancelSuccessOverlay}>
+          <View
+            style={[
+              styles.cancelSuccessCard,
+              { backgroundColor: colors.card },
+            ]}
+            accessibilityRole="alert"
+          >
+            <View style={styles.cancelSuccessIcon}>
+              <Ionicons name="checkmark" size={32} color="#FFFFFF" />
+            </View>
+            <Text style={[styles.cancelSuccessTitle, { color: colors.text }]}>
+              Booking Submitted
+            </Text>
+            <Text
+              style={[
+                styles.cancelSuccessMessage,
+                { color: colors.textMuted },
+              ]}
+            >
+              Your scheduled service request was sent.
+            </Text>
+            <TouchableOpacity
+              style={styles.cancelSuccessButton}
+              onPress={() => setBookingSubmittedVisible(false)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.cancelSuccessButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal
         visible={servicesMechanic !== null}
         animationType="slide"
         transparent
         onRequestClose={() => setServicesMechanic(null)}
       >
-        <Pressable
-          style={[styles.servicesModalOverlay, { backgroundColor: colors.overlay }]}
-          onPress={() => setServicesMechanic(null)}
+        <View
+          style={[
+            styles.servicesModalOverlay,
+            { backgroundColor: colors.overlay },
+          ]}
         >
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setServicesMechanic(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Close service offerings"
+          />
           <SafeAreaView
             style={[styles.servicesSheet, { backgroundColor: colors.card }]}
             edges={[]}
-            onStartShouldSetResponder={() => true}
           >
             <View style={[styles.servicesSheetHeader, { borderBottomColor: colors.border }]}>
               <TouchableOpacity
@@ -1524,7 +1877,7 @@ export default function MotoristActivityScreen() {
               )}
             </ScrollView>
           </SafeAreaView>
-        </Pressable>
+        </View>
       </Modal>
 
       <Modal
@@ -1694,7 +2047,7 @@ export default function MotoristActivityScreen() {
               </View>
               <View style={styles.scheduleEstimateRow}>
                 <Text style={[styles.scheduleEstimateLabel, { color: colors.textMuted }]}>
-                  Delivery fee ({scheduleMechanic?.distance})
+                  Distance fee ({scheduleMechanic?.distance})
                 </Text>
                 <Text style={[styles.scheduleEstimateValue, { color: colors.primary }]}>
                   ₱{(scheduleMechanic
@@ -1824,13 +2177,7 @@ export default function MotoristActivityScreen() {
         bounces={false}
         alwaysBounceVertical={false}
       >
-        {loading ? (
-          <ActivityIndicator
-            size="large"
-            color={colors.primary}
-            style={{ marginTop: 40 }}
-          />
-        ) : filteredRequests.length === 0 ? (
+        {filteredRequests.length === 0 ? (
           showNearbyMechanics ? (
             <View style={styles.nearbyBrowse}>
               <TouchableOpacity
@@ -1886,7 +2233,7 @@ export default function MotoristActivityScreen() {
                 ))}
               </View>
 
-              {nearbyLoading ? (
+              {nearbyLoading && visibleNearbyMechanics.length === 0 ? (
                 <ActivityIndicator
                   size="large"
                   color={colors.primary}
@@ -1905,18 +2252,6 @@ export default function MotoristActivityScreen() {
                     ]}
                   >
                     <View style={styles.nearbyMechanicTopRow}>
-                      <View style={styles.nearbyMechanicBadge}>
-                        <Ionicons
-                          name="sparkles-outline"
-                          size={14}
-                          color="#FF6B2C"
-                        />
-                        <Text style={styles.nearbyMechanicBadgeText}>
-                          {mechanic.rating >= 4.8
-                            ? "TOP RATED"
-                            : "EXPRESS SERVICE"}
-                        </Text>
-                      </View>
                       <View style={styles.nearbyRating}>
                         <Ionicons name="star" size={17} color="#FF6B2C" />
                         <Text
@@ -2018,44 +2353,45 @@ export default function MotoristActivityScreen() {
                     </View>
                   </View>
                 ))
-              ) : (
-                <View style={[styles.emptyState, styles.emptyBookingsState]}>
-                  <Ionicons
-                    name="search-outline"
-                    size={48}
-                    color={colors.border}
-                  />
-                  <Text style={[styles.emptyText, { color: colors.text }]}>
-                    No nearby mechanics found.
-                  </Text>
-                  <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-                    Try another search or check again later.
-                  </Text>
-                </View>
-              )}
+              ) : null}
             </View>
           ) : (
             <View style={[styles.emptyState, styles.emptyBookingsState]}>
-              <Ionicons
-                name="receipt-outline"
-                size={54}
-                color={colors.border}
-              />
-              <Text style={[styles.emptyText, { color: colors.text }]}>
-                No active bookings.
-              </Text>
-              <Text style={[styles.emptySub, { color: colors.textMuted }]}>
-                You don&apos;t have any active bookings right now.
-              </Text>
-              <TouchableOpacity
-                style={styles.viewMechanicsButton}
-                onPress={() => setShowNearbyMechanics(true)}
-              >
-                <Ionicons name="people-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.viewMechanicsButtonText}>
-                  View Mechanics Near You
-                </Text>
-              </TouchableOpacity>
+              {loading ? (
+                <ActivityIndicator
+                  size="large"
+                  color={colors.primary}
+                  style={styles.emptyBookingsLoading}
+                  accessibilityLabel="Loading bookings"
+                />
+              ) : (
+                <>
+                  <Ionicons
+                    name="receipt-outline"
+                    size={54}
+                    color={colors.border}
+                  />
+                  <Text style={[styles.emptyText, { color: colors.text }]}>
+                    No active bookings.
+                  </Text>
+                  <Text style={[styles.emptySub, { color: colors.textMuted }]}>
+                    You don&apos;t have any active bookings right now.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.viewMechanicsButton}
+                    onPress={() => setShowNearbyMechanics(true)}
+                  >
+                    <Ionicons
+                      name="people-outline"
+                      size={20}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.viewMechanicsButtonText}>
+                      View Mechanics Near You
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           )
         ) : (
@@ -2066,14 +2402,19 @@ export default function MotoristActivityScreen() {
               Boolean(req.mechanic_id) &&
               (requestType === "scheduled" || requestType === "emergency") &&
               (requestStatus === "scheduled" ||
-                ["accepted", "in_transit", "arrived", "in_progress"].includes(
-                  requestStatus,
-                ));
+                [
+                  "accepted",
+                  "in_transit",
+                  "arrived",
+                  "in_progress",
+                  "ongoing",
+                ].includes(requestStatus));
             return showScheduledStyle ? (
               <ScheduledBookingCard
                 key={req.id}
                 request={req}
                 colors={colors}
+                unreadMessageCount={unreadChatCounts[String(req.id)] ?? 0}
                 onCancel={handleCancel}
               />
             ) : (
@@ -2167,8 +2508,7 @@ export default function MotoristActivityScreen() {
                   onPress={() => {
                     const reason = otherCancelReason.trim();
                     if (!reason) {
-                      Alert.alert(
-                        "Reason Required",
+                      setReasonRequiredMessage(
                         "Please enter a reason before continuing.",
                       );
                       return;
@@ -2288,6 +2628,41 @@ export default function MotoristActivityScreen() {
         </View>
       </Modal>
       <Modal
+        visible={reasonRequiredMessage !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReasonRequiredMessage(null)}
+      >
+        <View style={styles.reasonRequiredOverlay}>
+          <View
+            style={[
+              styles.reasonRequiredCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+            accessibilityRole="alert"
+          >
+            <Text style={[styles.reasonRequiredTitle, { color: colors.text }]}>
+              Reason Required
+            </Text>
+            <Text
+              style={[
+                styles.reasonRequiredMessage,
+                { color: colors.textMuted },
+              ]}
+            >
+              {reasonRequiredMessage}
+            </Text>
+            <TouchableOpacity
+              style={styles.reasonRequiredButton}
+              onPress={() => setReasonRequiredMessage(null)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.reasonRequiredButtonText}>Understood</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal
         visible={confirmationReason !== null}
         transparent
         animationType="fade"
@@ -2302,9 +2677,6 @@ export default function MotoristActivityScreen() {
               { backgroundColor: colors.card, borderColor: colors.border },
             ]}
           >
-            <View style={styles.confirmationIcon}>
-              <Ionicons name="alert-circle-outline" size={34} color="#EF4444" />
-            </View>
             <Text style={[styles.confirmationTitle, { color: colors.text }]}>
               Confirm Cancellation
             </Text>
@@ -2644,6 +3016,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   emptyBookingsState: { marginTop: 170 },
+  emptyBookingsLoading: { marginTop: 24 },
   emptyText: { fontSize: normalizeText(20), fontWeight: "700", marginTop: 16 },
   emptySub: {
     fontSize: normalizeText(16),
@@ -2742,24 +3115,8 @@ const styles = StyleSheet.create({
   nearbyMechanicTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
+    justifyContent: "flex-end",
     marginBottom: 8,
-  },
-  nearbyMechanicBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    borderRadius: 14,
-    backgroundColor: "#FFE6D9",
-  },
-  nearbyMechanicBadgeText: {
-    color: "#FF6B2C",
-    fontSize: normalizeText(11),
-    fontWeight: "900",
-    letterSpacing: 0.4,
   },
   nearbyRating: { flexDirection: "row", alignItems: "center", gap: 4 },
   nearbyRatingText: { fontSize: normalizeText(14), fontWeight: "800" },
@@ -3173,63 +3530,61 @@ const styles = StyleSheet.create({
   confirmationOverlay: {
     flex: 1,
     justifyContent: "center",
-    padding: 20,
-    backgroundColor: "rgba(0,0,0,0.58)",
+    padding: 28,
+    backgroundColor: "rgba(16, 24, 40, 0.58)",
   },
   confirmationCard: {
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: 22,
-    elevation: 12,
-  },
-  confirmationIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: "center",
-    justifyContent: "center",
+    width: "100%",
+    maxWidth: 360,
     alignSelf: "center",
-    backgroundColor: "rgba(239, 68, 68, 0.12)",
-    marginBottom: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 18,
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 10,
   },
   confirmationTitle: {
     textAlign: "center",
-    fontSize: normalizeText(23),
+    fontSize: normalizeText(18),
+    lineHeight: normalizeText(24),
     fontWeight: "800",
   },
   confirmationMessage: {
     textAlign: "center",
-    fontSize: normalizeText(16),
-    lineHeight: normalizeText(24),
-    marginTop: 8,
+    fontSize: normalizeText(14),
+    lineHeight: normalizeText(20),
+    marginTop: 6,
   },
   selectedReasonBox: {
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 13,
-    marginTop: 18,
+    borderRadius: 10,
+    padding: 11,
+    marginTop: 14,
   },
   selectedReasonLabel: {
-    fontSize: normalizeText(13),
+    fontSize: normalizeText(11),
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   selectedReasonValue: {
-    fontSize: normalizeText(16),
+    fontSize: normalizeText(14),
     fontWeight: "700",
-    lineHeight: normalizeText(22),
-    marginTop: 4,
+    lineHeight: normalizeText(20),
+    marginTop: 3,
   },
   confirmationWarning: {
     textAlign: "center",
-    fontSize: normalizeText(14),
-    marginTop: 14,
+    fontSize: normalizeText(12),
+    marginTop: 10,
   },
   confirmationActions: {
     flexDirection: "row",
-    gap: 10,
-    marginTop: 20,
+    gap: 8,
+    marginTop: 16,
   },
   keepBookingButton: {
     flex: 1,
@@ -3237,18 +3592,68 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 14,
+    minHeight: 44,
+    paddingHorizontal: 6,
   },
-  keepBookingText: { fontSize: normalizeText(15), fontWeight: "800" },
+  keepBookingText: { fontSize: normalizeText(14), fontWeight: "800" },
   finalCancelButton: {
     flex: 1,
     borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 14,
+    minHeight: 44,
+    paddingHorizontal: 6,
     backgroundColor: "#EF4444",
   },
   finalCancelText: {
+    color: "#FFFFFF",
+    fontSize: normalizeText(14),
+    fontWeight: "800",
+  },
+  reasonRequiredOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 22,
+    backgroundColor: "rgba(16, 24, 40, 0.58)",
+  },
+  reasonRequiredCard: {
+    padding: 22,
+    borderWidth: 1,
+    borderRadius: 22,
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 22,
+    elevation: 12,
+  },
+  reasonRequiredTitle: {
+    fontSize: normalizeText(20),
+    lineHeight: normalizeText(26),
+    fontWeight: "800",
+  },
+  warningRecordedIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF4D6",
+    marginBottom: 14,
+  },
+  reasonRequiredMessage: {
+    fontSize: normalizeText(15),
+    lineHeight: normalizeText(22),
+    marginTop: 8,
+  },
+  reasonRequiredButton: {
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 22,
+    borderRadius: 13,
+    backgroundColor: "#2450D8",
+  },
+  reasonRequiredButtonText: {
     color: "#FFFFFF",
     fontSize: normalizeText(15),
     fontWeight: "800",
@@ -3333,22 +3738,6 @@ const styles = StyleSheet.create({
     top: 112,
     gap: 8,
   },
-  fullscreenMapLabel: {
-    position: "absolute",
-    left: 18,
-    bottom: 28,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
   mapControl: {
     width: 48,
     height: 48,
@@ -3367,23 +3756,6 @@ const styles = StyleSheet.create({
     top: 12,
     gap: 8,
   },
-  bookingMapLabel: {
-    position: "absolute",
-    left: 16,
-    bottom: 16,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  bookingMapLabelText: {
-    color: "#172B66",
-    fontSize: normalizeText(15),
-    fontWeight: "800",
-  },
   mechanicBookingCard: {
     width: 358,
     maxWidth: "100%",
@@ -3399,7 +3771,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   mechanicBookingHeader: {
-    height: 60,
+    minHeight: 60,
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 8,
@@ -3436,14 +3808,18 @@ const styles = StyleSheet.create({
     lineHeight: normalizeText(20),
     fontWeight: "400",
   },
-  mechanicPlateText: {
+  mechanicPlateBadge: {
+    alignSelf: "flex-start",
     backgroundColor: "#E8ECFF",
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    marginTop: 2,
+  },
+  mechanicPlateText: {
     fontSize: normalizeText(12),
     lineHeight: normalizeText(18),
     fontWeight: "700",
     letterSpacing: 0.4,
-    paddingHorizontal: 6,
-    borderRadius: 4,
   },
   moderateBadge: {
     backgroundColor: "#DCE7FF",
@@ -3475,6 +3851,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     flex: 1,
   },
+  mechanicSummaryIcon: {
+    width: 22,
+    height: 22,
+    tintColor: "#F08A00",
+  },
   bookingActions: { minHeight: 52, flexDirection: "row", gap: 8 },
   callMechanicButton: {
     flex: 1,
@@ -3494,12 +3875,32 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   squareBookingButton: {
+    position: "relative",
     width: 52,
     height: 52,
     borderRadius: 14,
     backgroundColor: "#E8ECFF",
     alignItems: "center",
     justifyContent: "center",
+  },
+  chatUnreadBadge: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E53935",
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+  },
+  chatUnreadBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
   },
   progressCard: {
     borderRadius: 18,
@@ -3539,6 +3940,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: normalizeText(19),
     fontWeight: "800",
+  },
+  progressStepImage: {
+    width: 23,
+    height: 23,
+    tintColor: "#FFFFFF",
   },
   progressCopy: { flex: 1 },
   progressRowTitle: {
@@ -3591,10 +3997,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#E8ECFF",
     borderRadius: 12,
     padding: 16,
+    gap: 12,
+    marginTop: 4,
+  },
+  estimatedFeeHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 4,
+    gap: 12,
+  },
+  estimatedFeeHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
   },
   estimatedFeeLabel: {
     color: "#565C6D",
@@ -3605,7 +4019,34 @@ const styles = StyleSheet.create({
   estimatedFeeDescription: { fontSize: normalizeText(15), marginTop: 3 },
   estimatedFeeAmount: {
     color: "#29458F",
-    fontSize: normalizeText(21),
+    flexShrink: 1,
+    maxWidth: "48%",
+    fontSize: normalizeText(20),
     fontWeight: "800",
+    textAlign: "right",
+  },
+  estimatedFeeBreakdown: {
+    borderTopWidth: 1,
+    borderTopColor: "#C7D4FF",
+    paddingTop: 8,
+    gap: 5,
+  },
+  estimatedFeeBreakdownRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  estimatedFeeBreakdownLabel: {
+    flex: 1,
+    color: "#565C6D",
+    fontSize: normalizeText(14),
+    fontWeight: "600",
+  },
+  estimatedFeeBreakdownValue: {
+    color: "#29458F",
+    fontSize: normalizeText(14),
+    fontWeight: "700",
+    textAlign: "right",
   },
 });

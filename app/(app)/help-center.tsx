@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -13,6 +13,7 @@ import {
 import { MotoristHomeHeader } from "@/components/MotoristHomeHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
+import { colors as mechanicColors } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
 
 type ActivityRequest = {
@@ -33,49 +34,71 @@ export default function ActivityScreen() {
   const { session } = useAuth();
   const { colors } = useAppTheme();
   const router = useRouter();
+  const { filter: requestedFilter } = useLocalSearchParams<{
+    filter?: "ongoing" | "resolved" | "revoked";
+  }>();
   const [requests, setRequests] = useState<ActivityRequest[]>([]);
-  const [filter, setFilter] = useState<"ongoing" | "resolved" | "revoked">("ongoing");
+  const filter = requestedFilter ?? "ongoing";
   const [period, setPeriod] = useState<"today" | "week" | "month">("today");
   const [periodMenuVisible, setPeriodMenuVisible] = useState(false);
   const [loading, setLoading] = useState(true);
+  const loadedActivityFor = useRef<string | null>(null);
+  const activityRequestId = useRef(0);
+  const motoristId = session?.user.id;
 
   const loadActivity = useCallback(async () => {
-    if (!session?.user.id) {
+    const requestId = ++activityRequestId.current;
+    if (!motoristId) {
       setRequests([]);
+      loadedActivityFor.current = null;
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (loadedActivityFor.current !== motoristId) {
+      setRequests([]);
+      setLoading(true);
+    }
     const { data, error } = await supabase
       .from("service_requests")
       .select("id,status,created_at,vehicle_type,plate_number,vehicle_issue,estimated_total,mechanic_id")
-      .eq("motorist_id", session.user.id)
+      .eq("motorist_id", motoristId)
       .order("created_at", { ascending: false });
 
-    if (error || !data) {
-      setRequests([]);
+    if (requestId !== activityRequestId.current) return;
+    if (error) {
+      console.warn("Could not load motorist activity:", error.message);
+      loadedActivityFor.current = motoristId;
       setLoading(false);
       return;
     }
 
-    const mechanicIds = [...new Set(data.map((item) => item.mechanic_id).filter(Boolean))] as string[];
-    const { data: profiles } = mechanicIds.length
+    const activityItems = data ?? [];
+    const mechanicIds = [...new Set(activityItems.map((item) => item.mechanic_id).filter(Boolean))] as string[];
+    const { data: profiles, error: profilesError } = mechanicIds.length
       ? await supabase.from("profiles").select("id,full_name").in("id", mechanicIds)
-      : { data: [] };
+      : { data: [], error: null };
+    if (requestId !== activityRequestId.current) return;
+    if (profilesError) {
+      console.warn("Could not load mechanic names for activity:", profilesError.message);
+    }
     const names = new Map((profiles ?? []).map((profile) => [profile.id, profile.full_name]));
 
     setRequests(
-      data.map((item) => ({
+      activityItems.map((item) => ({
         ...(item as ActivityRequest),
         mechanicName: item.mechanic_id ? names.get(item.mechanic_id) ?? "Mechanic" : "Mechanic",
       })),
     );
+    loadedActivityFor.current = motoristId;
     setLoading(false);
-  }, [session]);
+  }, [motoristId]);
 
   useFocusEffect(
     useCallback(() => {
       void loadActivity();
+      return () => {
+        activityRequestId.current += 1;
+      };
     }, [loadActivity]),
   );
 
@@ -105,7 +128,7 @@ export default function ActivityScreen() {
         filter === "resolved"
           ? ["completed", "done", "resolved", "closed"].includes(status)
           : filter === "revoked"
-            ? ["cancelled", "canceled", "revoked"].includes(status)
+            ? ["cancelled", "canceled", "revoked", "declined"].includes(status)
             : ONGOING_STATUSES.includes(status);
       return matchesFilter;
     });
@@ -154,7 +177,7 @@ export default function ActivityScreen() {
 
         <View style={styles.filterRow}>
           <Pressable
-            onPress={() => setFilter("ongoing")}
+            onPress={() => router.setParams({ filter: "ongoing" })}
             style={[
               styles.filterPill,
               { backgroundColor: filter === "ongoing" ? colors.primary : colors.btnSecondary },
@@ -163,7 +186,7 @@ export default function ActivityScreen() {
             <Text style={[styles.filterText, { color: filter === "ongoing" ? "#FFFFFF" : colors.textMuted }]}>On going</Text>
           </Pressable>
           <Pressable
-            onPress={() => setFilter("resolved")}
+            onPress={() => router.setParams({ filter: "resolved" })}
             style={[
               styles.filterPill,
               { backgroundColor: filter === "resolved" ? colors.primary : colors.btnSecondary },
@@ -172,7 +195,7 @@ export default function ActivityScreen() {
             <Text style={[styles.filterText, { color: filter === "resolved" ? "#FFFFFF" : colors.textMuted }]}>Resolved</Text>
           </Pressable>
           <Pressable
-            onPress={() => setFilter("revoked")}
+            onPress={() => router.setParams({ filter: "revoked" })}
             style={[
               styles.filterPill,
               { backgroundColor: filter === "revoked" ? colors.primary : colors.btnSecondary },
@@ -198,9 +221,25 @@ export default function ActivityScreen() {
           </View>
         ) : (
           visibleRequests.map((item) => {
-            const isCompleted = ["completed", "done", "resolved", "closed"].includes(item.status.toLowerCase());
+            const status = item.status.toLowerCase();
+            const isCompleted = ["completed", "done", "resolved", "closed"].includes(status);
+            const isRevoked = ["cancelled", "canceled", "revoked", "declined"].includes(status);
+            const cardBorderColor = isCompleted
+              ? mechanicColors.success
+              : ["cancelled", "canceled", "revoked", "declined"].includes(status)
+                ? mechanicColors.sos
+                : mechanicColors.amber;
             return (
-              <View key={item.id} style={[styles.activityCard, { backgroundColor: colors.card }]}>
+              <View
+                key={item.id}
+                style={[
+                  styles.activityCard,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: cardBorderColor,
+                  },
+                ]}
+              >
                 <View style={styles.activityHeader}>
                   <View>
                     <Text style={styles.jobId}>#MK-{item.id.slice(0, 5).toUpperCase()}</Text>
@@ -214,36 +253,50 @@ export default function ActivityScreen() {
                   </View>
                   <View style={styles.amountCopy}>
                     <Text style={[styles.amount, { color: colors.text }]}>
-                      ₱{Number(item.estimated_total ?? 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                      ₱{Number(isRevoked ? 0 : item.estimated_total ?? 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                     </Text>
                     <Text style={[styles.cashText, { color: colors.textMuted }]}>Cash</Text>
                   </View>
                 </View>
-                <Text style={[styles.mechanicName, { color: colors.text }]}>{item.mechanicName}</Text>
-                <Text style={[styles.vehicleLine, { color: colors.textMuted }]}>
-                  {item.vehicle_type || "Vehicle"} • {item.plate_number || "Plate unavailable"}
-                </Text>
+                {!isRevoked ? (
+                  <>
+                    <Text style={[styles.mechanicName, { color: colors.text }]}>{item.mechanicName}</Text>
+                    <Text style={[styles.vehicleLine, { color: colors.textMuted }]}>
+                      {item.vehicle_type || "Vehicle"} • {item.plate_number || "Plate unavailable"}
+                    </Text>
+                  </>
+                ) : null}
                 <View style={[styles.issueBox, { backgroundColor: colors.softCard }]}>
                   <Ionicons name="location-outline" size={15} color={colors.primary} />
                   <Text style={[styles.issueText, { color: colors.text }]}>
                     {item.vehicle_issue || "Emergency Alternator & Battery Jumpstart"}
                   </Text>
                 </View>
-                <View style={styles.actionRow}>
-                  <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: "/MotoristMap",
-                        params: { bookingId: item.id },
-                      })
-                    }
-                    style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-                  >
-                    <Text style={styles.primaryButtonText}>
-                      {isCompleted ? "Book Again" : filter === "revoked" ? "Book Again" : "Track Mechanic"}
-                    </Text>
-                  </Pressable>
-                </View>
+                {!isRevoked ? (
+                  <View style={styles.actionRow}>
+                    <Pressable
+                      onPress={() =>
+                        isCompleted
+                          ? router.push({
+                              pathname: "/MotoristMap",
+                              params: { bookingId: item.id },
+                            })
+                          : router.push({
+                              pathname: "/messages",
+                              params: {
+                                serviceRequestId: item.id,
+                                counterpartId: item.mechanic_id ?? "",
+                              },
+                            })
+                      }
+                      style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+                    >
+                      <Text style={styles.primaryButtonText}>
+                        {isCompleted ? "Book Again" : "Chat Mechanic"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
             );
           })
@@ -279,6 +332,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 18,
     marginBottom: 14,
+    borderWidth: 1.5,
     shadowColor: "#1F2937",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,

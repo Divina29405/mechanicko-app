@@ -1,13 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
+import { Asset, requestPermissionsAsync } from "expo-media-library";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Dimensions, FlatList, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import ViewShot, { type ViewShotRef } from "react-native-view-shot";
 
 import { MechanicScreen } from "@/components/mechanic/MechanicScreen";
 import { MiniMapPreview } from "@/components/mechanic/MiniMapPreview";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { imageAssetToBytes, refreshChatImageUrl } from "@/lib/chatMedia";
 import { supabase } from "@/lib/supabase";
@@ -24,6 +27,8 @@ type ServiceRequest = {
   vehicle_issue: string | null;
   service_name: string | null;
   service_price: number | null;
+  service_breakdown: ServiceBreakdownItem[] | null;
+  delivery_fee: number | null;
   estimated_total: number | null;
   additional_charges: AdditionalCharge[] | null;
   request_type: string | null;
@@ -37,6 +42,7 @@ type ServiceRequest = {
   scheduled_at: string | null;
   customer_name: string;
   customer_contact: string;
+  customer_avatar_url: string | null;
 };
 
 type ChatMessage = {
@@ -59,6 +65,16 @@ type AdditionalCharge = {
   status: "pending" | "approved" | "rejected";
 };
 
+type ServiceBreakdownItem = {
+  service: string;
+  price: number;
+};
+
+type MechanicServicePrice = {
+  service: string;
+  price: string | number;
+};
+
 type Coordinates = {
   latitude: number;
   longitude: number;
@@ -69,6 +85,139 @@ function getPayableTotal(job: Pick<ServiceRequest, "estimated_total" | "service_
     .filter((charge) => charge.status === "approved")
     .reduce((sum, charge) => sum + Number(charge.amount || 0), 0);
   return Number(job.estimated_total ?? job.service_price ?? 0) + approvedCharges;
+}
+
+function parseServicePrice(price: string | number) {
+  return Number(String(price).replace(/[^\d.]/g, "")) || 0;
+}
+
+function getReceiptServiceBreakdown(
+  job: Pick<
+    ServiceRequest,
+    "service_name" | "service_price" | "estimated_total" | "delivery_fee" | "service_breakdown"
+  >,
+  mechanicServicePrices: MechanicServicePrice[],
+): ServiceBreakdownItem[] {
+  if (job.service_breakdown?.length) return job.service_breakdown;
+
+  const serviceNames = (job.service_name ?? "")
+    .split(",")
+    .map((service) => service.trim())
+    .filter(Boolean);
+  const estimatedTotal = Number(job.estimated_total ?? job.service_price ?? 0);
+  const deliveryFee = Number(job.delivery_fee ?? 0);
+  const serviceTotal = Number(
+    job.service_price ?? Math.max(0, estimatedTotal - deliveryFee),
+  );
+  const pricingByName = new Map(
+    mechanicServicePrices.map((item) => [
+      item.service.trim().toLowerCase(),
+      parseServicePrice(item.price),
+    ]),
+  );
+  const currentPriceBreakdown: ServiceBreakdownItem[] = [];
+  for (const service of serviceNames) {
+    const price = pricingByName.get(service.toLowerCase());
+    if (price === undefined) {
+      currentPriceBreakdown.length = 0;
+      break;
+    }
+    currentPriceBreakdown.push({ service, price });
+  }
+  const currentPriceTotal = currentPriceBreakdown.reduce(
+    (total, item) => total + item.price,
+    0,
+  );
+  if (
+    currentPriceBreakdown.length > 0 &&
+    Math.abs(currentPriceTotal - serviceTotal) < 0.01
+  ) {
+    return currentPriceBreakdown;
+  }
+
+  return [
+    {
+      service: serviceNames.join(", ") || "Service",
+      price: serviceTotal,
+    },
+  ];
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return entities[character];
+  });
+}
+
+function getReceiptHtml(
+  job: ServiceRequest,
+  mechanicServicePrices: MechanicServicePrice[],
+  mechanicName: string,
+) {
+  const reference = `#${job.id.slice(0, 8).toUpperCase()}`;
+  const serviceRows = getReceiptServiceBreakdown(job, mechanicServicePrices)
+    .map(
+      (item) => `
+        <tr><td>${escapeHtml(item.service)}</td><td>₱${item.price.toFixed(2)}</td></tr>
+      `,
+    )
+    .join("");
+  const distanceFee = Number(job.delivery_fee ?? 0);
+  const distanceRow =
+    distanceFee > 0
+      ? `<tr><td>Distance fee</td><td>₱${distanceFee.toFixed(2)}</td></tr>`
+      : "";
+  const chargeRows = (job.additional_charges ?? [])
+    .map((charge) => {
+      const value =
+        charge.status === "rejected"
+          ? "Declined"
+          : `₱${Number(charge.amount).toFixed(2)}${
+              charge.status === "pending" ? " (Pending)" : ""
+            }`;
+      return `<tr><td>${escapeHtml(charge.description)}</td><td>${value}</td></tr>`;
+    })
+    .join("");
+  const total = getPayableTotal(job);
+  const createdAt = new Date(job.created_at).toLocaleString("en-PH");
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <style>
+          body { font-family: Arial, sans-serif; color: #172033; padding: 28px; }
+          h1 { font-size: 22px; margin: 0 0 8px; }
+          .muted { color: #667085; font-size: 13px; }
+          .reference { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+          td { padding: 12px 0; border-bottom: 1px solid #e4e7ec; font-size: 14px; }
+          td:last-child { text-align: right; font-weight: 700; }
+          .total td { border-top: 2px solid #d0d5dd; border-bottom: 0; font-size: 17px; font-weight: 700; }
+        </style>
+      </head>
+      <body>
+        <h1>Mechaniko Receipt</h1>
+        <p class="reference">Booking reference ${reference}</p>
+        <p class="muted">Mechanic: ${escapeHtml(mechanicName)}</p>
+        <p class="muted">Customer: ${escapeHtml(job.customer_name)} · ${escapeHtml(createdAt)}</p>
+        <table>
+          ${serviceRows}
+          ${distanceRow}
+          ${chargeRows}
+          <tr class="total"><td>Total</td><td>₱${total.toFixed(2)}</td></tr>
+        </table>
+      </body>
+    </html>
+  `;
 }
 
 function distanceInKm(from: Coordinates, to: Coordinates) {
@@ -89,8 +238,8 @@ function formatTripDistance(from: Coordinates | null, to: Coordinates | null) {
   if (!from || !to) return "Waiting for live location";
   const distance = distanceInKm(from, to);
   return distance < 1
-    ? `${Math.round(distance * 1000)} m straight-line distance`
-    : `${distance.toFixed(1)} km straight-line distance`;
+    ? `${Math.max(1, Math.round(distance * 1000))} m away from you`
+    : `${distance.toFixed(1)} km away from you`;
 }
 
 function getChatImageDisplaySize(width: number, height: number) {
@@ -125,7 +274,7 @@ function getJobStatus(status: string | null): JobStatus | null {
   ) {
     return "resolved";
   }
-  if (normalized === "cancelled" || normalized === "canceled" || normalized === "rejected" || normalized === "dropped") {
+  if (normalized === "cancelled" || normalized === "canceled" || normalized === "revoked" || normalized === "rejected" || normalized === "dropped") {
     return "dropped";
   }
   return null;
@@ -213,6 +362,13 @@ export default function JobsScreen() {
   const { session } = useAuth();
   const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
   const [jobs, setJobs] = useState<ServiceRequest[]>([]);
+  const [mechanicServicePrices, setMechanicServicePrices] = useState<
+    MechanicServicePrice[]
+  >([]);
+  const [mechanicName, setMechanicName] = useState("Mechanic");
+  const jobsRef = useRef<ServiceRequest[]>([]);
+  jobsRef.current = jobs;
+  const [unreadChatCounts, setUnreadChatCounts] = useState<Record<string, number>>({});
   const [localFilter, setLocalFilter] = useState<JobStatus>("ongoing");
   const activeFilter: JobStatus =
     filterParam === "ongoing" ||
@@ -229,10 +385,9 @@ export default function JobsScreen() {
   const activeChatJobId = chatJob?.id ?? null;
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const chatMessagesJobIdRef = useRef<string | null>(null);
-  const newestFirstChatMessages = useMemo(
-    () => [...chatMessages].reverse(),
-    [chatMessages],
-  );
+  const chatListRef = useRef<FlatList<ChatMessage>>(null);
+  const chatShouldScrollToEndRef = useRef(true);
+  const chatHasInitiallyScrolledRef = useRef(false);
   const [chatImageSizes, setChatImageSizes] = useState<
     Record<string, { width: number; height: number }>
   >({});
@@ -252,6 +407,8 @@ export default function JobsScreen() {
   const [chargeDescription, setChargeDescription] = useState("");
   const [chargeAmount, setChargeAmount] = useState("");
   const [chargeSubmitting, setChargeSubmitting] = useState(false);
+  const [downloadingReceipt, setDownloadingReceipt] = useState(false);
+  const receiptCaptureRef = useRef<ViewShotRef>(null);
   const [otherIssueReason, setOtherIssueReason] = useState("");
   const [enteringOtherReason, setEnteringOtherReason] = useState(false);
   const [pendingCancellationJob, setPendingCancellationJob] =
@@ -296,7 +453,7 @@ export default function JobsScreen() {
     const { data, error: queryError } = await supabase
       .from("service_requests")
       .select(
-        "id,motorist_id,mechanic_id,vehicle_type,plate_number,vehicle_issue,service_name,service_price,estimated_total,additional_charges,request_type,status,cancelled_by,latitude,longitude,mechanic_latitude,mechanic_longitude,created_at,scheduled_at",
+        "id,motorist_id,mechanic_id,vehicle_type,plate_number,vehicle_issue,service_name,service_price,service_breakdown,delivery_fee,estimated_total,additional_charges,request_type,status,cancelled_by,latitude,longitude,mechanic_latitude,mechanic_longitude,created_at,scheduled_at",
       )
       .or(`mechanic_id.is.null,mechanic_id.eq.${mechanicId}`)
       .order("created_at", { ascending: false });
@@ -307,28 +464,39 @@ export default function JobsScreen() {
     } else {
       const requests = (data ?? []) as Omit<
         ServiceRequest,
-        "customer_name" | "customer_contact"
+        "customer_name" | "customer_contact" | "customer_avatar_url"
       >[];
       const motoristIds = [...new Set(requests.map((job) => job.motorist_id))];
       const profileIds = motoristIds.filter(isUuid);
       const [
         { data: profiles, error: profilesError },
         { data: contactRows, error: contactError },
-      ] = profileIds.length
-        ? await Promise.all([
-            supabase
+        { data: mechanicProfile, error: mechanicProfileError },
+      ] = await Promise.all([
+        profileIds.length
+          ? supabase
               .from("profiles")
-              .select("id,full_name,mobile_number,email")
-              .in("id", profileIds),
-            supabase.rpc("get_customer_mobile_numbers", {
+              .select("id,full_name,mobile_number,email,avatar_path")
+              .in("id", profileIds)
+          : Promise.resolve({ data: [], error: null }),
+        profileIds.length
+          ? supabase.rpc("get_customer_mobile_numbers", {
               p_customer_ids: profileIds,
-            }),
-          ])
-        : [
-            { data: [], error: null },
-            { data: [], error: null },
-          ];
+            })
+          : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from("profiles")
+          .select("full_name,maintenance_pricing")
+          .eq("id", mechanicId)
+          .maybeSingle(),
+      ]);
       if (requestId !== jobsRequestId.current) return;
+      setMechanicServicePrices(
+        Array.isArray(mechanicProfile?.maintenance_pricing)
+          ? (mechanicProfile.maintenance_pricing as MechanicServicePrice[])
+          : [],
+      );
+      setMechanicName(mechanicProfile?.full_name?.trim() || "Mechanic");
       const typedContactRows = (contactRows ?? []) as CustomerContactRow[];
       const contactMap = new Map(
         typedContactRows.map((profile) => [
@@ -345,6 +513,11 @@ export default function JobsScreen() {
               profile.mobile_number ||
               contactMap.get(profile.id) ||
               "Not provided",
+            avatarUrl: profile.avatar_path
+              ? supabase.storage
+                  .from("mechanic-avatars")
+                  .getPublicUrl(profile.avatar_path).data.publicUrl
+              : null,
           },
         ]),
       );
@@ -353,6 +526,7 @@ export default function JobsScreen() {
           profileMap.set(contact.customer_id, {
             name: "Customer",
             contact: contact.mobile_number || "Not provided",
+            avatarUrl: null,
           });
         }
       }
@@ -362,14 +536,81 @@ export default function JobsScreen() {
           customer_name: profileMap.get(job.motorist_id)?.name || "Customer",
           customer_contact:
             profileMap.get(job.motorist_id)?.contact || "Not provided",
+          customer_avatar_url:
+            profileMap.get(job.motorist_id)?.avatarUrl ?? null,
         })),
       );
-      setError(profilesError?.message ?? contactError?.message ?? null);
+      setError(
+        profilesError?.message ??
+          contactError?.message ??
+          mechanicProfileError?.message ??
+          null,
+      );
     }
     hasLoadedJobs.current = true;
     setLoading(false);
     setRefreshing(false);
   }, [mechanicId]);
+
+  const loadUnreadChatCounts = useCallback(async () => {
+    if (!mechanicId) return;
+    const requestIds = jobsRef.current.map((job) => job.id);
+    if (requestIds.length === 0) {
+      setUnreadChatCounts({});
+      return;
+    }
+
+    const { data, error: unreadError } = await supabase
+      .from("app_notifications")
+      .select("service_request_id")
+      .eq("user_id", mechanicId)
+      .eq("type", "chat_message")
+      .is("read_at", null)
+      .in("service_request_id", requestIds);
+    if (unreadError) {
+      console.warn("Could not load unread chat messages:", unreadError.message);
+      return;
+    }
+
+    const nextCounts: Record<string, number> = {};
+    for (const notification of data ?? []) {
+      const requestId = notification.service_request_id;
+      if (requestId) nextCounts[requestId] = (nextCounts[requestId] ?? 0) + 1;
+    }
+    setUnreadChatCounts(nextCounts);
+  }, [mechanicId]);
+
+  useEffect(() => {
+    void loadUnreadChatCounts();
+  }, [jobs, loadUnreadChatCounts]);
+
+  useEffect(() => {
+    if (!mechanicId) return;
+    const channel = supabase
+      .channel(`mechanic_unread_chats_${mechanicId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "app_notifications",
+          filter: `user_id=eq.${mechanicId}`,
+        },
+        () => void loadUnreadChatCounts(),
+      )
+      .subscribe((status, subscribeError) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn(
+            "Unread chat updates unavailable:",
+            subscribeError?.message ?? status,
+          );
+        }
+      });
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadUnreadChatCounts, mechanicId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -396,6 +637,29 @@ export default function JobsScreen() {
     setScheduledLocationError(null);
   }
 
+  async function openCustomerChat(job: ServiceRequest) {
+    setChatJob(job);
+    const unreadCount = unreadChatCounts[job.id] ?? 0;
+    if (!mechanicId || unreadCount === 0) return;
+
+    const { error: markReadError } = await supabase
+      .from("app_notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("user_id", mechanicId)
+      .eq("service_request_id", job.id)
+      .eq("type", "chat_message")
+      .is("read_at", null);
+    if (markReadError) {
+      setError(`Could not mark chat messages as read: ${markReadError.message}`);
+      return;
+    }
+    setUnreadChatCounts((current) => {
+      const next = { ...current };
+      delete next[job.id];
+      return next;
+    });
+  }
+
   function getMechanicCoordinatesForJob(job: ServiceRequest) {
     if (trackedMechanicLocation?.jobId === job.id) {
       return trackedMechanicLocation.coordinates;
@@ -412,15 +676,19 @@ export default function JobsScreen() {
     return null;
   }
 
+  const selectedJobId = selectedJob?.id;
+  const selectedJobLatitude = selectedJob?.latitude;
+  const selectedJobLongitude = selectedJob?.longitude;
+
   useEffect(() => {
     if (
-      !selectedJob ||
-      selectedJob.latitude === null ||
-      selectedJob.longitude === null
+      !selectedJobId ||
+      selectedJobLatitude == null ||
+      selectedJobLongitude == null
     ) return;
 
     let active = true;
-    const jobId = selectedJob.id;
+    const jobId = selectedJobId;
     const setLocation = (location: Location.LocationObject) => {
       if (!active) return;
       setScheduledMechanicLocation({
@@ -473,10 +741,9 @@ export default function JobsScreen() {
       active = false;
     };
   }, [
-    selectedJob?.id,
-    selectedJob?.latitude,
-    selectedJob?.longitude,
-    selectedJob?.request_type,
+    selectedJobId,
+    selectedJobLatitude,
+    selectedJobLongitude,
   ]);
 
   useEffect(() => {
@@ -636,6 +903,8 @@ export default function JobsScreen() {
     if (!activeChatJobId || !mechanicId) return;
     const chatJobId = activeChatJobId;
     let active = true;
+    chatShouldScrollToEndRef.current = true;
+    chatHasInitiallyScrolledRef.current = false;
     async function loadMessages() {
       if (chatMessagesJobIdRef.current !== chatJobId) {
         setChatMessages([]);
@@ -1130,6 +1399,54 @@ export default function JobsScreen() {
     setRefreshing(false);
   }
 
+  async function downloadReceipt(job: ServiceRequest) {
+    if (downloadingReceipt) return;
+    setDownloadingReceipt(true);
+    try {
+      const html = getReceiptHtml(job, mechanicServicePrices, mechanicName);
+      if (Platform.OS === "web") {
+        const printWindow = window.open("", "_blank");
+        if (!printWindow) {
+          throw new Error(
+            "Allow pop-ups in your browser to print the receipt.",
+          );
+        }
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.onafterprint = () => printWindow.close();
+        printWindow.setTimeout(() => printWindow.print(), 250);
+        return;
+      }
+
+      const permission = await requestPermissionsAsync(true, ["photo"]);
+      if (permission.status !== "granted") {
+        Alert.alert(
+          "Gallery permission required",
+          "Allow photo access to save the receipt image to your gallery.",
+        );
+        return;
+      }
+
+      const imageUri = await receiptCaptureRef.current?.capture();
+      if (!imageUri) {
+        throw new Error("The receipt image could not be created.");
+      }
+      await Asset.create(imageUri);
+      Alert.alert("Receipt saved", "The receipt image is now in your gallery.");
+    } catch (receiptError) {
+      Alert.alert(
+        "Receipt download failed",
+        receiptError instanceof Error
+          ? receiptError.message
+          : "Please try again.",
+      );
+    } finally {
+      setDownloadingReceipt(false);
+    }
+  }
+
   function openIssueReport(job: ServiceRequest) {
     if (hasTripStarted(job.status)) {
       setCannotCancelBookingVisible(true);
@@ -1222,6 +1539,9 @@ export default function JobsScreen() {
         }
         renderItem={({ item: job }) => {
           const isReadOnly = activeFilter !== "ongoing";
+          const isRevoked = ["cancelled", "canceled", "revoked"].includes(
+            job.status?.trim().toLowerCase() ?? "",
+          );
           const terminalDate = job.created_at;
           const isEmergency = job.request_type === "emergency";
           const amount = getPayableTotal(job);
@@ -1238,7 +1558,9 @@ export default function JobsScreen() {
                 </View>
                 <View style={styles.bookingAmount}>
                   <Text style={styles.bookingAmountValue}>
-                    {amount === null
+                    {isRevoked
+                      ? "₱0.00"
+                      : amount === null
                       ? "—"
                       : `₱${Number(amount).toLocaleString("en-PH", {
                           minimumFractionDigits: 2,
@@ -1250,12 +1572,35 @@ export default function JobsScreen() {
               <Text style={styles.bookingDate}>
                 {formatSchedule(job.scheduled_at || terminalDate)}
               </Text>
-              <Text style={styles.bookingCustomer}>{job.customer_name}</Text>
-              <Text style={styles.bookingVehicle}>
-                {[job.vehicle_type, job.plate_number]
-                  .filter(Boolean)
-                  .join(" • ") || "Vehicle details unavailable"}
-              </Text>
+              {!isRevoked ? (
+                <>
+                  <View style={styles.bookingCustomerRow}>
+                    <Text style={styles.bookingCustomer} numberOfLines={1}>
+                      {job.customer_name}
+                    </Text>
+                    {(unreadChatCounts[job.id] ?? 0) > 0 ? (
+                      <View style={styles.newMessageBadge}>
+                        <Ionicons
+                          name="chatbubble"
+                          size={12}
+                          color={colors.white}
+                        />
+                        <Text style={styles.newMessageBadgeText}>
+                          New message
+                          {(unreadChatCounts[job.id] ?? 0) > 1
+                            ? ` · ${unreadChatCounts[job.id]}`
+                            : ""}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.bookingVehicle}>
+                    {[job.vehicle_type, job.plate_number]
+                      .filter(Boolean)
+                      .join(" • ") || "Vehicle details unavailable"}
+                  </Text>
+                </>
+              ) : null}
               <View style={styles.serviceStrip}>
                 <Ionicons
                   name={isEmergency ? "warning-outline" : "location-outline"}
@@ -1551,19 +1896,49 @@ export default function JobsScreen() {
                 </>
               )}
               <View style={styles.receiptCard}>
+                <ViewShot
+                  ref={receiptCaptureRef}
+                  options={{
+                    format: "png",
+                    fileName: `mechaniko-receipt-${selectedJob.id.slice(0, 8)}`,
+                  }}
+                  style={styles.receiptImage}
+                >
                 <View style={styles.receiptHeader}>
                   <View>
-                    <Text style={styles.receiptEyebrow}>LIVE RECEIPT</Text>
-                    <Text style={styles.receiptTitle}>Customer payment</Text>
+                    <Text style={styles.receiptEyebrow}>BOOKING REFERENCE</Text>
+                    <Text style={styles.receiptTitle}>
+                      #{selectedJob.id.slice(0, 8).toUpperCase()}
+                    </Text>
                   </View>
-                  <Ionicons name="receipt-outline" size={22} color={colors.blue} />
+                  <View style={styles.receiptHeaderActionSpace} />
                 </View>
                 <View style={styles.receiptRow}>
-                  <Text style={styles.receiptLabel}>Base service</Text>
-                  <Text style={styles.receiptValue}>
-                    ₱{getPayableTotal(selectedJob).toFixed(2)}
-                  </Text>
+                  <Text style={styles.receiptLabel}>Mechanic</Text>
+                  <Text style={styles.receiptValue}>{mechanicName}</Text>
                 </View>
+                {getReceiptServiceBreakdown(
+                  selectedJob,
+                  mechanicServicePrices,
+                ).map((item, index) => (
+                  <View
+                    key={`${item.service}-${index}`}
+                    style={styles.receiptRow}
+                  >
+                    <Text style={styles.receiptLabel}>{item.service}</Text>
+                    <Text style={styles.receiptValue}>
+                      ₱{item.price.toFixed(2)}
+                    </Text>
+                  </View>
+                ))}
+                {Number(selectedJob.delivery_fee ?? 0) > 0 ? (
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Distance fee</Text>
+                    <Text style={styles.receiptValue}>
+                      ₱{Number(selectedJob.delivery_fee).toFixed(2)}
+                    </Text>
+                  </View>
+                ) : null}
                 {(selectedJob.additional_charges ?? []).map((charge) => (
                   <View key={charge.id} style={styles.receiptRow}>
                     <Text style={styles.receiptLabel}>{charge.description}</Text>
@@ -1573,11 +1948,29 @@ export default function JobsScreen() {
                   </View>
                 ))}
                 <View style={styles.receiptTotalRow}>
-                  <Text style={styles.receiptTotalLabel}>Approved total</Text>
+                  <Text style={styles.receiptTotalLabel}>Total</Text>
                   <Text style={styles.receiptTotal}>
                     ₱{getPayableTotal(selectedJob).toFixed(2)}
                   </Text>
                 </View>
+                </ViewShot>
+                <Pressable
+                  accessibilityLabel="Save receipt to gallery"
+                  accessibilityRole="button"
+                  disabled={downloadingReceipt}
+                  onPress={() => void downloadReceipt(selectedJob)}
+                  style={styles.receiptDownloadButton}
+                >
+                  {downloadingReceipt ? (
+                    <ActivityIndicator size="small" color={colors.blue} />
+                  ) : (
+                    <Image
+                      source={require("../../assets/images/downloads.png")}
+                      style={styles.receiptDownloadIcon}
+                      resizeMode="contain"
+                    />
+                  )}
+                </Pressable>
                 {selectedJob.status?.toLowerCase() !== "completed" &&
                 selectedJob.status?.toLowerCase() !== "cancelled" ? (
                   <Pressable
@@ -1599,10 +1992,21 @@ export default function JobsScreen() {
                 <View style={styles.chatSupportRow}>
                   <Pressable
                     style={styles.chatButton}
-                    onPress={() => setChatJob(selectedJob)}
+                    onPress={() => void openCustomerChat(selectedJob)}
                   >
                     <Ionicons name="chatbubble-outline" size={19} color={colors.blue} />
-                    <Text style={styles.chatText}>Chat customer</Text>
+                    <Text style={styles.chatText}>
+                      {(unreadChatCounts[selectedJob.id] ?? 0) > 0
+                        ? "New message"
+                        : "Chat customer"}
+                    </Text>
+                    {(unreadChatCounts[selectedJob.id] ?? 0) > 0 ? (
+                      <View style={styles.chatUnreadCount}>
+                        <Text style={styles.chatUnreadCountText}>
+                          {unreadChatCounts[selectedJob.id]}
+                        </Text>
+                      </View>
+                    ) : null}
                   </Pressable>
                   <Pressable
                     style={styles.supportIconButton}
@@ -2209,28 +2613,22 @@ export default function JobsScreen() {
                 <Ionicons name="arrow-back" size={22} color={colors.white} />
               </Pressable>
               <View style={styles.chatAvatar}>
-                <Text style={styles.chatAvatarText}>
-                  {chatJob.customer_name.trim().charAt(0).toUpperCase() || "C"}
-                </Text>
+                {chatJob.customer_avatar_url ? (
+                  <ProfileAvatar
+                    uri={chatJob.customer_avatar_url}
+                    size={38}
+                    backgroundColor="rgba(255,255,255,0.2)"
+                  />
+                ) : (
+                  <Text style={styles.chatAvatarText}>
+                    {chatJob.customer_name.trim().charAt(0).toUpperCase() || "C"}
+                  </Text>
+                )}
               </View>
               <View style={styles.chatHeaderText}>
                 <Text style={styles.chatTitle} numberOfLines={1}>
                   {chatJob.customer_name}
                 </Text>
-                <View style={styles.chatStatusRow}>
-                  <View
-                    style={[
-                      styles.chatStatusDot,
-                      !isChatActiveStatus(chatJob.status) &&
-                        styles.chatStatusDotInactive,
-                    ]}
-                  />
-                  <Text style={styles.chatSubtitle}>
-                    {isChatActiveStatus(chatJob.status)
-                      ? "Booking conversation"
-                      : "Read-only conversation"}
-                  </Text>
-                </View>
               </View>
               <View style={styles.chatHeaderSpacer} />
             </View>
@@ -2239,17 +2637,10 @@ export default function JobsScreen() {
                 <Ionicons name="briefcase-outline" size={16} color={colors.blue} />
               </View>
               <View style={styles.chatBookingText}>
-                <Text style={styles.chatBookingLabel}>BOOKING</Text>
                 <Text style={styles.chatBookingReference}>
                   #{String(chatJob.id).slice(0, 8).toUpperCase()}
                 </Text>
               </View>
-              <Text style={styles.chatBookingService} numberOfLines={1}>
-                {chatJob.service_name ||
-                  chatJob.vehicle_issue ||
-                  chatJob.vehicle_type ||
-                  "Service request"}
-              </Text>
             </View>
             <KeyboardAvoidingView
               style={styles.chatKeyboardArea}
@@ -2258,11 +2649,31 @@ export default function JobsScreen() {
             >
               <FlatList
                 key={chatJob.id}
-                data={newestFirstChatMessages}
-                inverted
+                ref={chatListRef}
+                data={chatMessages}
                 keyExtractor={(message) => message.id}
                 contentContainerStyle={styles.chatMessages}
                 keyboardShouldPersistTaps="handled"
+                scrollEventThrottle={16}
+                onScroll={({ nativeEvent }) => {
+                  const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
+                  const distanceFromEnd =
+                    contentSize.height -
+                    layoutMeasurement.height -
+                    contentOffset.y;
+                  chatShouldScrollToEndRef.current = distanceFromEnd < 80;
+                }}
+                onContentSizeChange={() => {
+                  if (
+                    !chatHasInitiallyScrolledRef.current ||
+                    chatShouldScrollToEndRef.current
+                  ) {
+                    chatListRef.current?.scrollToEnd({
+                      animated: chatHasInitiallyScrolledRef.current,
+                    });
+                    chatHasInitiallyScrolledRef.current = true;
+                  }
+                }}
                 ListEmptyComponent={
                   chatLoading ? (
                   <View style={styles.chatLoadingState}>
@@ -2296,10 +2707,9 @@ export default function JobsScreen() {
                   )
                 }
                 renderItem={({ item: message, index }) => {
-                  const originalIndex = chatMessages.length - index - 1;
                   return (
                     <View key={message.id}>
-                      {startsNewChatDate(chatMessages, originalIndex) ? (
+                      {startsNewChatDate(chatMessages, index) ? (
                         <View style={styles.chatDateSeparatorWrap}>
                           <Text style={styles.chatDateSeparator}>
                             {formatChatDate(message.created_at)}
@@ -2747,10 +3157,32 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   bookingCustomer: {
+    flex: 1,
     color: colors.text,
     fontSize: 17,
     fontWeight: "800",
     marginTop: 11,
+  },
+  bookingCustomerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  newMessageBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: colors.success,
+    marginTop: 11,
+  },
+  newMessageBadgeText: {
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: "800",
   },
   bookingVehicle: {
     color: colors.textMuted,
@@ -2957,7 +3389,11 @@ const styles = StyleSheet.create({
   chargeSubmitButtonDisabled: { opacity: 0.7 },
   chargeSubmitText: { color: colors.white, fontSize: 14, fontWeight: "800" },
   receiptCard: { marginTop: spacing.lg, padding: spacing.md, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white },
+  receiptImage: { backgroundColor: colors.white },
   receiptHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
+  receiptHeaderActionSpace: { width: 44, height: 44 },
+  receiptDownloadButton: { position: "absolute", top: spacing.md, right: spacing.md, width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  receiptDownloadIcon: { width: 24, height: 24 },
   receiptEyebrow: { color: colors.textMuted, fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
   receiptTitle: { color: colors.text, fontSize: 16, fontWeight: "800", marginTop: 2 },
   receiptRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.sm, paddingTop: spacing.sm },
@@ -3012,6 +3448,8 @@ const styles = StyleSheet.create({
   tripDistance: { color: colors.blue, fontSize: 12, fontWeight: "700", marginTop: 2 },
   tripHint: { color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: spacing.sm },
   chatButton: { flex: 1, minHeight: 48, borderWidth: 1, borderColor: colors.blue, flexDirection: "row", gap: spacing.sm, alignItems: "center", justifyContent: "center" },
+  chatUnreadCount: { minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.success },
+  chatUnreadCountText: { color: colors.white, fontSize: 11, fontWeight: "800" },
   chatSupportRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   supportIconButton: { width: 48, height: 48, borderWidth: 1.5, borderColor: "#C9D2DF", borderRadius: 12, backgroundColor: colors.white, alignItems: "center", justifyContent: "center", shadowColor: "#101828", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
   chatText: { color: colors.blue, fontWeight: "800", fontSize: 14 },
@@ -3030,17 +3468,11 @@ const styles = StyleSheet.create({
   chatAvatarText: { color: colors.white, fontSize: 18, fontWeight: "800" },
   chatHeaderText: { flex: 1, justifyContent: "center" },
   chatTitle: { color: colors.white, fontSize: 16, fontWeight: "800" },
-  chatStatusRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
-  chatStatusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#8EF0B2" },
-  chatStatusDotInactive: { backgroundColor: "rgba(255,255,255,0.55)" },
-  chatSubtitle: { color: "rgba(255,255,255,0.82)", fontSize: 12 },
   chatHeaderSpacer: { width: 8 },
   chatBookingBar: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
   chatBookingIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.blueSoft },
-  chatBookingText: { minWidth: 90 },
-  chatBookingLabel: { color: colors.textDim, fontSize: 9, fontWeight: "900", letterSpacing: 0.7 },
-  chatBookingReference: { color: colors.text, fontSize: 12, fontWeight: "800", marginTop: 2 },
-  chatBookingService: { flex: 1, color: colors.textMuted, fontSize: 12, textAlign: "right" },
+  chatBookingText: { flex: 1 },
+  chatBookingReference: { color: colors.text, fontSize: 18, fontWeight: "900" },
   chatMessages: { flexGrow: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.md, gap: spacing.sm, justifyContent: "flex-end" },
   chatLoadingState: { alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingVertical: spacing.xl },
   chatLoadingText: { color: colors.textMuted, fontSize: 13 },

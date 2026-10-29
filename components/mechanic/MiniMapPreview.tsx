@@ -57,7 +57,7 @@ function buildLeafletHtml() {
           } else {
             routeLine.setLatLngs([mechanic, motorist]);
           }
-          document.getElementById('distance').textContent = distanceLabel + ' between mechanic and customer';
+          document.getElementById('distance').textContent = distanceLabel;
           map.fitBounds([mechanic, motorist], { padding: [35, 35], maxZoom: 15 });
         } else {
           if (mechanicMarker) map.removeLayer(mechanicMarker);

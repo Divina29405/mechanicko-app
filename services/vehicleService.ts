@@ -1,9 +1,19 @@
 import { supabase } from "@/lib/supabase";
+import { isValidPlateNumber, sanitizePlateNumber } from "@/lib/plateNumber";
 import type { CreateVehicleInput, Vehicle } from "@/types/vehicle";
 
 export async function createVehicle(
   input: CreateVehicleInput,
 ): Promise<{ data: Vehicle | null; error: string | null }> {
+  const plateNumber = sanitizePlateNumber(input.plateNumber).trim();
+  if (!isValidPlateNumber(plateNumber)) {
+    return {
+      data: null,
+      error:
+        "Plate number must contain 1 to 7 letters or numbers, with at most one space.",
+    };
+  }
+
   const record = {
     motorist_id: input.ownerRole === "customer" ? input.ownerId : null,
     mechanic_id: input.ownerRole === "mechanic" ? input.ownerId : null,
@@ -11,7 +21,7 @@ export async function createVehicle(
     make: input.make.trim(),
     model: input.model.trim(),
     year: input.year.trim(),
-    plate_number: input.plateNumber.trim().toUpperCase(),
+    plate_number: plateNumber,
     fuel_type: input.fuelType,
     is_primary: input.isPrimary ?? false,
   };

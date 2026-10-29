@@ -5,6 +5,7 @@ import * as SecureStore from "expo-secure-store";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { isValidPlateNumber, sanitizePlateNumber } from "@/lib/plateNumber";
 
 export type VehicleType = "motorcycle" | "sedan" | "suv" | "van";
 export type FuelType = "Gasoline" | "Diesel" | "Electric";
@@ -31,6 +32,14 @@ export function usePrimaryRideForm() {
   }
 
   async function continueSetup() {
+    const normalizedPlateNumber = sanitizePlateNumber(plateNumber).trim();
+    if (plateNumber.trim() && !isValidPlateNumber(normalizedPlateNumber)) {
+      Alert.alert(
+        "Invalid Plate Number",
+        "Use up to 7 letters or numbers, with at most one space.",
+      );
+      return;
+    }
     const { data: sessionResult, error: sessionError } = await supabase.auth.getSession();
     const activeSession = session ?? sessionResult.session;
     const hasVehicleDetails =
@@ -54,7 +63,7 @@ export function usePrimaryRideForm() {
     }
     const vehicleRecord = {
       type: selectedVehicle, make: selectedMake, model: modelName.trim(),
-      year: vehicleYear.trim(), plate_number: plateNumber.trim().toUpperCase(),
+      year: vehicleYear.trim(), plate_number: normalizedPlateNumber,
       fuel_type: selectedFuel, is_primary: true,
       mechanic_id: role === "mechanic" ? activeSession?.user.id ?? null : null,
       motorist_id: role === "mechanic" ? null : activeSession?.user.id ?? null,

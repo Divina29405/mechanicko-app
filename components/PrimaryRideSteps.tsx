@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image, Pressable, Text, TextInput, View, type ImageStyle, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
 import type { Dispatch, SetStateAction } from "react";
+import { sanitizePlateNumber } from "@/lib/plateNumber";
 
 export type RideStepStyles = Record<
   string,
@@ -297,7 +298,9 @@ export function PrimaryRideSteps({
               />
               <Text style={styles.fieldLabelText}>License Plate</Text>
             </View>
-            <Text style={styles.exampleLabel}>e.g. MV-File Number</Text>
+            <Text style={styles.exampleLabel}>
+              Up to 7 letters/numbers; one space allowed
+            </Text>
           </View>
 
           <View style={styles.plateField}>
@@ -306,11 +309,14 @@ export function PrimaryRideSteps({
             </View>
             <TextInput
               style={styles.plateText}
-              placeholder="000 - ABC"
+              placeholder="ABC1234"
               placeholderTextColor="#69707D"
               autoCapitalize="characters"
+              maxLength={8}
               value={plateNumber}
-              onChangeText={setPlateNumber}
+              onChangeText={(value) =>
+                setPlateNumber(sanitizePlateNumber(value))
+              }
             />
           </View>
 

@@ -28,6 +28,7 @@ import { supabase } from '@/lib/supabase';
 import { colors, radii, spacing } from '@/lib/theme';
 import { createVehicle, listVehicles, setPrimaryVehicle } from '@/services/vehicleService';
 import type { FuelType, Vehicle, VehicleType } from '@/types/vehicle';
+import { isValidPlateNumber, sanitizePlateNumber } from '@/lib/plateNumber';
 
 type MaintenancePrice = {
   service: string;
@@ -69,7 +70,9 @@ export default function ProfileScreen() {
   const { session, signOut } = useAuth();
   const { rating, online, avatarUrl, setAvatarUrl, avatarLoading } = useMechanic();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarUploadSuccess, setAvatarUploadSuccess] = useState(false);
   const [avatarPreviewUri, setAvatarPreviewUri] = useState<string | null>(null);
+  const [avatarPickerVisible, setAvatarPickerVisible] = useState(false);
   const [logoutConfirmationVisible, setLogoutConfirmationVisible] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [expandedSection, setExpandedSection] = useState<
@@ -119,11 +122,19 @@ export default function ProfileScreen() {
     license_back_path: string | null;
   } | null>(null);
   const avatarRequestId = useRef(0);
+  const avatarSuccessTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const email = session?.user.email ?? '';
   const fullName =
     typeof session?.user.user_metadata?.full_name === 'string'
       ? session.user.user_metadata.full_name
       : email.split('@')[0];
+
+  useEffect(
+    () => () => {
+      if (avatarSuccessTimer.current) clearTimeout(avatarSuccessTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!session?.user.id) return;
@@ -264,6 +275,14 @@ export default function ProfileScreen() {
       Alert.alert('Missing Details', 'Please fill out all vehicle fields.');
       return;
     }
+    const plateNumber = sanitizePlateNumber(garagePlate);
+    if (!isValidPlateNumber(plateNumber)) {
+      Alert.alert(
+        'Invalid Plate Number',
+        'Use up to 7 letters or numbers, with at most one space.',
+      );
+      return;
+    }
     setSavingGarageVehicle(true);
     const { data, error } = await createVehicle({
       ownerId: session.user.id,
@@ -272,7 +291,7 @@ export default function ProfileScreen() {
       make: garageMake,
       model: garageModel,
       year: garageYear,
-      plateNumber: garagePlate,
+      plateNumber,
       fuelType: garageFuelType,
       isPrimary: garageVehicles.length === 0,
     });
@@ -596,6 +615,8 @@ export default function ProfileScreen() {
     if (result.canceled || !result.assets[0]?.uri) return;
 
     setUploadingAvatar(true);
+    setAvatarUploadSuccess(false);
+    if (avatarSuccessTimer.current) clearTimeout(avatarSuccessTimer.current);
     const requestId = ++avatarRequestId.current;
     try {
       const converted = await ImageManipulator.manipulateAsync(result.assets[0].uri, [], {
@@ -644,10 +665,16 @@ export default function ProfileScreen() {
       if (requestId === avatarRequestId.current) {
         setAvatarUrl(avatar.publicUrl);
         setAvatarPreviewUri(null);
+        setAvatarUploadSuccess(true);
+        avatarSuccessTimer.current = setTimeout(() => {
+          setAvatarUploadSuccess(false);
+          avatarSuccessTimer.current = null;
+        }, 2500);
       }
     } catch (error) {
       if (requestId === avatarRequestId.current) {
         setAvatarPreviewUri(null);
+        setAvatarUploadSuccess(false);
       }
       Alert.alert('Profile photo failed', error instanceof Error ? error.message : 'Could not save the photo.');
     } finally {
@@ -656,11 +683,7 @@ export default function ProfileScreen() {
   }
 
   function chooseAvatar() {
-    Alert.alert('Profile photo', 'Choose how to update your profile photo.', [
-      { text: 'Camera', onPress: () => void changeAvatar('camera') },
-      { text: 'Gallery', onPress: () => void changeAvatar('gallery') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    setAvatarPickerVisible(true);
   }
 
   async function confirmSignOut() {
@@ -684,34 +707,36 @@ export default function ProfileScreen() {
     <MechanicScreen back title="My Profile">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
-          <Pressable onPress={chooseAvatar} style={styles.avatarButton} disabled={uploadingAvatar}>
-            {avatarPreviewUri ? (
-              <ProfileAvatar
-                uri={avatarPreviewUri}
-                size={80}
-                backgroundColor={colors.amberSoft}
-              />
-            ) : avatarUrl ? (
-              <ProfileAvatar
-                uri={avatarUrl}
-                size={80}
-                backgroundColor={colors.amberSoft}
-              />
-            ) : avatarLoading ? (
-              <View style={styles.avatarLoading} />
-            ) : (
-              <Text style={styles.avatarText}>{fullName.slice(0, 1).toUpperCase()}</Text>
-            )}
-            {uploadingAvatar ? (
-              <View style={styles.avatarUploadingOverlay} pointerEvents="none">
-                <ActivityIndicator size="small" color={colors.white} />
-                <Text style={styles.avatarUploadingText}>Uploading</Text>
+          <View style={styles.avatarColumn}>
+            <Pressable onPress={chooseAvatar} style={styles.avatarButton} disabled={uploadingAvatar}>
+              {avatarPreviewUri ? (
+                <ProfileAvatar
+                  uri={avatarPreviewUri}
+                  size={80}
+                  backgroundColor={colors.amberSoft}
+                />
+              ) : avatarUrl ? (
+                <ProfileAvatar
+                  uri={avatarUrl}
+                  size={80}
+                  backgroundColor={colors.amberSoft}
+                />
+              ) : avatarLoading ? (
+                <View style={styles.avatarLoading} />
+              ) : (
+                <Text style={styles.avatarText}>{fullName.slice(0, 1).toUpperCase()}</Text>
+              )}
+              {uploadingAvatar ? (
+                <View style={styles.avatarUploadingOverlay} pointerEvents="none">
+                  <ActivityIndicator size="small" color={colors.white} />
+                  <Text style={styles.avatarUploadingText}>Uploading</Text>
+                </View>
+              ) : null}
+              <View style={styles.cameraBadge}>
+                <Ionicons name="camera-outline" size={14} color={colors.bg} />
               </View>
-            ) : null}
-            <View style={styles.cameraBadge}>
-              <Ionicons name="camera-outline" size={14} color={colors.bg} />
-            </View>
-          </Pressable>
+            </Pressable>
+          </View>
           <View style={styles.profileInfo}>
             <Text style={styles.name}>{fullName}</Text>
             <Text style={styles.meta}>{email}</Text>
@@ -835,6 +860,103 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Log out</Text>
         </Pressable>
       </ScrollView>
+      <Modal
+        visible={avatarUploadSuccess}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAvatarUploadSuccess(false)}
+      >
+        <View style={styles.avatarSuccessOverlay}>
+          <View
+            accessibilityRole="alert"
+            style={styles.avatarSuccessCard}
+          >
+            <View style={styles.avatarSuccessIcon}>
+              <Ionicons name="checkmark" size={30} color={colors.white} />
+            </View>
+            <Text style={styles.avatarSuccessTitle}>Uploaded successfully</Text>
+            <Text style={styles.avatarSuccessMessage}>
+              Your profile photo has been updated.
+            </Text>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={avatarPickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAvatarPickerVisible(false)}
+      >
+        <View style={styles.avatarPickerOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setAvatarPickerVisible(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close profile photo options"
+          />
+          <View style={styles.avatarPickerCard}>
+            <View style={styles.avatarPickerHandle} />
+            <Text style={styles.avatarPickerTitle}>Update Profile Photo</Text>
+            <Text style={styles.avatarPickerSubtitle}>
+              Choose where you want to get your profile photo.
+            </Text>
+            <View style={styles.avatarPickerOptions}>
+              <Pressable
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.avatarPickerOption,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => {
+                  setAvatarPickerVisible(false);
+                  void changeAvatar('camera');
+                }}
+              >
+                <View style={styles.avatarPickerIcon}>
+                  <Ionicons name="camera-outline" size={26} color={colors.amber} />
+                </View>
+                <View style={styles.avatarPickerCopy}>
+                  <Text style={styles.avatarPickerOptionTitle}>Take a photo</Text>
+                  <Text style={styles.avatarPickerOptionText}>Use your camera</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={22} color={colors.amber} />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.avatarPickerOption,
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => {
+                  setAvatarPickerVisible(false);
+                  void changeAvatar('gallery');
+                }}
+              >
+                <View style={styles.avatarPickerIcon}>
+                  <Ionicons name="images-outline" size={26} color={colors.amber} />
+                </View>
+                <View style={styles.avatarPickerCopy}>
+                  <Text style={styles.avatarPickerOptionTitle}>Choose from gallery</Text>
+                  <Text style={styles.avatarPickerOptionText}>
+                    Select an existing photo
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={22} color={colors.amber} />
+              </Pressable>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setAvatarPickerVisible(false)}
+              style={({ pressed }) => [
+                styles.avatarPickerCancel,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.avatarPickerCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
       <Modal
         visible={logoutConfirmationVisible}
         transparent
@@ -1000,10 +1122,11 @@ export default function ProfileScreen() {
                     />
                     <TextInput
                       value={garagePlate}
-                      onChangeText={setGaragePlate}
                       placeholder="Plate number"
                       placeholderTextColor={colors.textMuted}
                       autoCapitalize="characters"
+                      maxLength={8}
+                      onChangeText={(value) => setGaragePlate(sanitizePlateNumber(value))}
                       style={[styles.priceInput, styles.garageHalfInput]}
                     />
                   </View>
@@ -1503,6 +1626,9 @@ const styles = StyleSheet.create({
     borderColor: colors.amber,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarColumn: {
+    alignItems: 'center',
     marginRight: spacing.md,
   },
   avatarImage: {
@@ -1534,6 +1660,48 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
   },
+  avatarSuccessOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+    backgroundColor: 'rgba(16, 24, 40, 0.48)',
+  },
+  avatarSuccessCard: {
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+    borderRadius: radii.lg,
+    backgroundColor: colors.bgElevated,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  avatarSuccessIcon: {
+    width: 58,
+    height: 58,
+    borderRadius: radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.success,
+    marginBottom: spacing.md,
+  },
+  avatarSuccessTitle: {
+    color: colors.success,
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  avatarSuccessMessage: {
+    color: colors.textMuted,
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+  },
   cameraBadge: {
     position: 'absolute',
     right: -2,
@@ -1544,6 +1712,89 @@ const styles = StyleSheet.create({
     backgroundColor: colors.amber,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarPickerOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.52)',
+  },
+  avatarPickerCard: {
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
+    backgroundColor: colors.bgElevated,
+  },
+  avatarPickerHandle: {
+    width: 46,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#C7CBD4',
+    alignSelf: 'center',
+    marginBottom: spacing.md,
+  },
+  avatarPickerTitle: {
+    color: colors.text,
+    fontSize: 23,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  avatarPickerSubtitle: {
+    color: colors.textMuted,
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  avatarPickerOptions: {
+    gap: spacing.sm,
+  },
+  avatarPickerOption: {
+    minHeight: 76,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  avatarPickerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.amberSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarPickerCopy: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  avatarPickerOptionTitle: {
+    color: colors.text,
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  avatarPickerOptionText: {
+    color: colors.textMuted,
+    fontSize: 14,
+    marginTop: 3,
+  },
+  avatarPickerCancel: {
+    minHeight: 52,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.md,
+  },
+  avatarPickerCancelText: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '800',
   },
   name: {
     color: colors.text,

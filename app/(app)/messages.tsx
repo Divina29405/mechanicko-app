@@ -126,7 +126,16 @@ export default function MessagesScreen() {
   const { session } = useAuth();
   const { isMechanic } = useMechanic();
   const { colors } = useAppTheme();
-  const { serviceRequestId } = useLocalSearchParams<{ serviceRequestId?: string }>();
+  const { serviceRequestId, counterpartId } = useLocalSearchParams<{
+    serviceRequestId?: string;
+    counterpartId?: string;
+  }>();
+  const requestedServiceRequestId = Array.isArray(serviceRequestId)
+    ? serviceRequestId[0]
+    : serviceRequestId;
+  const requestedCounterpartId = Array.isArray(counterpartId)
+    ? counterpartId[0]
+    : counterpartId;
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -235,8 +244,10 @@ export default function MessagesScreen() {
         .select('id,mechanic_id,motorist_id,status,created_at')
         .eq(isMechanic ? 'mechanic_id' : 'motorist_id', session.user.id)
         .not(counterpartColumn, 'is', null);
-      if (serviceRequestId) {
-        requestQuery = requestQuery.eq('id', serviceRequestId);
+      if (requestedCounterpartId) {
+        requestQuery = requestQuery.eq(counterpartColumn, requestedCounterpartId);
+      } else if (requestedServiceRequestId) {
+        requestQuery = requestQuery.eq('id', requestedServiceRequestId);
       }
       const { data: requests, error: requestError } = await requestQuery.order(
         'created_at',
@@ -337,9 +348,13 @@ export default function MessagesScreen() {
       const availableConversations = [...conversationByCounterpart.values()];
       if (!active) return;
       setConversations(availableConversations);
-      const requestedConversation = serviceRequestId
+      const requestedConversation = requestedCounterpartId
+        ? availableConversations.find(
+            (item) => item.counterpartId === requestedCounterpartId,
+          ) ?? null
+        : requestedServiceRequestId
         ? availableConversations.find((item) =>
-            item.requestIds.includes(serviceRequestId),
+            item.requestIds.includes(requestedServiceRequestId),
           ) ?? null
         : null;
       setConversation(requestedConversation);
@@ -353,7 +368,12 @@ export default function MessagesScreen() {
     return () => {
       active = false;
     };
-  }, [isMechanic, serviceRequestId, session?.user.id]);
+  }, [
+    isMechanic,
+    requestedCounterpartId,
+    requestedServiceRequestId,
+    session?.user.id,
+  ]);
 
   useEffect(() => {
     if (!session?.user.id) return;
@@ -431,6 +451,39 @@ export default function MessagesScreen() {
   );
 
   useEffect(() => {
+    if (
+      !conversationOpen ||
+      conversationRequestIds.length === 0 ||
+      !session?.user.id
+    ) {
+      return;
+    }
+
+    let active = true;
+    const markConversationNotificationsRead = async () => {
+      const { error: markReadError } = await supabase
+        .from("app_notifications")
+        .update({ read_at: new Date().toISOString() })
+        .eq("user_id", session.user.id)
+        .eq("type", "chat_message")
+        .in("service_request_id", conversationRequestIds)
+        .is("read_at", null);
+      if (!active) return;
+      if (markReadError) {
+        console.warn(
+          "Could not mark booking chat notifications as read:",
+          markReadError.message,
+        );
+      }
+    };
+
+    void markConversationNotificationsRead();
+    return () => {
+      active = false;
+    };
+  }, [conversationOpen, conversationRequestIds, session?.user.id]);
+
+  useEffect(() => {
     if (!conversationId) return;
     let active = true;
 
@@ -480,6 +533,27 @@ export default function MessagesScreen() {
                 ? current
                 : [...current, incoming],
             );
+            if (
+              incoming.recipient_id === session?.user.id &&
+              incoming.id &&
+              session?.user.id
+            ) {
+              void supabase
+                .from("app_notifications")
+                .update({ read_at: new Date().toISOString() })
+                .eq("user_id", session.user.id)
+                .eq("type", "chat_message")
+                .eq("chat_message_id", incoming.id)
+                .is("read_at", null)
+                .then(({ error: markReadError }) => {
+                  if (markReadError) {
+                    console.warn(
+                      "Could not mark incoming chat notification as read:",
+                      markReadError.message,
+                    );
+                  }
+                });
+            }
           },
         ),
       supabase.channel(`mechanic_pair_chat_${conversation?.counterpartId}`),
@@ -490,7 +564,12 @@ export default function MessagesScreen() {
       active = false;
       void supabase.removeChannel(channel);
     };
-  }, [conversation?.counterpartId, conversationId, conversationRequestIds]);
+  }, [
+    conversation?.counterpartId,
+    conversationId,
+    conversationRequestIds,
+    session?.user.id,
+  ]);
 
   useEffect(() => {
     for (const message of messages) {

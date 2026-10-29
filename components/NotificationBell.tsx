@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotificationCount } from "@/contexts/NotificationContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
 
@@ -38,74 +39,18 @@ export function NotificationBell({
 }) {
   const { session } = useAuth();
   const { colors } = useAppTheme();
+  const {
+    unreadCount,
+    markNotificationRead,
+    markAllNotificationsRead,
+  } = useNotificationCount();
   const userId = session?.user.id;
   const [visible, setVisible] = useState(false);
-  const [unreadState, setUnreadState] = useState<{
-    userId: string | undefined;
-    count: number;
-  }>({ userId: undefined, count: 0 });
-  const unreadCount = unreadState.userId === userId ? unreadState.count : 0;
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyRefreshing, setHistoryRefreshing] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [isMechanic, setIsMechanic] = useState(false);
-
-  useEffect(() => {
-    if (!userId) return;
-
-    let active = true;
-    const loadUnreadCount = async () => {
-      try {
-        const { count, error } = await supabase
-          .from("app_notifications")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", userId)
-          .is("read_at", null);
-        if (!active) return;
-        if (error) {
-          console.warn(
-            "Could not load unread notification count:",
-            error.message,
-          );
-          return;
-        }
-        setUnreadState({ userId, count: count ?? 0 });
-      } catch (loadError) {
-        if (active) {
-          console.warn("Could not load unread notification count:", loadError);
-        }
-      }
-    };
-
-    void loadUnreadCount();
-    const channelId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const channel = supabase
-      .channel(`notification_badge_${userId}_${channelId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "app_notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        () => void loadUnreadCount(),
-      )
-      .subscribe((status, error) => {
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.warn(
-            "Notification badge realtime connection failed:",
-            error?.message ?? status,
-          );
-        }
-      });
-
-    return () => {
-      active = false;
-      void supabase.removeChannel(channel);
-    };
-  }, [userId]);
 
   useEffect(() => {
     if (!visible || !userId) return;
@@ -188,7 +133,7 @@ export function NotificationBell({
     setNotifications((current) =>
       current.map((item) => ({ ...item, read_at: item.read_at ?? readAt })),
     );
-    setUnreadState({ userId, count: 0 });
+    markAllNotificationsRead();
   };
 
   const openNotification = async (item: AppNotification) => {
@@ -211,11 +156,7 @@ export function NotificationBell({
             : notification,
         ),
       );
-      setUnreadState((current) =>
-        current.userId === userId
-          ? { ...current, count: Math.max(0, current.count - 1) }
-          : current,
-      );
+      markNotificationRead();
     }
 
     setVisible(false);

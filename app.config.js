@@ -26,6 +26,16 @@ module.exports = ({ config }) => ({
   plugins: [
     ...(config.plugins ?? []),
     "expo-font",
+    [
+      "expo-media-library",
+      {
+        photosPermission:
+          "Allow Mechaniko to save booking receipts to your gallery.",
+        savePhotosPermission:
+          "Allow Mechaniko to save booking receipts to your gallery.",
+        granularPermissions: ["photo"],
+      },
+    ],
     "expo-status-bar",
     "expo-web-browser",
   ],

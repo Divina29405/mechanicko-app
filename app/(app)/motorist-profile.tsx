@@ -12,10 +12,15 @@ import { useAppTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { MotoristHomeHeader } from '@/components/MotoristHomeHeader';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
-import { publishSharedAvatarUrl } from '@/lib/avatarStore';
+import {
+  getSharedAvatarUrl,
+  publishSharedAvatarUrl,
+  subscribeToSharedAvatar,
+} from '@/lib/avatarStore';
 import { listVehicles, setPrimaryVehicle } from '@/services/vehicleService';
 import type { Vehicle } from '@/types/vehicle';
 import { normalizeText } from '@/lib/typography';
+import { isValidPlateNumber, sanitizePlateNumber } from '@/lib/plateNumber';
 
 const motorcycleIcon = require('../../assets/images/motorcycle.png');
 const carIcon = require('../../assets/images/car.png');
@@ -36,11 +41,15 @@ export default function MotoristProfileScreen() {
     ? session.user.user_metadata.full_name
     : email.split('@')[0];
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
-    typeof session?.user.user_metadata?.avatar_url === 'string'
-      ? session.user.user_metadata.avatar_url
-      : null,
+    () =>
+      getSharedAvatarUrl() ||
+      (typeof session?.user.user_metadata?.avatar_url === 'string'
+        ? session.user.user_metadata.avatar_url
+        : null),
   );
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarPreviewUri, setAvatarPreviewUri] = useState<string | null>(null);
+  const [avatarUploadSuccess, setAvatarUploadSuccess] = useState(false);
   const [avatarPickerVisible, setAvatarPickerVisible] = useState(false);
   const [accountDetailsVisible, setAccountDetailsVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(openSettings === '1');
@@ -48,6 +57,10 @@ export default function MotoristProfileScreen() {
   const [editableEmail, setEditableEmail] = useState(email);
   const [mobileNumber, setMobileNumber] = useState('');
   const [savingDetails, setSavingDetails] = useState(false);
+  const [accountDetailsSuccessVisible, setAccountDetailsSuccessVisible] =
+    useState(false);
+  const [accountDetailsSuccessMessage, setAccountDetailsSuccessMessage] =
+    useState('');
   const [motoristVehicles, setMotoristVehicles] = useState<Vehicle[]>([]);
   const [vehiclesLoadedFor, setVehiclesLoadedFor] = useState<string | null>(null);
   const [addVehicleVisible, setAddVehicleVisible] = useState(false);
@@ -62,6 +75,7 @@ export default function MotoristProfileScreen() {
   const [logoutConfirmationVisible, setLogoutConfirmationVisible] =
     useState(false);
   const avatarRequestId = useRef(0);
+  const avatarSuccessTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vehiclesLoading = Boolean(session?.user.id) && vehiclesLoadedFor !== session?.user.id;
   const shouldPromptVehicle =
     setupVehicle === '1' &&
@@ -69,6 +83,15 @@ export default function MotoristProfileScreen() {
     vehiclesLoadedFor === session?.user.id &&
     motoristVehicles.length === 0 &&
     !vehiclePromptDismissed;
+
+  useEffect(
+    () => () => {
+      if (avatarSuccessTimer.current) clearTimeout(avatarSuccessTimer.current);
+    },
+    [],
+  );
+
+  useEffect(() => subscribeToSharedAvatar(setAvatarUrl), []);
 
   useEffect(() => {
     void SecureStore.getItemAsync(MOTORIST_RADIUS_KEY).then((storedRadius) => {
@@ -83,7 +106,7 @@ export default function MotoristProfileScreen() {
   };
 
   useEffect(() => {
-    if (!accountDetailsVisible || !session?.user.id) return;
+    if (!session?.user.id) return;
     let active = true;
     const loadMobileNumber = async () => {
       const { data, error } = await supabase
@@ -102,17 +125,23 @@ export default function MotoristProfileScreen() {
   useEffect(() => {
     if (!session?.user.id) return;
     let active = true;
+    const requestId = ++avatarRequestId.current;
     void supabase
       .from('profiles')
       .select('avatar_path')
       .eq('id', session.user.id)
       .maybeSingle()
-      .then(async ({ data }) => {
-        if (!active || !data?.avatar_path) return;
-        const { data: signed } = await supabase.storage
+      .then(({ data, error }) => {
+        if (error) {
+          console.warn('Motorist avatar load failed:', error.message);
+          return;
+        }
+        if (!active || requestId !== avatarRequestId.current || !data?.avatar_path) return;
+        const { data: avatar } = supabase.storage
           .from('mechanic-avatars')
-          .createSignedUrl(data.avatar_path, 60 * 60);
-        if (active && signed?.signedUrl) setAvatarUrl(signed.signedUrl);
+          .getPublicUrl(data.avatar_path);
+        setAvatarUrl(avatar.publicUrl);
+        publishSharedAvatarUrl(avatar.publicUrl);
       });
     return () => {
       active = false;
@@ -128,6 +157,14 @@ export default function MotoristProfileScreen() {
       Alert.alert('Missing Details', 'Please fill out all vehicle fields.');
       return;
     }
+    const plateNumber = sanitizePlateNumber(vehiclePlate).trim();
+    if (!isValidPlateNumber(plateNumber)) {
+      Alert.alert(
+        'Invalid Plate Number',
+        'Use up to 7 letters or numbers, with at most one space.',
+      );
+      return;
+    }
     setSavingVehicle(true);
     const { data, error } = await supabase
       .from('vehicles')
@@ -137,7 +174,7 @@ export default function MotoristProfileScreen() {
         make: vehicleMake.trim(),
         model: vehicleModel.trim(),
         year: vehicleYear.trim(),
-        plate_number: vehiclePlate.trim().toUpperCase(),
+        plate_number: plateNumber,
         is_primary: motoristVehicles.length === 0,
       })
       .select('*')
@@ -271,11 +308,16 @@ export default function MotoristProfileScreen() {
         Alert.alert('Email update failed', authUpdate.error.message);
         return;
       }
-      Alert.alert('Changes saved successfully!', 'Please check your email to confirm the new email address.');
+      setAccountDetailsSuccessMessage(
+        'Your details have been saved. Please check your email to confirm the new email address.',
+      );
     } else {
-      Alert.alert('Changes saved successfully!', 'Your account details have been updated.');
+      setAccountDetailsSuccessMessage(
+        'Your account details have been updated successfully.',
+      );
     }
     setSavingDetails(false);
+    setAccountDetailsSuccessVisible(true);
   }
 
   async function changeAvatar(source: 'camera' | 'gallery') {
@@ -299,13 +341,18 @@ export default function MotoristProfileScreen() {
 
     const previousAvatarUrl = avatarUrl;
     setUploadingAvatar(true);
+    setAvatarUploadSuccess(false);
+    if (avatarSuccessTimer.current) clearTimeout(avatarSuccessTimer.current);
     const requestId = ++avatarRequestId.current;
     try {
       const converted = await ImageManipulator.manipulateAsync(result.assets[0].uri, [], {
         compress: 0.85,
         format: ImageManipulator.SaveFormat.JPEG,
       });
-      setAvatarUrl(converted.uri);
+      if (requestId === avatarRequestId.current) {
+        setAvatarPreviewUri(converted.uri);
+        setAvatarUrl(converted.uri);
+      }
       publishSharedAvatarUrl(converted.uri);
       const convertedFile = new File(converted.uri);
       if (!convertedFile.exists) throw new Error('The converted photo was not created.');
@@ -318,18 +365,34 @@ export default function MotoristProfileScreen() {
       if (upload.error) throw new Error(upload.error.message);
       const update = await supabase.from('profiles').update({ avatar_path: path }).eq('id', session.user.id);
       if (update.error) throw new Error(update.error.message);
-      const signed = await supabase.storage.from('mechanic-avatars').createSignedUrl(path, 60 * 60);
-      if (signed.error || !signed.data?.signedUrl) {
-        throw new Error(signed.error?.message ?? 'The photo was saved but could not be loaded.');
-      }
-      const cacheBustedUrl = `${signed.data.signedUrl}&v=${Date.now()}`;
-      await Image.prefetch(cacheBustedUrl);
+      const { data: avatar } = supabase.storage
+        .from('mechanic-avatars')
+        .getPublicUrl(path);
+      const cacheBustedUrl = `${avatar.publicUrl}?v=${Date.now()}`;
+      const avatarReady = await Image.prefetch(cacheBustedUrl).catch((error) => {
+        console.warn(
+          'Uploaded motorist avatar could not be preloaded:',
+          error instanceof Error ? error.message : error,
+        );
+        return false;
+      });
       if (requestId === avatarRequestId.current) {
         setAvatarUrl(cacheBustedUrl);
+        publishSharedAvatarUrl(cacheBustedUrl);
+        setAvatarPreviewUri(null);
+        setAvatarUploadSuccess(true);
+        avatarSuccessTimer.current = setTimeout(() => {
+          setAvatarUploadSuccess(false);
+          avatarSuccessTimer.current = null;
+        }, 2500);
+      }
+      if (!avatarReady) {
+        console.warn('Motorist avatar will load from storage without a cached preview.');
       }
     } catch (error) {
       if (requestId === avatarRequestId.current) {
         setAvatarUrl(previousAvatarUrl);
+        setAvatarPreviewUri(null);
         publishSharedAvatarUrl(previousAvatarUrl);
       }
       Alert.alert('Profile photo failed', error instanceof Error ? error.message : 'Could not save the photo.');
@@ -358,13 +421,27 @@ export default function MotoristProfileScreen() {
             onPress={chooseAvatar}
             disabled={uploadingAvatar}
           >
-            <ProfileAvatar
-              uri={avatarUrl}
-              name={fullName}
-              size={84}
-              backgroundColor="#FFF1D6"
-              borderColor="#F0A202"
-            />
+            {avatarPreviewUri ? (
+              <ProfileAvatar
+                uri={avatarPreviewUri}
+                name={fullName}
+                size={80}
+                backgroundColor="#FFF1D6"
+              />
+            ) : (
+              <ProfileAvatar
+                uri={avatarUrl}
+                name={fullName}
+                size={80}
+                backgroundColor="#FFF1D6"
+              />
+            )}
+            {uploadingAvatar ? (
+              <View style={styles.avatarUploadingOverlay} pointerEvents="none">
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={styles.avatarUploadingText}>Uploading</Text>
+              </View>
+            ) : null}
             <View style={[styles.cameraBadge, { backgroundColor: colors.primary }]}>
               <Ionicons name="camera-outline" size={16} color="#FFFFFF" />
             </View>
@@ -380,7 +457,9 @@ export default function MotoristProfileScreen() {
                 <Ionicons name="settings-outline" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            <Text style={[styles.meta, { color: colors.textMuted }]}>{mobileNumber || '09232124501'}</Text>
+            <Text style={[styles.meta, { color: colors.textMuted }]}>
+              {mobileNumber || 'Phone number not added'}
+            </Text>
             <Text style={[styles.meta, { color: colors.textMuted }]}>{email}</Text>
           </View>
           <View style={[styles.editProfileContainer, { backgroundColor: colors.softCard }]}>
@@ -515,6 +594,30 @@ export default function MotoristProfileScreen() {
             >
               <Text style={styles.vehicleLimitButtonText}>Done</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={avatarUploadSuccess}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAvatarUploadSuccess(false)}
+      >
+        <View style={[styles.avatarSuccessOverlay, { backgroundColor: colors.overlay }]}>
+          <View
+            accessibilityRole="alert"
+            style={[styles.avatarSuccessCard, { backgroundColor: colors.card }]}
+          >
+            <View style={styles.avatarSuccessIcon}>
+              <Ionicons name="checkmark" size={30} color="#FFFFFF" />
+            </View>
+            <Text style={styles.avatarSuccessTitle}>
+              Uploaded successfully
+            </Text>
+            <Text style={[styles.avatarSuccessMessage, { color: colors.textMuted }]}>
+              Your profile photo has been updated.
+            </Text>
           </View>
         </View>
       </Modal>
@@ -668,7 +771,7 @@ export default function MotoristProfileScreen() {
             <TextInput style={[styles.vehicleInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]} placeholder="Make (e.g. Yamaha)" placeholderTextColor={colors.textMuted} value={vehicleMake} onChangeText={setVehicleMake} />
             <TextInput style={[styles.vehicleInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]} placeholder="Model (e.g. NMAX)" placeholderTextColor={colors.textMuted} value={vehicleModel} onChangeText={setVehicleModel} />
             <TextInput style={[styles.vehicleInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]} placeholder="Year" placeholderTextColor={colors.textMuted} keyboardType="numeric" value={vehicleYear} onChangeText={setVehicleYear} />
-            <TextInput style={[styles.vehicleInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]} placeholder="Plate number" placeholderTextColor={colors.textMuted} autoCapitalize="characters" value={vehiclePlate} onChangeText={setVehiclePlate} />
+            <TextInput style={[styles.vehicleInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]} placeholder="Plate number" placeholderTextColor={colors.textMuted} autoCapitalize="characters" maxLength={8} value={vehiclePlate} onChangeText={(value) => setVehiclePlate(sanitizePlateNumber(value))} />
             <TouchableOpacity onPress={() => void saveVehicle()} disabled={savingVehicle} style={[styles.saveVehicleButton, savingVehicle && styles.disabled]}>
               {savingVehicle ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveVehicleText}>Save Vehicle</Text>}
             </TouchableOpacity>
@@ -680,16 +783,29 @@ export default function MotoristProfileScreen() {
         <View style={styles.settingsOverlay}>
           <SafeAreaView style={[styles.detailScreen, { backgroundColor: colors.bg }]}>
           <View style={[styles.detailHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-            <Text style={[styles.detailTitle, { color: colors.text }]}>Settings & Preferences</Text>
-            <TouchableOpacity onPress={() => setSettingsVisible(false)} style={styles.closeButton}>
-              <Ionicons name="close" size={26} color={colors.text} />
+            <TouchableOpacity
+              onPress={() => setSettingsVisible(false)}
+              style={styles.closeButton}
+              accessibilityRole="button"
+              accessibilityLabel="Back to profile"
+            >
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
+            <Text
+              style={[
+                styles.detailTitle,
+                styles.settingsHeaderTitle,
+                { color: colors.text },
+              ]}
+            >
+              Settings & Preferences
+            </Text>
+            <View style={styles.settingsHeaderSpacer} />
           </View>
           <View style={[styles.settingsPanel, { backgroundColor: colors.card }]}>
             <TouchableOpacity
               style={[styles.settingsRow, { borderBottomColor: colors.border }]}
               onPress={() => {
-                setSettingsVisible(false);
                 router.push('/(app)/payment-methods');
               }}
             >
@@ -768,58 +884,205 @@ export default function MotoristProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={[styles.detailsList, { backgroundColor: colors.card }]} keyboardShouldPersistTaps="handled">
-            <AccountDetailRow label="Full Name" value={fullName} colors={colors} />
-            <View style={[styles.editableDetailRow, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Email Address</Text>
-              <TextInput
-                style={[styles.detailInput, { color: colors.text }]}
-                value={editableEmail}
-                onChangeText={setEditableEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
+          <ScrollView
+            style={styles.detailsList}
+            contentContainerStyle={styles.accountDetailsContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View
+              style={[
+                styles.accountProfileCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <ProfileAvatar
+                uri={avatarUrl}
+                name={fullName}
+                size={60}
+                backgroundColor={colors.softCard}
               />
+              <View style={styles.accountProfileCopy}>
+                <Text
+                  style={[styles.accountProfileName, { color: colors.text }]}
+                  numberOfLines={2}
+                >
+                  {fullName}
+                </Text>
+                <View
+                  style={[
+                    styles.accountTypeBadge,
+                    { backgroundColor: colors.softCard },
+                  ]}
+                >
+                  <Ionicons name="car-outline" size={14} color={colors.primary} />
+                  <Text style={[styles.accountTypeBadgeText, { color: colors.primary }]}>
+                    Motorist account
+                  </Text>
+                </View>
+              </View>
             </View>
-            <View style={[styles.editableDetailRow, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Phone Number</Text>
-              <TextInput
-                style={[styles.detailInput, { color: colors.text }]}
-                value={mobileNumber}
-                onChangeText={setMobileNumber}
-                keyboardType="phone-pad"
-                placeholder="Enter phone number"
-                placeholderTextColor={colors.textMuted}
+
+            <Text style={[styles.accountSectionLabel, { color: colors.textMuted }]}>
+              PERSONAL INFORMATION
+            </Text>
+            <View
+              style={[
+                styles.accountInfoCard,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <View style={styles.accountInfoRow}>
+                <View style={[styles.accountInfoIcon, { backgroundColor: colors.softCard }]}>
+                  <Ionicons name="person-outline" size={19} color={colors.primary} />
+                </View>
+                <View style={styles.accountInfoCopy}>
+                  <Text style={[styles.accountDetailLabel, { color: colors.textMuted }]}>
+                    Full name
+                  </Text>
+                  <Text style={[styles.accountDetailValue, { color: colors.text }]}>
+                    {fullName}
+                  </Text>
+                </View>
+              </View>
+              <View style={[styles.accountInfoDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.accountInfoRow}>
+                <View style={[styles.accountInfoIcon, { backgroundColor: colors.softCard }]}>
+                  <Ionicons name="mail-outline" size={19} color={colors.primary} />
+                </View>
+                <View style={styles.accountInfoCopy}>
+                  <Text style={[styles.accountDetailLabel, { color: colors.textMuted }]}>
+                    Email address
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.accountDetailInput,
+                      { color: colors.text, borderBottomColor: colors.border },
+                    ]}
+                    value={editableEmail}
+                    onChangeText={setEditableEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    accessibilityLabel="Email address"
+                  />
+                </View>
+              </View>
+              <View style={[styles.accountInfoDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.accountInfoRow}>
+                <View style={[styles.accountInfoIcon, { backgroundColor: colors.softCard }]}>
+                  <Ionicons name="call-outline" size={19} color={colors.primary} />
+                </View>
+                <View style={styles.accountInfoCopy}>
+                  <Text style={[styles.accountDetailLabel, { color: colors.textMuted }]}>
+                    Phone number
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.accountDetailInput,
+                      { color: colors.text, borderBottomColor: colors.border },
+                    ]}
+                    value={mobileNumber}
+                    onChangeText={setMobileNumber}
+                    keyboardType="phone-pad"
+                    placeholder="Enter phone number"
+                    placeholderTextColor={colors.textMuted}
+                    accessibilityLabel="Phone number"
+                  />
+                </View>
+              </View>
+              <View style={[styles.accountInfoDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.accountInfoRow}>
+                <View style={[styles.accountInfoIcon, { backgroundColor: colors.softCard }]}>
+                  <Ionicons name="shield-checkmark-outline" size={19} color={colors.primary} />
+                </View>
+                <View style={styles.accountInfoCopy}>
+                  <Text style={[styles.accountDetailLabel, { color: colors.textMuted }]}>
+                    Account type
+                  </Text>
+                  <Text style={[styles.accountDetailValue, { color: colors.text }]}>
+                    Motorist
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.accountPrivacyNote,
+                { backgroundColor: colors.softCard },
+              ]}
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={19}
+                color={colors.primary}
               />
+              <Text style={[styles.accountPrivacyText, { color: colors.textMuted }]}>
+                Keep your contact details up to date so mechanics can reach you
+                about your bookings.
+              </Text>
             </View>
-            <AccountDetailRow label="Account Type" value="Motorist" colors={colors} />
+
             <TouchableOpacity
-              style={[styles.saveDetailsButton, { backgroundColor: colors.primary }]}
+              style={[
+                styles.saveDetailsButton,
+                { backgroundColor: colors.primary },
+                savingDetails && styles.disabled,
+              ]}
               onPress={() => void saveAccountDetails()}
               disabled={savingDetails}
+              accessibilityRole="button"
             >
-              {savingDetails ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveDetailsText}>Save changes</Text>}
+              {savingDetails ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
+                  <Text style={styles.saveDetailsText}>Save changes</Text>
+                </>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
       </Modal>
-    </View>
-  );
-}
 
-function AccountDetailRow({
-  label,
-  value,
-  colors,
-}: {
-  label: string;
-  value: string;
-  colors: { text: string; textMuted: string; border: string };
-}) {
-  return (
-    <View style={[styles.detailRow, { borderBottomColor: colors.border }]}>
-      <Text style={[styles.detailLabel, { color: colors.textMuted }]}>{label}</Text>
-      <Text style={[styles.detailValue, { color: colors.text }]}>{value}</Text>
+      <Modal
+        visible={accountDetailsSuccessVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAccountDetailsSuccessVisible(false)}
+      >
+        <View style={styles.accountSuccessOverlay}>
+          <View
+            style={[
+              styles.accountSuccessCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.accountSuccessIcon}>
+              <Ionicons name="checkmark" size={28} color="#FFFFFF" />
+            </View>
+            <Text style={[styles.accountSuccessTitle, { color: colors.text }]}>
+              Changes saved successfully!
+            </Text>
+            <Text
+              style={[
+                styles.accountSuccessMessage,
+                { color: colors.textMuted },
+              ]}
+            >
+              {accountDetailsSuccessMessage}
+            </Text>
+            <TouchableOpacity
+              style={styles.accountSuccessButton}
+              onPress={() => setAccountDetailsSuccessVisible(false)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.accountSuccessButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -833,10 +1096,62 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingBottom: 40 },
   card: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 18 },
   profileInfo: { flex: 1, position: 'relative' },
-  avatar: { width: 82, height: 82, borderRadius: 41, alignItems: 'center', justifyContent: 'center', marginRight: 14, borderWidth: 2, overflow: 'visible' },
+  avatar: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center', marginRight: 14, borderWidth: 2, overflow: 'visible' },
   avatarImage: { width: '100%', height: '100%', borderRadius: 42 },
   avatarInitials: { fontSize: normalizeText(32), fontWeight: '800' },
   cameraBadge: { position: 'absolute', right: -2, bottom: -2, width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  avatarUploadingOverlay: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 40,
+    backgroundColor: 'rgba(16, 24, 40, 0.58)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  avatarUploadingText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  avatarSuccessOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  avatarSuccessCard: {
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    borderRadius: 22,
+    padding: 28,
+    elevation: 8,
+    shadowColor: '#000000',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  avatarSuccessIcon: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#27AE60',
+    marginBottom: 16,
+  },
+  avatarSuccessTitle: {
+    color: '#27AE60',
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  avatarSuccessMessage: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 21,
+    marginTop: 8,
+  },
   avatarPickerOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.52)' },
   avatarPickerCard: { borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
   avatarPickerHandle: { width: 46, height: 6, borderRadius: 3, backgroundColor: '#C7CBD4', alignSelf: 'center', marginBottom: 20 },
@@ -937,15 +1252,36 @@ const styles = StyleSheet.create({
   detailScreen: { flex: 1 },
   detailHeader: { minHeight: 64, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1 },
   detailTitle: { fontSize: normalizeText(20), fontWeight: '800' },
+  settingsHeaderTitle: { flex: 1, marginLeft: 12 },
+  settingsHeaderSpacer: { width: 44 },
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  detailsList: { marginTop: 16 },
-  detailRow: { minHeight: 62, paddingHorizontal: 22, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
-  editableDetailRow: { minHeight: 62, paddingHorizontal: 22, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
-  detailLabel: { fontSize: normalizeText(15), fontWeight: '600' },
-  detailValue: { flex: 1, fontSize: normalizeText(17), fontWeight: '700', marginLeft: 22, textAlign: 'right' },
-  detailInput: { flex: 1, minHeight: 42, borderWidth: 0, paddingHorizontal: 0, paddingVertical: 4, fontSize: normalizeText(17), fontWeight: '600', marginLeft: 22, textAlign: 'right' },
-  saveDetailsButton: { minHeight: 50, margin: 22, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  detailsList: { flex: 1 },
+  accountDetailsContent: { padding: 18, paddingBottom: 36, gap: 16 },
+  accountProfileCard: { minHeight: 96, flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, borderRadius: 18, borderWidth: 1 },
+  accountProfileCopy: { flex: 1, gap: 8 },
+  accountProfileName: { fontSize: normalizeText(19), lineHeight: normalizeText(24), fontWeight: '800' },
+  accountTypeBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
+  accountTypeBadgeText: { fontSize: normalizeText(12), fontWeight: '800' },
+  accountSectionLabel: { marginBottom: -6, fontSize: normalizeText(11), fontWeight: '900', letterSpacing: 0.9 },
+  accountInfoCard: { paddingHorizontal: 16, borderWidth: 1, borderRadius: 18 },
+  accountInfoRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  accountInfoIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  accountInfoCopy: { flex: 1, gap: 4 },
+  accountInfoDivider: { height: 1, marginLeft: 52 },
+  accountDetailLabel: { fontSize: normalizeText(12), fontWeight: '700' },
+  accountDetailValue: { fontSize: normalizeText(15), lineHeight: normalizeText(21), fontWeight: '700' },
+  accountDetailInput: { minHeight: 36, paddingVertical: 2, borderBottomWidth: 1, fontSize: normalizeText(15), fontWeight: '600' },
+  accountPrivacyNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, borderRadius: 14 },
+  accountPrivacyText: { flex: 1, fontSize: normalizeText(13), lineHeight: normalizeText(19) },
+  saveDetailsButton: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 2, borderRadius: 14 },
   saveDetailsText: { color: '#FFFFFF', fontSize: normalizeText(17), fontWeight: '800' },
+  accountSuccessOverlay: { flex: 1, justifyContent: 'center', padding: 22, backgroundColor: 'rgba(16, 24, 40, 0.58)' },
+  accountSuccessCard: { alignItems: 'center', padding: 22, borderWidth: 1, borderRadius: 22, shadowColor: '#101828', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.18, shadowRadius: 22, elevation: 12 },
+  accountSuccessIcon: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', marginBottom: 16, borderRadius: 29, backgroundColor: '#27AE60' },
+  accountSuccessTitle: { fontSize: normalizeText(20), lineHeight: normalizeText(26), fontWeight: '800', textAlign: 'center' },
+  accountSuccessMessage: { fontSize: normalizeText(15), lineHeight: normalizeText(22), marginTop: 8, textAlign: 'center' },
+  accountSuccessButton: { width: '100%', minHeight: 50, alignItems: 'center', justifyContent: 'center', marginTop: 22, borderRadius: 13, backgroundColor: '#2450D8' },
+  accountSuccessButtonText: { color: '#FFFFFF', fontSize: normalizeText(15), fontWeight: '800' },
   detailLogoutRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 22, paddingVertical: 20, borderTopWidth: 1 },
   logoutText: { color: '#EF4444', fontSize: normalizeText(17), fontWeight: '800', flex: 1 }
 });

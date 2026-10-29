@@ -65,8 +65,10 @@ export default function PaymentMethodsScreen() {
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => router.replace('/motorist-profile')}
           style={styles.backButton}
+          accessibilityRole="button"
+          accessibilityLabel="Back to profile settings"
         >
           <Ionicons name="arrow-back" size={26} color="#000000" />
         </TouchableOpacity>

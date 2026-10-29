@@ -97,7 +97,7 @@ export function MechanicScreen({
             <View style={styles.profileRating}>
               <Ionicons name="star" size={20} color={colors.amber} />
               <Text style={[styles.profileRatingValue, { color: theme.colors.text }]}>
-                {rating.toFixed(2)}
+                {rating.toFixed(1)}
               </Text>
             </View>
             <NotificationBell color={colors.amber} style={styles.profileNotification} />

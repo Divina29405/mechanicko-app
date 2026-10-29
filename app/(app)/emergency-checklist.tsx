@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { listVehicles } from '@/services/vehicleService';
 import type { Vehicle } from '@/types/vehicle';
+import { isValidPlateNumber } from '@/lib/plateNumber';
 
 const COMMON_SYMPTOMS = [
   'Flat Tire / Puncture',
@@ -34,6 +35,7 @@ type EmergencyChecklistProps = {
   embedded?: boolean;
   initialLocation?: { lat: number; lng: number };
   initialVehicle?: Vehicle | null;
+  onSubmitted?: (request: Record<string, unknown>) => void;
   onClose?: () => void;
 };
 
@@ -41,6 +43,7 @@ export default function EmergencyChecklistScreen({
   embedded = false,
   initialLocation,
   initialVehicle,
+  onSubmitted,
   onClose,
 }: EmergencyChecklistProps = {}) {
   const router = useRouter();
@@ -75,6 +78,11 @@ export default function EmergencyChecklistScreen({
   const [notesDraft, setNotesDraft] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sosSentVisible, setSosSentVisible] = useState(false);
+  const [validationNotice, setValidationNotice] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     const loadPrimaryVehicle = async () => {
@@ -132,15 +140,28 @@ export default function EmergencyChecklistScreen({
 
   const handleSubmitEmergency = async () => {
     if (selectedSymptoms.length === 0) {
-      Alert.alert("Assessment Required", "Please select at least one symptom.");
+      setValidationNotice({
+        title: "Assessment Required",
+        message: "Please select at least one symptom.",
+      });
       return;
     }
     if (!additionalNotes.trim()) {
-      Alert.alert("Details Required", "Please provide your situation and location.");
+      setValidationNotice({
+        title: "Details Required",
+        message: "Please provide your situation and location.",
+      });
       return;
     }
     if (!vehicleType.trim() || !plateNumber.trim()) {
       Alert.alert("Vehicle Details Required", "Please enter your vehicle model and plate number.");
+      return;
+    }
+    if (!isValidPlateNumber(plateNumber.trim())) {
+      Alert.alert(
+        "Invalid Plate Number",
+        "Use up to 7 letters or numbers, with at most one space.",
+      );
       return;
     }
     setIsSubmitting(true);
@@ -179,7 +200,7 @@ export default function EmergencyChecklistScreen({
       }
     }
 
-    const { error } = await supabase
+    const { data: request, error } = await supabase
       .from('service_requests')
       .insert([{ 
           motorist_id: userId,
@@ -195,16 +216,17 @@ export default function EmergencyChecklistScreen({
           vehicle_type: vehicleType.trim(),
           plate_number: plateNumber.trim().toUpperCase(),
           vehicle_issue: issueDescription
-      }]);
+      }])
+      .select()
+      .single();
 
     setIsSubmitting(false);
 
     if (error) {
       Alert.alert("Dispatch Error", error.message);
     } else {
-      Alert.alert("SOS Sent!", "Your emergency request has been dispatched.", [
-        { text: "View Map",         onPress: closeScreen }
-      ]);
+      onSubmitted?.(request);
+      setSosSentVisible(true);
     }
   };
 
@@ -402,6 +424,100 @@ export default function EmergencyChecklistScreen({
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={validationNotice !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setValidationNotice(null)}
+      >
+        <View style={styles.detailsRequiredOverlay}>
+          <View
+            style={[
+              styles.detailsRequiredCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+            accessibilityRole="alert"
+          >
+            <Text
+              style={[
+                styles.detailsRequiredTitle,
+                { color: colors.text },
+              ]}
+            >
+              {validationNotice?.title}
+            </Text>
+            <Text
+              style={[
+                styles.detailsRequiredMessage,
+                { color: colors.textMuted },
+              ]}
+            >
+              {validationNotice?.message}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.detailsRequiredButton,
+                { backgroundColor: colors.primary },
+              ]}
+              onPress={() => setValidationNotice(null)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.detailsRequiredButtonText}>Understood</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={sosSentVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setSosSentVisible(false);
+          closeScreen();
+        }}
+      >
+        <View style={styles.successOverlay}>
+          <View
+            style={[
+              styles.successCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+            accessibilityRole="alert"
+          >
+            <View
+              style={[
+                styles.successIconWrap,
+                { backgroundColor: colors.softCard },
+              ]}
+            >
+              <Ionicons name="checkmark" size={28} color={colors.primary} />
+            </View>
+            <Text style={[styles.successTitle, { color: colors.text }]}>
+              SOS request sent
+            </Text>
+            <Text style={[styles.successMessage, { color: colors.textMuted }]}>
+              Nearby mechanics have been notified. We&apos;ll let you know when
+              someone accepts your request.
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.successButton,
+                { backgroundColor: colors.primary },
+              ]}
+              onPress={() => {
+                setSosSentVisible(false);
+                closeScreen();
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.successButtonText}>View map</Text>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -509,4 +625,17 @@ const styles = StyleSheet.create({
   notesCharacterHint: { textAlign: 'right', fontSize: 11, marginTop: 7 },
   modalSaveButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginBottom: Platform.OS === 'ios' ? 20 : 0 },
   modalSaveButtonText: { color: '#FFFFFF', fontWeight: '800', fontSize: 16 },
+  detailsRequiredOverlay: { flex: 1, justifyContent: 'center', padding: 22, backgroundColor: 'rgba(16, 24, 40, 0.58)' },
+  detailsRequiredCard: { padding: 22, borderWidth: 1, borderRadius: 22, shadowColor: '#101828', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.18, shadowRadius: 22, elevation: 12 },
+  detailsRequiredTitle: { fontSize: 20, lineHeight: 26, fontWeight: '800' },
+  detailsRequiredMessage: { fontSize: 15, lineHeight: 22, marginTop: 8 },
+  detailsRequiredButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', marginTop: 22, borderRadius: 13 },
+  detailsRequiredButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  successOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.52)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  successCard: { width: '100%', maxWidth: 360, alignItems: 'center', padding: 24, borderRadius: 22, borderWidth: 1, elevation: 12, shadowColor: '#000000', shadowOpacity: 0.2, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } },
+  successIconWrap: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  successTitle: { fontSize: 21, fontWeight: '900', textAlign: 'center' },
+  successMessage: { fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 8, marginBottom: 22 },
+  successButton: { width: '100%', minHeight: 48, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  successButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
 });

@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import * as Location from "expo-location";
+import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
@@ -13,6 +14,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -81,13 +83,23 @@ function formatDistance(
   if (!mechanicLocation || job.latitude === null || job.longitude === null) {
     return "Distance unavailable";
   }
+  const customerLatitude = Number(job.latitude);
+  const customerLongitude = Number(job.longitude);
+  if (
+    !Number.isFinite(mechanicLocation.latitude) ||
+    !Number.isFinite(mechanicLocation.longitude) ||
+    !Number.isFinite(customerLatitude) ||
+    !Number.isFinite(customerLongitude)
+  ) {
+    return "Distance unavailable";
+  }
   const distance = distanceInKm(mechanicLocation, {
-    latitude: job.latitude,
-    longitude: job.longitude,
+    latitude: customerLatitude,
+    longitude: customerLongitude,
   });
   return distance < 1
-    ? `${Math.round(distance * 1000)} m away`
-    : `${distance.toFixed(1)} km away`;
+    ? `${Math.max(1, Math.round(distance * 1000))} m away from you`
+    : `${distance.toFixed(1)} km away from you`;
 }
 
 function formatBookingSchedule(value: string | null) {
@@ -136,12 +148,19 @@ function displayName(fullName: string | undefined, email: string | undefined) {
   return local.replace(/[._]/g, " ");
 }
 
+const MECHANIC_RADIUS_STORAGE_KEY = "mechanic_search_radius_km";
+
 export default function MechanicHomeScreen() {
   const { session } = useAuth();
   const { online, setOnline, rating, avatarUrl } = useMechanic();
   const insets = useSafeAreaInsets();
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [settingsMounted, setSettingsMounted] = useState(false);
+  const [mechanicSearchRadius, setMechanicSearchRadius] = useState(10);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
   const [sidebarProgress] = useState(() => new Animated.Value(0));
+  const [settingsProgress] = useState(() => new Animated.Value(0));
   const [availableJobs, setAvailableJobs] = useState<AvailableJob[]>([]);
   const [acceptingJobId, setAcceptingJobId] = useState<string | null>(null);
   const [jobsError, setJobsError] = useState<string | null>(null);
@@ -164,6 +183,56 @@ export default function MechanicHomeScreen() {
   const [comingSoonVisible, setComingSoonVisible] = useState(false);
   const [sliderActivated, setSliderActivated] = useState(false);
   const [slidePosition] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    if (!settingsMounted) return;
+    settingsProgress.stopAnimation();
+    const opening = settingsVisible;
+    const animation = Animated.timing(settingsProgress, {
+      toValue: opening ? 1 : 0,
+      duration: opening ? 240 : 190,
+      useNativeDriver: true,
+    });
+    animation.start(({ finished }) => {
+      if (finished && !opening) setSettingsMounted(false);
+    });
+    return () => animation.stop();
+  }, [settingsMounted, settingsProgress, settingsVisible]);
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    let active = true;
+    void SecureStore.getItemAsync(`${MECHANIC_RADIUS_STORAGE_KEY}_${userId}`)
+      .then((storedRadius) => {
+        const radius = Number(storedRadius);
+        if (active && [5, 10, 15].includes(radius)) {
+          setMechanicSearchRadius(radius);
+        }
+      })
+      .catch((error) => {
+        console.warn("Could not load mechanic search radius:", error);
+      });
+    return () => {
+      active = false;
+    };
+  }, [session?.user.id]);
+
+  async function updateMechanicSearchRadius(radius: number) {
+    const userId = session?.user.id;
+    if (!userId) return;
+    setSettingsError(null);
+    try {
+      await SecureStore.setItemAsync(
+        `${MECHANIC_RADIUS_STORAGE_KEY}_${userId}`,
+        String(radius),
+      );
+      setMechanicSearchRadius(radius);
+    } catch (error) {
+      console.warn("Could not save mechanic search radius:", error);
+      setSettingsError("Could not save your search radius. Please try again.");
+    }
+  }
 
   useEffect(() => {
     if (
@@ -368,6 +437,17 @@ export default function MechanicHomeScreen() {
         ]),
       );
       const visibleRequests = requests.filter((job) => {
+        if (
+          mechanicLocation &&
+          job.latitude !== null &&
+          job.longitude !== null &&
+          distanceInKm(mechanicLocation, {
+            latitude: job.latitude,
+            longitude: job.longitude,
+          }) > mechanicSearchRadius
+        ) {
+          return false;
+        }
         if (job.request_type !== "emergency") return true;
         if (!mechanicLocation || job.latitude === null || job.longitude === null) {
           return false;
@@ -405,7 +485,7 @@ export default function MechanicHomeScreen() {
       clearInterval(interval);
       void supabase.removeChannel(channel);
     };
-  }, [online, session?.user.id, sliderActivated, mechanicLocation]);
+  }, [online, session?.user.id, sliderActivated, mechanicLocation, mechanicSearchRadius]);
 
   async function acceptJob(id: string) {
     if (!session?.user.id) return;
@@ -447,23 +527,50 @@ export default function MechanicHomeScreen() {
       return;
     }
     setAcceptingJobId(id);
-    const { error } = await supabase
-      .from("mechanic_request_dismissals")
-      .insert({
-        request_id: id,
-        mechanic_id: session.user.id,
-        reason,
-      })
+    const isAssignedBooking =
+      selectedJob?.id === id && selectedJob.mechanic_id === session.user.id;
 
-    if (error) {
-      setJobsError(error.message);
+    if (isAssignedBooking) {
+      const { data, error } = await supabase
+        .from("service_requests")
+        .update({ status: "revoked", decline_reason: reason })
+        .eq("id", id)
+        .eq("mechanic_id", session.user.id)
+        .in("status", ["pending", "scheduled"])
+        .select("id")
+        .maybeSingle();
+
+      if (error) {
+        setJobsError(error.message);
+        setAcceptingJobId(null);
+        return;
+      }
+      if (!data) {
+        setJobsError("This booking is no longer waiting for your response.");
+        setAcceptingJobId(null);
+        return;
+      }
     } else {
-      setAvailableJobs((jobs) => jobs.filter((job) => job.id !== id));
-      setSelectedJob(null);
-      setDeclineJobId(null);
-      setDeclineReason("");
-      setJobsError(null);
+      const { error } = await supabase
+        .from("mechanic_request_dismissals")
+        .insert({
+          request_id: id,
+          mechanic_id: session.user.id,
+          reason,
+        });
+
+      if (error) {
+        setJobsError(error.message);
+        setAcceptingJobId(null);
+        return;
+      }
     }
+
+    setAvailableJobs((jobs) => jobs.filter((job) => job.id !== id));
+    setSelectedJob(null);
+    setDeclineJobId(null);
+    setDeclineReason("");
+    setJobsError(null);
     setAcceptingJobId(null);
   }
 
@@ -540,7 +647,7 @@ export default function MechanicHomeScreen() {
           <View style={styles.headerActions}>
             <View style={styles.headerRating}>
               <Ionicons name="star" size={20} color={colors.amber} />
-              <Text style={styles.headerRatingValue}>{rating.toFixed(2)}</Text>
+              <Text style={styles.headerRatingValue}>{rating.toFixed(1)}</Text>
             </View>
             <NotificationBell
               color={colors.amber}
@@ -826,18 +933,6 @@ export default function MechanicHomeScreen() {
                                 : "Accept"}
                             </Text>
                           </Pressable>
-                          <Pressable
-                            style={styles.sosDeclineButton}
-                            onPress={() => openDeclineDialog(job.id)}
-                            disabled={acceptingJobId === job.id}
-                          >
-                            <Ionicons
-                              name="close"
-                              size={17}
-                              color={colors.textMuted}
-                            />
-                            <Text style={styles.sosDeclineText}>Decline</Text>
-                          </Pressable>
                         </View>
                       ) : null}
                     </View>
@@ -883,12 +978,16 @@ export default function MechanicHomeScreen() {
             <ScrollView
               contentContainerStyle={[
                 styles.jobDetailContent,
-                selectedJob.request_type === "scheduled" &&
+                ["scheduled", "emergency"].includes(
+                  selectedJob.request_type?.trim().toLowerCase() ?? "",
+                ) &&
                   styles.scheduledJobDetailContent,
               ]}
               showsVerticalScrollIndicator={false}
             >
-              {selectedJob.request_type === "scheduled" ? (
+              {["scheduled", "emergency"].includes(
+                selectedJob.request_type?.trim().toLowerCase() ?? "",
+              ) ? (
                 <>
                   {selectedJob.latitude !== null &&
                   selectedJob.longitude !== null ? (
@@ -920,7 +1019,16 @@ export default function MechanicHomeScreen() {
                     accessibilityRole="button"
                     accessibilityLabel="View customer location on map"
                   >
-                    <Ionicons name="location" size={18} color={colors.blue} />
+                    <Ionicons
+                      name="location"
+                      size={18}
+                      color={
+                        selectedJob.request_type?.trim().toLowerCase() ===
+                        "emergency"
+                          ? colors.sos
+                          : colors.blue
+                      }
+                    />
                     <View style={styles.detailRouteText}>
                       <Text style={styles.scheduledCompactValue} numberOfLines={2}>
                         {selectedJob.latitude !== null &&
@@ -937,8 +1045,17 @@ export default function MechanicHomeScreen() {
                   <View style={styles.scheduledBookingSummary}>
                     <View style={styles.scheduledBookingHeader}>
                       <View style={styles.scheduledBookingCustomer}>
-                        <Text style={styles.scheduledBookingEyebrow}>
-                          SCHEDULED SERVICE
+                        <Text
+                          style={[
+                            styles.scheduledBookingEyebrow,
+                            selectedJob.request_type?.trim().toLowerCase() ===
+                              "emergency" && styles.emergencyBookingEyebrow,
+                          ]}
+                        >
+                          {selectedJob.request_type?.trim().toLowerCase() ===
+                          "emergency"
+                            ? "EMERGENCY SOS"
+                            : "SCHEDULED SERVICE"}
                         </Text>
                         <Text
                           style={styles.scheduledCompactCustomer}
@@ -951,7 +1068,12 @@ export default function MechanicHomeScreen() {
                         <Ionicons
                           name="navigate-outline"
                           size={15}
-                          color={colors.blue}
+                          color={
+                            selectedJob.request_type?.trim().toLowerCase() ===
+                            "emergency"
+                              ? colors.sos
+                              : colors.blue
+                          }
                         />
                         <Text
                           style={styles.scheduledCompactDistance}
@@ -966,7 +1088,10 @@ export default function MechanicHomeScreen() {
                         <Text style={styles.scheduledCompactValue}>
                           {selectedJob.scheduled_at
                             ? formatBookingSchedule(selectedJob.scheduled_at)
-                            : "As soon as possible"}
+                            : selectedJob.request_type?.trim().toLowerCase() ===
+                                "emergency"
+                              ? formatBookingSchedule(selectedJob.created_at)
+                              : "As soon as possible"}
                         </Text>
                       </View>
                       <View style={styles.scheduledVehicleRow}>
@@ -983,8 +1108,12 @@ export default function MechanicHomeScreen() {
                       </View>
                       <View style={styles.scheduledServiceField}>
                         <Text style={styles.scheduledCompactValue}>
-                          {selectedJob.vehicle_issue ||
-                            "No issue description provided."}
+                          {selectedJob.request_type?.trim().toLowerCase() ===
+                          "emergency"
+                            ? selectedJob.vehicle_issue ||
+                              "No issue description provided."
+                            : selectedJob.vehicle_issue ||
+                              "No issue description provided."}
                         </Text>
                       </View>
                     </View>
@@ -1071,17 +1200,18 @@ export default function MechanicHomeScreen() {
                     : "Accept job"}
                 </Text>
               </Pressable>
-              <Pressable
-                style={[
-                  styles.detailDeclineButton,
-                  selectedJob.request_type !== "emergency" &&
+              {selectedJob.request_type !== "emergency" ? (
+                <Pressable
+                  style={[
+                    styles.detailDeclineButton,
                     styles.scheduledDeclineButton,
-                ]}
-                onPress={() => openDeclineDialog(selectedJob.id)}
-                disabled={acceptingJobId === selectedJob.id}
-              >
-                <Text style={styles.declineJobText}>Decline</Text>
-              </Pressable>
+                  ]}
+                  onPress={() => openDeclineDialog(selectedJob.id)}
+                  disabled={acceptingJobId === selectedJob.id}
+                >
+                  <Text style={styles.declineJobText}>Decline</Text>
+                </Pressable>
+              ) : null}
             </View>
           </SafeAreaView>
         ) : null}
@@ -1294,7 +1424,14 @@ export default function MechanicHomeScreen() {
             </Pressable>
             <Pressable
               style={styles.sidebarRow}
-              onPress={() => setComingSoonVisible(true)}
+              onPress={() => {
+                setSettingsError(null);
+                settingsProgress.setValue(0);
+                setSettingsMounted(true);
+                setSettingsVisible(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Open mechanic settings"
             >
               <Ionicons name="settings-outline" size={23} color={colors.text} />
               <Text style={styles.sidebarRowText}>Settings</Text>
@@ -1310,6 +1447,114 @@ export default function MechanicHomeScreen() {
             onPress={() => closeSidebar()}
             accessibilityLabel="Close profile menu"
           />
+          {settingsMounted ? (
+            <Animated.View
+              style={[
+                styles.settingsOverlay,
+                {
+                  opacity: settingsProgress,
+                  transform: [
+                    {
+                      translateY: settingsProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [18, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <SafeAreaView style={styles.settingsScreen} edges={["top", "bottom"]}>
+                <View style={styles.settingsHeader}>
+                  <Pressable
+                    onPress={() => setSettingsVisible(false)}
+                    style={styles.settingsBackButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Back to sidebar"
+                  >
+                    <Ionicons name="arrow-back" size={24} color={colors.text} />
+                  </Pressable>
+                  <Text style={styles.settingsTitle}>Settings & Preferences</Text>
+                </View>
+                <ScrollView
+                  contentContainerStyle={styles.settingsContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View style={styles.settingsPanel}>
+                    <View style={styles.settingsRow}>
+                      <Ionicons
+                        name="moon-outline"
+                        size={24}
+                        color={colors.blue}
+                        style={styles.settingsRowIcon}
+                      />
+                      <View style={styles.settingsRowCopy}>
+                        <Text style={styles.settingsRowTitle}>Dark Mode</Text>
+                        <Text style={styles.settingsRowHint}>
+                          Temporarily unavailable
+                        </Text>
+                      </View>
+                      <Switch
+                        value={false}
+                        disabled
+                        trackColor={{ false: colors.border, true: colors.border }}
+                        thumbColor={colors.white}
+                      />
+                    </View>
+                    <View style={[styles.settingsRow, styles.settingsRadiusRow]}>
+                      <Ionicons
+                        name="navigate-outline"
+                        size={24}
+                        color={colors.blue}
+                        style={styles.settingsRowIcon}
+                      />
+                      <View style={styles.settingsRowCopy}>
+                        <Text style={styles.settingsRowTitle}>
+                          Mechanic Search Radius
+                        </Text>
+                        <Text style={styles.settingsRowHint}>
+                          Show service requests within {mechanicSearchRadius} km
+                        </Text>
+                        <View style={styles.settingsRadiusOptions}>
+                          {[5, 10, 15].map((radius) => {
+                            const selected = mechanicSearchRadius === radius;
+                            return (
+                              <Pressable
+                                key={radius}
+                                onPress={() =>
+                                  void updateMechanicSearchRadius(radius)
+                                }
+                                style={[
+                                  styles.settingsRadiusOption,
+                                  selected && styles.settingsRadiusOptionSelected,
+                                ]}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected }}
+                                accessibilityLabel={`Set mechanic search radius to ${radius} kilometers`}
+                              >
+                                <Text
+                                  style={[
+                                    styles.settingsRadiusOptionText,
+                                    selected &&
+                                      styles.settingsRadiusOptionTextSelected,
+                                  ]}
+                                >
+                                  {radius} km
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                  {settingsError ? (
+                    <Text style={styles.settingsError}>{settingsError}</Text>
+                  ) : null}
+                </ScrollView>
+              </SafeAreaView>
+            </Animated.View>
+          ) : null}
         </View>
       </Modal>
       <ComingSoonModal
@@ -1497,6 +1742,7 @@ const styles = StyleSheet.create({
   sidebarProfile: {
     flexDirection: "row",
     alignItems: "center",
+    gap: spacing.md,
     paddingVertical: spacing.md,
   },
   sidebarAvatar: {
@@ -1539,6 +1785,117 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: normalizeText(17),
     fontWeight: "700",
+  },
+  settingsOverlay: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 2,
+    backgroundColor: colors.bg,
+  },
+  settingsScreen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  settingsHeader: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  settingsTitle: {
+    color: colors.text,
+    fontSize: normalizeText(20),
+    fontWeight: "800",
+  },
+  settingsBackButton: {
+    width: 40,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  settingsContent: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xxl,
+  },
+  settingsPanel: {
+    marginTop: spacing.lg,
+    borderRadius: radii.md,
+    backgroundColor: colors.white,
+    overflow: "hidden",
+  },
+  settingsRow: {
+    minHeight: 76,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  settingsRowIcon: {
+    width: 30,
+    marginRight: spacing.md,
+    textAlign: "center",
+  },
+  settingsRowCopy: {
+    flex: 1,
+    minHeight: 30,
+    justifyContent: "center",
+  },
+  settingsRowTitle: {
+    color: colors.text,
+    fontSize: normalizeText(17),
+    lineHeight: normalizeText(24),
+    fontWeight: "700",
+  },
+  settingsRowHint: {
+    color: colors.textMuted,
+    fontSize: normalizeText(14),
+    lineHeight: normalizeText(20),
+    marginTop: 2,
+  },
+  settingsRadiusRow: {
+    alignItems: "flex-start",
+    paddingVertical: spacing.md,
+    borderBottomWidth: 0,
+  },
+  settingsRadiusOptions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  settingsRadiusOption: {
+    minWidth: 64,
+    minHeight: 38,
+    paddingHorizontal: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  settingsRadiusOptionSelected: {
+    backgroundColor: colors.blue,
+    borderColor: colors.blue,
+  },
+  settingsRadiusOptionText: {
+    color: colors.text,
+    fontSize: normalizeText(14),
+    fontWeight: "800",
+  },
+  settingsRadiusOptionTextSelected: {
+    color: colors.white,
+  },
+  settingsError: {
+    color: colors.error,
+    fontSize: normalizeText(14),
+    marginTop: spacing.sm,
   },
   avatar: {
     width: 56,
@@ -2003,23 +2360,6 @@ const styles = StyleSheet.create({
     fontSize: normalizeText(15),
     fontWeight: "900",
   },
-  sosDeclineButton: {
-    flex: 1,
-    minHeight: 42,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E88A8A",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 5,
-    backgroundColor: colors.white,
-  },
-  sosDeclineText: {
-    color: colors.textMuted,
-    fontSize: normalizeText(15),
-    fontWeight: "800",
-  },
   requestCustomer: {
     color: colors.text,
     fontSize: normalizeText(22),
@@ -2302,6 +2642,9 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.7,
     marginBottom: 2,
+  },
+  emergencyBookingEyebrow: {
+    color: colors.sos,
   },
   scheduledCompactDistance: {
     color: colors.blue,
