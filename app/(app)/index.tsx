@@ -162,6 +162,9 @@ export default function MechanicHomeScreen() {
   const [sidebarProgress] = useState(() => new Animated.Value(0));
   const [settingsProgress] = useState(() => new Animated.Value(0));
   const [availableJobs, setAvailableJobs] = useState<AvailableJob[]>([]);
+  const [dismissedJobIds, setDismissedJobIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [acceptingJobId, setAcceptingJobId] = useState<string | null>(null);
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [selectedJob, setSelectedJob] = useState<AvailableJob | null>(null);
@@ -419,7 +422,10 @@ export default function MechanicHomeScreen() {
       const requests = ((data ?? []) as Omit<
         AvailableJob,
         "customer_name" | "customer_contact"
-      >[]).filter((job) => !dismissedRequestIds.has(job.id));
+      >[]).filter(
+        (job) =>
+          !dismissedRequestIds.has(job.id) && !dismissedJobIds.has(job.id),
+      );
       const motoristIds = [...new Set(requests.map((job) => job.motorist_id))];
       const profilesResult = motoristIds.length
         ? await supabase
@@ -436,6 +442,7 @@ export default function MechanicHomeScreen() {
           },
         ]),
       );
+      if (!active) return;
       const visibleRequests = requests.filter((job) => {
         if (
           mechanicLocation &&
@@ -485,7 +492,14 @@ export default function MechanicHomeScreen() {
       clearInterval(interval);
       void supabase.removeChannel(channel);
     };
-  }, [online, session?.user.id, sliderActivated, mechanicLocation, mechanicSearchRadius]);
+  }, [
+    online,
+    session?.user.id,
+    sliderActivated,
+    mechanicLocation,
+    mechanicSearchRadius,
+    dismissedJobIds,
+  ]);
 
   async function acceptJob(id: string) {
     if (!session?.user.id) return;
@@ -509,6 +523,25 @@ export default function MechanicHomeScreen() {
       setAvailableJobs((jobs) => jobs.filter((job) => job.id !== id));
       setSelectedJob(null);
       router.navigate({ pathname: "/jobs", params: { filter: "ongoing" } });
+    }
+    setAcceptingJobId(null);
+  }
+
+  async function dismissJob(id: string) {
+    if (!session?.user.id) return;
+    setAcceptingJobId(id);
+    const { error } = await supabase.from("mechanic_request_dismissals").insert({
+      request_id: id,
+      mechanic_id: session.user.id,
+      reason: "Dismissed by mechanic",
+    });
+
+    if (error && error.code !== "23505") {
+      setJobsError(error.message);
+    } else {
+      setDismissedJobIds((ids) => new Set(ids).add(id));
+      setAvailableJobs((jobs) => jobs.filter((job) => job.id !== id));
+      setJobsError(null);
     }
     setAcceptingJobId(null);
   }
@@ -928,10 +961,17 @@ export default function MechanicHomeScreen() {
                               color={colors.white}
                             />
                             <Text style={styles.sosAcceptText}>
-                              {acceptingJobId === job.id
-                                ? "Saving..."
-                                : "Accept"}
+                              Accept
                             </Text>
+                          </Pressable>
+                          <Pressable
+                            style={styles.sosDismissButton}
+                            onPress={() => void dismissJob(job.id)}
+                            disabled={acceptingJobId === job.id}
+                            accessibilityRole="button"
+                            accessibilityLabel="Dismiss SOS booking"
+                          >
+                            <Text style={styles.sosDismissText}>Dismiss</Text>
                           </Pressable>
                         </View>
                       ) : null}
@@ -2360,6 +2400,20 @@ const styles = StyleSheet.create({
     fontSize: normalizeText(15),
     fontWeight: "900",
   },
+  sosDismissButton: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sosDismissText: {
+    color: colors.textMuted,
+    fontSize: normalizeText(15),
+    fontWeight: "800",
+  },
   requestCustomer: {
     color: colors.text,
     fontSize: normalizeText(22),
@@ -2819,7 +2873,7 @@ const styles = StyleSheet.create({
   detailAcceptButton: {
     flex: 1,
     minHeight: 50,
-    backgroundColor: colors.amber,
+    backgroundColor: colors.success,
     alignItems: "center",
     justifyContent: "center",
   },

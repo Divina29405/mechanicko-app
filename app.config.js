@@ -36,6 +36,10 @@ module.exports = ({ config }) => ({
         granularPermissions: ["photo"],
       },
     ],
+    [
+      "expo-audio",
+      { microphonePermission: false, recordAudioAndroid: false },
+    ],
     "expo-status-bar",
     "expo-web-browser",
   ],

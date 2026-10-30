@@ -1,13 +1,13 @@
+import { useAppTheme } from '@/contexts/ThemeContext';
+import { isValidPlateNumber } from '@/lib/plateNumber';
+import { supabase } from '@/lib/supabase';
+import { listVehicles } from '@/services/vehicleService';
+import type { Vehicle } from '@/types/vehicle';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '@/lib/supabase';
-import { useAppTheme } from '@/contexts/ThemeContext';
-import { listVehicles } from '@/services/vehicleService';
-import type { Vehicle } from '@/types/vehicle';
-import { isValidPlateNumber } from '@/lib/plateNumber';
 
 const COMMON_SYMPTOMS = [
   'Flat Tire / Puncture',

@@ -221,8 +221,6 @@ function CustomerTabs() {
           paddingTop: 6,
           paddingBottom: 8,
           display: isEmergencyChecklist ? "none" : "flex",
-          justifyContent: "space-between",
-          paddingHorizontal: 12,
         },
         tabBarLabelStyle: {
           fontSize: normalizeText(12),
@@ -238,12 +236,13 @@ function CustomerTabs() {
         },
         tabBarItemStyle: {
           flex: 0,
-          width: 72,
+          width: "20%",
           height: 60,
           paddingTop: 2,
           paddingBottom: 0,
           justifyContent: "flex-start",
-          alignSelf: "flex-start",
+          alignSelf: "stretch",
+          alignItems: "center",
         },
       }}
     >

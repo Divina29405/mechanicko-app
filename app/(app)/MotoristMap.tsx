@@ -1,49 +1,52 @@
+import { MapWebView, type MapWebViewHandle } from "@/components/MapWebView";
 import { MotoristHomeHeader } from "@/components/MotoristHomeHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
-import { getSharedAvatarUrl, subscribeToSharedAvatar } from "@/lib/avatarStore";
-import { supabase } from "@/lib/supabase";
 import {
-  getCachedActiveBooking,
-  setCachedActiveBooking,
-  subscribeToActiveBooking,
+    getCachedActiveBooking,
+    setCachedActiveBooking,
+    subscribeToActiveBooking,
 } from "@/lib/activeBookingStore";
+import { getSharedAvatarUrl, subscribeToSharedAvatar } from "@/lib/avatarStore";
+import { isValidPlateNumber } from "@/lib/plateNumber";
+import { supabase } from "@/lib/supabase";
+import { normalizeText } from "@/lib/typography";
 import { listVehicles } from "@/services/vehicleService";
 import type { Vehicle } from "@/types/vehicle";
 import { Ionicons } from "@expo/vector-icons";
+import { useAudioPlayer } from "expo-audio";
 import DateTimePicker, {
-  DateTimePickerAndroid,
+    DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
 import * as Linking from "expo-linking";
 import * as Location from "expo-location";
-import * as SecureStore from "expo-secure-store";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Easing,
-  Image,
-  Modal,
-  PanResponder,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Easing,
+    Image,
+    Modal,
+    PanResponder,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { normalizeText } from "@/lib/typography";
-import { isValidPlateNumber } from "@/lib/plateNumber";
-import { MapWebView, type MapWebViewHandle } from "@/components/MapWebView";
 import EmergencyChecklistScreen from "./emergency-checklist";
 
 const bikeIcon = require("../../assets/images/bike.png");
+const bookingAcceptedSound = require("../../assets/soundeffects/success.mp3");
+const bookingCancelledSound = require("../../assets/soundeffects/cancel.mp3");
 const motoristCallIcon = require("../../assets/images/motorist-call.png");
 const recenterIcon = require("../../assets/images/recenter.png");
 const mapOrientationIcon = require("../../assets/images/maporientation.png");
@@ -258,6 +261,8 @@ function isRecentLocation(location: Location.LocationObject) {
 }
 
 export default function MotoristMap() {
+  const bookingAcceptedPlayer = useAudioPlayer(bookingAcceptedSound);
+  const bookingCancelledPlayer = useAudioPlayer(bookingCancelledSound);
   const router = useRouter();
   const { bookingId, mechanicId } = useLocalSearchParams<{
     bookingId?: string;
@@ -565,7 +570,7 @@ export default function MotoristMap() {
 
   useEffect(() => {
     if (!activeRequest?.status) return;
-    const nextStatus = activeRequest.status as string;
+    const nextStatus = normalizeBookingStatus(activeRequest.status);
     const previousStatus = previousBookingStatus.current;
     const wasWaiting =
       previousStatus === "scheduled" || previousStatus === "pending";
@@ -582,13 +587,18 @@ export default function MotoristMap() {
       return;
     }
 
+    if (nextStatus === "accepted") {
+      bookingAcceptedPlayer.seekTo(0);
+      bookingAcceptedPlayer.play();
+    }
+
     bookingTransition.setValue(0);
     Animated.timing(bookingTransition, {
       toValue: 1,
       duration: 360,
       useNativeDriver: true,
     }).start();
-  }, [activeRequest?.status, bookingTransition]);
+  }, [activeRequest?.status, bookingAcceptedPlayer, bookingTransition]);
 
   useFocusEffect(
     useCallback(() => {
@@ -641,6 +651,10 @@ export default function MotoristMap() {
     useState(false);
   const [cancellationReasonNoticeVisible, setCancellationReasonNoticeVisible] =
     useState(false);
+  const playBookingCancelledSound = useCallback(() => {
+    bookingCancelledPlayer.seekTo(0);
+    bookingCancelledPlayer.play();
+  }, [bookingCancelledPlayer]);
 
   const fetchLiveMechanics = useCallback(
     async (userLat: number, userLng: number) => {
@@ -1458,6 +1472,7 @@ export default function MotoristMap() {
       } else {
         setCancelSuccessVisible(true);
       }
+      playBookingCancelledSound();
     }
 
     setActiveRequest(null);
@@ -3609,7 +3624,7 @@ export default function MotoristMap() {
             ]}
           >
             <View style={styles.cancelSuccessIcon}>
-              <Ionicons name="checkmark" size={32} color="#FFFFFF" />
+              <Ionicons name="close" size={32} color="#FFFFFF" />
             </View>
             <Text style={[styles.cancelSuccessTitle, { color: colors.text }]}>
               Booking Cancelled
@@ -5415,7 +5430,7 @@ const styles = StyleSheet.create({
     borderRadius: 31,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#18A957",
+    backgroundColor: "#EF4444",
     marginBottom: 16,
   },
   cancelSuccessTitle: {

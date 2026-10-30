@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useAudioPlayer } from "expo-audio";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { Asset, requestPermissionsAsync } from "expo-media-library";
@@ -74,6 +75,8 @@ type MechanicServicePrice = {
   service: string;
   price: string | number;
 };
+
+const bookingCancelledSound = require("../../assets/soundeffects/cancel.mp3");
 
 type Coordinates = {
   latitude: number;
@@ -358,6 +361,7 @@ function isUuid(value: string) {
 }
 
 export default function JobsScreen() {
+  const bookingCancelledPlayer = useAudioPlayer(bookingCancelledSound);
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
   const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
@@ -414,6 +418,7 @@ export default function JobsScreen() {
   const [pendingCancellationJob, setPendingCancellationJob] =
     useState<ServiceRequest | null>(null);
   const [pendingCancellationReason, setPendingCancellationReason] = useState("");
+  const [cancellationError, setCancellationError] = useState<string | null>(null);
   const [cancelSuccessVisible, setCancelSuccessVisible] = useState(false);
   const [cannotCancelBookingVisible, setCannotCancelBookingVisible] =
     useState(false);
@@ -1346,7 +1351,7 @@ export default function JobsScreen() {
   }
 
   async function cancelJob(job: ServiceRequest, reason: string) {
-    if (!mechanicId || !reason.trim()) return;
+    if (!mechanicId || !reason.trim() || refreshing) return;
     if (hasTripStarted(job.status)) {
       setPendingCancellationJob(null);
       setPendingCancellationReason("");
@@ -1354,49 +1359,82 @@ export default function JobsScreen() {
       return;
     }
 
+    setCancellationError(null);
     setRefreshing(true);
-    const { data: cancelledJob, error: updateError } = await supabase
-      .from("service_requests")
-      .update({
-        status: "cancelled",
-        cancelled_by: "mechanic",
-        cancellation_reason: reason.trim(),
-      })
-      .eq("id", job.id)
-      .eq("mechanic_id", mechanicId)
-      .in("status", ["pending", "scheduled", "accepted"])
-      .select("id")
-      .maybeSingle();
-
-    if (updateError) {
-      setError(updateError.message);
-    } else if (!cancelledJob) {
-      const { data: latestJob, error: latestJobError } = await supabase
+    try {
+      const { data: cancelledJob, error: updateError } = await supabase
         .from("service_requests")
-        .select("status")
+        .update({
+          status: "cancelled",
+          cancelled_by: "mechanic",
+          cancellation_reason: reason.trim(),
+        })
         .eq("id", job.id)
         .eq("mechanic_id", mechanicId)
+        .in("status", ["pending", "scheduled", "accepted"])
+        .select("id")
         .maybeSingle();
-      if (latestJobError) {
-        setError(latestJobError.message);
-      } else if (latestJob && hasTripStarted(latestJob.status)) {
-        setPendingCancellationJob(null);
-        setPendingCancellationReason("");
-        setCannotCancelBookingVisible(true);
-      } else {
-        setError("This booking has changed. Refresh the job list and try again.");
+
+      if (updateError) {
+        setCancellationError(updateError.message);
+        return;
       }
-      await loadJobs(true);
-    } else {
+      if (!cancelledJob) {
+        const { data: latestJob, error: latestJobError } = await supabase
+          .from("service_requests")
+          .select("status")
+          .eq("id", job.id)
+          .eq("mechanic_id", mechanicId)
+          .maybeSingle();
+        if (latestJobError) {
+          setCancellationError(latestJobError.message);
+        } else if (latestJob && hasTripStarted(latestJob.status)) {
+          setPendingCancellationJob(null);
+          setPendingCancellationReason("");
+          setCannotCancelBookingVisible(true);
+        } else {
+          setCancellationError(
+            "This booking has changed. Refresh the job list and try again.",
+          );
+        }
+        return;
+      }
+
+      setJobs((currentJobs) =>
+        currentJobs.map((item) =>
+          item.id === job.id
+            ? {
+                ...item,
+                status: "cancelled",
+                cancelled_by: "mechanic",
+              }
+            : item,
+        ),
+      );
       setSelectedJob(null);
       setEnteringOtherReason(false);
       setOtherIssueReason("");
       setPendingCancellationJob(null);
       setPendingCancellationReason("");
       setCancelSuccessVisible(true);
-      await loadJobs(true);
+      bookingCancelledPlayer.seekTo(0);
+      bookingCancelledPlayer.play();
+      void loadJobs().catch((loadError: unknown) => {
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to refresh the job list.",
+        );
+      });
+    } catch (cancelError) {
+      setCancellationError(
+        cancelError instanceof Error
+          ? cancelError.message
+          : "Unable to cancel this booking. Please try again.",
+      );
+    } finally {
+      setRefreshing(false);
     }
-    setRefreshing(false);
   }
 
   async function downloadReceipt(job: ServiceRequest) {
@@ -2480,6 +2518,7 @@ export default function JobsScreen() {
                 onPress={() => {
                   setPendingCancellationJob(null);
                   setPendingCancellationReason("");
+                  setCancellationError(null);
                 }}
                 disabled={refreshing}
                 accessibilityRole="button"
@@ -2492,6 +2531,11 @@ export default function JobsScreen() {
               <Text style={styles.cancelConfirmMessage}>
                 Are you sure you want to cancel the booking?
               </Text>
+              {cancellationError ? (
+                <Text style={styles.cancellationError} accessibilityRole="alert">
+                  {cancellationError}
+                </Text>
+              ) : null}
             </View>
             <View style={styles.cancelConfirmActions}>
               <Pressable
@@ -2499,6 +2543,7 @@ export default function JobsScreen() {
                 onPress={() => {
                   setPendingCancellationJob(null);
                   setPendingCancellationReason("");
+                  setCancellationError(null);
                 }}
                 disabled={refreshing}
               >
@@ -2580,7 +2625,7 @@ export default function JobsScreen() {
         <View style={styles.issueModalOverlay}>
           <View style={styles.cancelSuccessCard}>
             <View style={styles.cancelSuccessIcon}>
-              <Ionicons name="checkmark" size={30} color={colors.white} />
+              <Ionicons name="close" size={30} color={colors.white} />
             </View>
             <Text style={styles.cancelSuccessTitle}>Booking cancelled</Text>
             <Text style={styles.cancelSuccessMessage}>
@@ -3322,17 +3367,18 @@ const styles = StyleSheet.create({
   cancelConfirmClose: { position: "absolute", right: spacing.sm, top: 9, width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: "#D6D6D6" },
   cancelConfirmBody: { minHeight: 124, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   cancelConfirmMessage: { maxWidth: 300, color: colors.text, fontSize: 16, lineHeight: 22, textAlign: "center" },
+  cancellationError: { maxWidth: 300, color: colors.sos, fontSize: 13, lineHeight: 18, textAlign: "center", marginTop: spacing.sm },
   cancelConfirmActions: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.md },
   keepBookingButton: { flex: 1, minHeight: 48, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xs, borderWidth: 1, borderColor: "#087078", borderRadius: 17, backgroundColor: colors.bgElevated },
   keepBookingText: { color: "#087078", fontSize: 14, fontWeight: "600" },
   confirmCancellationButton: { flex: 1, minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, paddingHorizontal: spacing.xs, borderRadius: 17, backgroundColor: colors.blue },
   confirmEmergencyCancellationButton: { backgroundColor: colors.sos },
   confirmCancellationText: { color: colors.white, fontSize: 14, fontWeight: "600" },
-  cancelSuccessCard: { backgroundColor: colors.bgElevated, padding: spacing.xl, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
-  cancelSuccessIcon: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.success, alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
+  cancelSuccessCard: { backgroundColor: colors.bgElevated, width: "100%", maxWidth: 380, borderRadius: 22, padding: 26, borderWidth: 1, borderColor: colors.border, alignItems: "center", elevation: 8, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 6 } },
+  cancelSuccessIcon: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.sos, alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
   cancelSuccessTitle: { color: colors.text, fontSize: 20, fontWeight: "800", textAlign: "center" },
   cancelSuccessMessage: { color: colors.textMuted, fontSize: 14, lineHeight: 20, textAlign: "center", marginTop: spacing.xs, marginBottom: spacing.lg },
-  cancelSuccessButton: { width: "100%", minHeight: 44, backgroundColor: colors.blue, alignItems: "center", justifyContent: "center" },
+  cancelSuccessButton: { width: "100%", minHeight: 44, borderRadius: 12, backgroundColor: colors.blue, alignItems: "center", justifyContent: "center" },
   issueModalTitle: { color: colors.text, fontSize: 19, lineHeight: 25, fontWeight: "800" },
   issueModalHint: { color: colors.textMuted, fontSize: 13, lineHeight: 19, marginBottom: spacing.md },
   issueOptions: { gap: spacing.xs },

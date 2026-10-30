@@ -1,29 +1,30 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
-import { supabase } from "@/lib/supabase";
 import { setCachedActiveBooking } from "@/lib/activeBookingStore";
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
+import { useAudioPlayer } from "expo-audio";
 import DateTimePicker, {
-  DateTimePickerAndroid,
+    DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
 import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Linking,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 import { MapWebView, type MapWebViewHandle } from "@/components/MapWebView";
@@ -65,6 +66,7 @@ const nearbyMechanicsCache = new Map<
   { mechanics: NearbyMechanic[]; cachedAt: number }
 >();
 const NEARBY_MECHANICS_CACHE_DURATION_MS = 2 * 60 * 1000;
+const bookingCancelledSound = require("../../assets/soundeffects/cancel.mp3");
 const mechanicServicesCountKey = (mechanicId: string) =>
   `mechanic_services_count_${mechanicId}`;
 const CANCELLATION_REASONS = [
@@ -824,6 +826,7 @@ function ScheduledBookingCard({
 }
 
 export default function MotoristActivityScreen() {
+  const bookingCancelledPlayer = useAudioPlayer(bookingCancelledSound);
   const { session } = useAuth();
   const { colors } = useAppTheme();
   const motoristId = session?.user.id;
@@ -919,9 +922,28 @@ export default function MotoristActivityScreen() {
   );
   const [submittingSchedule, setSubmittingSchedule] = useState(false);
   const previousStatuses = useRef(new Map<string, string>());
+  const notifiedMechanicCancellations = useRef(new Set<string>());
   const loadedRequestsUserId = useRef<string | null>(null);
   const ordersFetchRequestId = useRef(0);
   const nearbyFetchInProgress = useRef(false);
+
+  const notifyMechanicCancellation = useCallback(
+    (requestId: string, mechanicName?: string) => {
+      if (notifiedMechanicCancellations.current.has(requestId)) return;
+      notifiedMechanicCancellations.current.add(requestId);
+      setCancellationNotice(
+        `${mechanicName || "Your mechanic"} cancelled this booking.`,
+      );
+      bookingCancelledPlayer.seekTo(0);
+      bookingCancelledPlayer.play();
+    },
+    [bookingCancelledPlayer],
+  );
+
+  const playBookingCancelledSound = useCallback(() => {
+    bookingCancelledPlayer.seekTo(0);
+    bookingCancelledPlayer.play();
+  }, [bookingCancelledPlayer]);
 
   const fetchMyOrders = useCallback(async () => {
     if (!motoristId) return;
@@ -1044,8 +1066,9 @@ export default function MotoristActivityScreen() {
           );
         });
         if (newlyCancelled) {
-          setCancellationNotice(
-            `${newlyCancelled.mechanic?.name || "Your mechanic"} cancelled this booking.`,
+          notifyMechanicCancellation(
+            String(newlyCancelled.id),
+            newlyCancelled.mechanic?.name,
           );
         }
       }
@@ -1060,7 +1083,7 @@ export default function MotoristActivityScreen() {
       setRequests(enrichedRequests);
     }
     setLoading(false);
-  }, [motoristId]);
+  }, [motoristId, notifyMechanicCancellation]);
 
   const fetchNearbyMechanics = useCallback(async () => {
     if (!motoristId || nearbyFetchInProgress.current) return;
@@ -1250,7 +1273,7 @@ export default function MotoristActivityScreen() {
             ["cancelled", "canceled"].includes(newStatus) &&
             payload.new.cancelled_by === "mechanic"
           ) {
-            setCancellationNotice("Your mechanic cancelled this booking.");
+              notifyMechanicCancellation(String(payload.new.id));
             void fetchMyOrders();
           }
         },
@@ -1260,7 +1283,7 @@ export default function MotoristActivityScreen() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [fetchMyOrders, motoristId]);
+  }, [fetchMyOrders, motoristId, notifyMechanicCancellation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1389,6 +1412,7 @@ export default function MotoristActivityScreen() {
       } else {
       setCancelSuccessVisible(true);
       }
+      playBookingCancelledSound();
     }
 
     setCancelModalVisible(false);
@@ -1684,7 +1708,7 @@ export default function MotoristActivityScreen() {
             style={[styles.cancelSuccessCard, { backgroundColor: colors.card }]}
           >
             <View style={styles.cancelSuccessIcon}>
-              <Ionicons name="checkmark" size={32} color="#FFFFFF" />
+              <Ionicons name="close" size={32} color="#FFFFFF" />
             </View>
             <Text style={[styles.cancelSuccessTitle, { color: colors.text }]}>
               Booking Cancelled
@@ -2774,7 +2798,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#18A957",
+    backgroundColor: "#EF4444",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
@@ -2819,7 +2843,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#18A957",
+    backgroundColor: "#EF4444",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
