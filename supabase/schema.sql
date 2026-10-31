@@ -656,17 +656,32 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  user_role text := new.raw_user_meta_data ->> 'role';
+  profile_role text;
+  profile_status text;
 begin
-  if coalesce(new.raw_user_meta_data ->> 'role', 'customer') = 'mechanic'
-     and coalesce(new.raw_user_meta_data ->> 'application_status', 'pending') = 'pending' then
+  if user_role = 'mechanic' then
     insert into public.mechanic_applications (
-      id, email, full_name, mobile_number, home_address, skills,
-      certifications, experience, status, submitted_at
+      id,
+      email,
+      full_name,
+      mobile_number,
+      home_address,
+      skills,
+      certifications,
+      experience,
+      status,
+      submitted_at
     )
     values (
       new.id,
       new.email,
-      coalesce(new.raw_user_meta_data ->> 'full_name', 'Mechanic'),
+      coalesce(
+        nullif(new.raw_user_meta_data ->> 'full_name', ''),
+        nullif(new.raw_user_meta_data ->> 'name', ''),
+        'Mechanic'
+      ),
       new.raw_user_meta_data ->> 'mobile_number',
       new.raw_user_meta_data ->> 'home_address',
       new.raw_user_meta_data ->> 'skills',
@@ -675,17 +690,20 @@ begin
       'pending',
       now()
     )
-    on conflict (id) do update
-    set email = excluded.email,
-        full_name = excluded.full_name,
-        mobile_number = excluded.mobile_number,
-        home_address = excluded.home_address,
-        skills = excluded.skills,
-        certifications = excluded.certifications,
-        experience = excluded.experience,
-        updated_at = now();
-    return new;
+    on conflict (id) do nothing;
   end if;
+
+  profile_role := case
+    when user_role in ('customer', 'mechanic', 'admin') then user_role
+    else 'customer'
+  end;
+  profile_status := case
+    when new.raw_user_meta_data ->> 'application_status'
+      in ('pending', 'approved', 'rejected')
+      then new.raw_user_meta_data ->> 'application_status'
+    when profile_role = 'mechanic' then 'pending'
+    else 'approved'
+  end;
 
   insert into public.profiles (
     id,
@@ -703,32 +721,21 @@ begin
   values (
     new.id,
     new.email,
-    coalesce(new.raw_user_meta_data ->> 'full_name', 'Mechanic'),
-    coalesce(new.raw_user_meta_data ->> 'role', 'customer'),
+    coalesce(
+      nullif(new.raw_user_meta_data ->> 'full_name', ''),
+      nullif(new.raw_user_meta_data ->> 'name', ''),
+      'User'
+    ),
+    profile_role,
     new.raw_user_meta_data ->> 'mobile_number',
     new.raw_user_meta_data ->> 'home_address',
     new.raw_user_meta_data ->> 'skills',
     new.raw_user_meta_data ->> 'certifications',
     new.raw_user_meta_data ->> 'experience',
-    coalesce(new.raw_user_meta_data ->> 'application_status', 'approved'),
-    case
-      when new.raw_user_meta_data ->> 'application_status' = 'pending'
-        then now()
-      else null
-    end
+    profile_status,
+    case when profile_status = 'pending' then now() else null end
   )
-  on conflict (id) do update
-  set email = excluded.email,
-      full_name = excluded.full_name,
-      role = excluded.role,
-      mobile_number = excluded.mobile_number,
-      home_address = excluded.home_address,
-      skills = excluded.skills,
-      certifications = excluded.certifications,
-      experience = excluded.experience,
-      application_status = excluded.application_status,
-      application_submitted_at = excluded.application_submitted_at,
-      updated_at = now();
+  on conflict (id) do nothing;
 
   return new;
 end;

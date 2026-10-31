@@ -5,5 +5,12 @@
     "source.sortMembers": "explicit"
   },
   "workbench.browser.enableRemoteProxy": true,
-  "workbench.browser.experimentalUserTools.enabled": true
+  "workbench.browser.experimentalUserTools.enabled": true,
+  "python-envs.pythonProjects": [
+    {
+      "path": ".",
+      "envManager": "ms-python.python:venv",
+      "packageManager": "ms-python.python:pip"
+    }
+  ]
 }
