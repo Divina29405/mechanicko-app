@@ -22,7 +22,8 @@ import {
 import { supabase } from "@/lib/supabase";
 import { normalizeText } from "@/lib/typography";
 
-const appLogo = require("../assets/images/mechanichome.png");
+const lightAppLogo = require("../assets/images/motoristheadericon.jpg");
+const darkAppLogo = require("../assets/images/motoristheaderdmode.png");
 
 type MotoristHomeHeaderProps = {
   title?: string;
@@ -38,7 +39,7 @@ export function MotoristHomeHeader({
   const insets = useSafeAreaInsets();
   const [titleAnimation] = useState(() => new Animated.Value(1));
   const { session } = useAuth();
-  const { colors } = useAppTheme();
+  const { colors, isDarkMode } = useAppTheme();
   
   const metadataAvatarUrl =
     typeof session?.user.user_metadata?.avatar_url === "string"
@@ -116,7 +117,11 @@ export function MotoristHomeHeader({
       ]}
     >
       <View style={styles.headerRow}>
-        <Image source={appLogo} resizeMode="contain" style={styles.appLogo} />
+        <Image
+          source={isDarkMode ? darkAppLogo : lightAppLogo}
+          resizeMode="contain"
+          style={styles.appLogo}
+        />
         <Animated.Text
           style={[
             styles.screenTitle,

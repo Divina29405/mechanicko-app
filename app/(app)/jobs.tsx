@@ -5,17 +5,26 @@ import * as Location from "expo-location";
 import { Asset, requestPermissionsAsync } from "expo-media-library";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Dimensions, FlatList, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Dimensions, FlatList, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import ViewShot, { type ViewShotRef } from "react-native-view-shot";
 
 import { MechanicScreen } from "@/components/mechanic/MechanicScreen";
+import {
+  MechanicText as Text,
+  translateMechanicValue,
+} from "@/components/mechanic/MechanicText";
 import { MiniMapPreview } from "@/components/mechanic/MiniMapPreview";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAppTheme } from "@/contexts/ThemeContext";
 import { imageAssetToBytes, refreshChatImageUrl } from "@/lib/chatMedia";
+import {
+  getPreferredMapApp,
+  type PreferredMapApp,
+} from "@/lib/mechanicPreferences";
 import { supabase } from "@/lib/supabase";
-import { colors, spacing } from "@/lib/theme";
+import { getMechanicThemeColors, spacing } from "@/lib/theme";
 
 type JobStatus = "ongoing" | "resolved" | "dropped";
 
@@ -361,6 +370,9 @@ function isUuid(value: string) {
 }
 
 export default function JobsScreen() {
+  const { colors: themeColors, language } = useAppTheme();
+  const colors = useMemo(() => getMechanicThemeColors(themeColors), [themeColors]);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const bookingCancelledPlayer = useAudioPlayer(bookingCancelledSound);
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
@@ -385,6 +397,20 @@ export default function JobsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mechanicId = session?.user.id;
+  useEffect(() => {
+    if (!mechanicId) return;
+    let active = true;
+    void getPreferredMapApp(mechanicId)
+      .then((app) => {
+        if (active) setPreferredMapApp(app);
+      })
+      .catch((loadError) => {
+        console.warn("Could not load preferred map app for jobs:", loadError);
+      });
+    return () => {
+      active = false;
+    };
+  }, [mechanicId]);
   const [chatJob, setChatJob] = useState<ServiceRequest | null>(null);
   const activeChatJobId = chatJob?.id ?? null;
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -431,6 +457,7 @@ export default function JobsScreen() {
     wazeUrl: string;
   } | null>(null);
   const [mapChoiceError, setMapChoiceError] = useState<string | null>(null);
+  const [preferredMapApp, setPreferredMapApp] = useState<PreferredMapApp | null>(null);
   const [trackedMechanicLocation, setTrackedMechanicLocation] = useState<{
     jobId: string;
     coordinates: Coordinates;
@@ -616,6 +643,34 @@ export default function JobsScreen() {
       void supabase.removeChannel(channel);
     };
   }, [loadUnreadChatCounts, mechanicId]);
+
+  useEffect(() => {
+    if (!mechanicId) return;
+    const channel = supabase
+      .channel(`mechanic_emergency_requests_${mechanicId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "service_requests",
+          filter: "request_type=eq.emergency",
+        },
+        () => void loadJobs(),
+      )
+      .subscribe((status, subscribeError) => {
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn(
+            "Emergency request realtime connection failed:",
+            subscribeError?.message ?? status,
+          );
+        }
+      });
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadJobs, mechanicId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1334,10 +1389,18 @@ export default function JobsScreen() {
     }
     const coordinates = `${job.latitude},${job.longitude}`;
     setMapChoiceError(null);
-    setMapChoice({
+    const choices = {
       googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(coordinates)}`,
       wazeUrl: `https://waze.com/ul?ll=${encodeURIComponent(coordinates)}&navigate=yes`,
-    });
+    };
+    setMapChoice(choices);
+    if (preferredMapApp) {
+      void selectMapApp(
+        preferredMapApp === "google_maps"
+          ? choices.googleMapsUrl
+          : choices.wazeUrl,
+      );
+    }
   }
 
   async function selectMapApp(url: string) {
@@ -2324,7 +2387,7 @@ export default function JobsScreen() {
               <TextInput
                 value={chargeDescription}
                 onChangeText={setChargeDescription}
-                placeholder="e.g. Replacement battery"
+                placeholder={translateMechanicValue("e.g. Replacement battery", language)}
                 placeholderTextColor={colors.textDim}
                 style={styles.chargeDescriptionInput}
                 multiline
@@ -2439,7 +2502,7 @@ export default function JobsScreen() {
                     <TextInput
                       value={otherIssueReason}
                       onChangeText={setOtherIssueReason}
-                      placeholder="Enter reason"
+                      placeholder={translateMechanicValue("Enter reason", language)}
                       placeholderTextColor={colors.textDim}
                       style={styles.otherIssueInput}
                       multiline
@@ -2926,7 +2989,7 @@ export default function JobsScreen() {
                   <TextInput
                     value={chatText}
                     onChangeText={setChatText}
-                    placeholder="Message the customer..."
+                    placeholder={translateMechanicValue("Message the customer...", language)}
                     placeholderTextColor={colors.textDim}
                     style={styles.chatInput}
                     multiline
@@ -3105,7 +3168,8 @@ export default function JobsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
+  return StyleSheet.create({
   content: { paddingHorizontal: 8, paddingBottom: spacing.xxl },
   toolbar: { marginBottom: spacing.md },
   filters: {
@@ -3131,9 +3195,9 @@ const styles = StyleSheet.create({
   error: { color: colors.sos, marginBottom: spacing.md },
   jobSeparator: { height: 10 },
   card: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.bgElevated,
     borderWidth: 1,
-    borderColor: "rgba(210, 214, 224, 0.9)",
+    borderColor: colors.border,
     borderRadius: 16,
     padding: 16,
     marginBottom: 6,
@@ -3144,16 +3208,16 @@ const styles = StyleSheet.create({
     shadowRadius: 7,
   },
   ongoingCard: {
-    borderColor: "rgba(210, 214, 224, 0.9)",
-    backgroundColor: colors.white,
+    borderColor: colors.border,
+    backgroundColor: colors.bgElevated,
   },
   scheduledCard: {
-    borderColor: "rgba(210, 214, 224, 0.9)",
-    backgroundColor: colors.white,
+    borderColor: colors.border,
+    backgroundColor: colors.bgElevated,
   },
   emergencyCard: {
-    borderColor: "rgba(210, 214, 224, 0.9)",
-    backgroundColor: colors.white,
+    borderColor: colors.border,
+    backgroundColor: colors.bgElevated,
   },
   ongoingStatusCard: {
     borderColor: colors.amber,
@@ -3401,7 +3465,7 @@ const styles = StyleSheet.create({
   mapChoiceSubtitle: { color: colors.textMuted, fontSize: 14, marginTop: 3 },
   mapChoiceAddress: { color: colors.textMuted, fontSize: 14, lineHeight: 19, padding: spacing.sm, marginBottom: spacing.sm, borderRadius: 10, backgroundColor: colors.bg },
   mapChoiceError: { color: colors.error, fontSize: 13, lineHeight: 18, marginBottom: spacing.sm },
-  mapChoiceOption: { minHeight: 68, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.sm, marginTop: spacing.xs, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white },
+  mapChoiceOption: { minHeight: 68, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.sm, marginTop: spacing.xs, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgElevated },
   mapChoiceOptionIcon: { width: 42, height: 42, borderRadius: 12, overflow: "hidden" },
   mapChoiceOptionText: { flex: 1 },
   mapChoiceOptionTitle: { color: colors.text, fontSize: 16, fontWeight: "800" },
@@ -3429,12 +3493,12 @@ const styles = StyleSheet.create({
   chargeCurrency: { color: colors.textMuted, fontSize: 18, fontWeight: "800" },
   chargeAmountTextInput: { flex: 1, paddingVertical: spacing.sm, color: colors.text, fontSize: 18, fontWeight: "700" },
   chargeModalActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg },
-  chargeCancelButton: { minHeight: 50, minWidth: 94, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.white },
+  chargeCancelButton: { minHeight: 50, minWidth: 94, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.bgElevated },
   chargeCancelText: { color: colors.textMuted, fontSize: 14, fontWeight: "800" },
   chargeSubmitButton: { flex: 1, minHeight: 50, flexDirection: "row", gap: spacing.xs, backgroundColor: colors.blue, alignItems: "center", justifyContent: "center", borderRadius: 12 },
   chargeSubmitButtonDisabled: { opacity: 0.7 },
   chargeSubmitText: { color: colors.white, fontSize: 14, fontWeight: "800" },
-  receiptCard: { marginTop: spacing.lg, padding: spacing.md, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white },
+  receiptCard: { marginTop: spacing.lg, padding: spacing.md, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgElevated },
   receiptImage: { backgroundColor: colors.white },
   receiptHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   receiptHeaderActionSpace: { width: 44, height: 44 },
@@ -3497,7 +3561,7 @@ const styles = StyleSheet.create({
   chatUnreadCount: { minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.success },
   chatUnreadCountText: { color: colors.white, fontSize: 11, fontWeight: "800" },
   chatSupportRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  supportIconButton: { width: 48, height: 48, borderWidth: 1.5, borderColor: "#C9D2DF", borderRadius: 12, backgroundColor: colors.white, alignItems: "center", justifyContent: "center", shadowColor: "#101828", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+  supportIconButton: { width: 48, height: 48, borderWidth: 1.5, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.bgElevated, alignItems: "center", justifyContent: "center", shadowColor: "#101828", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
   chatText: { color: colors.blue, fontWeight: "800", fontSize: 14 },
   chatSupportSection: { borderBottomWidth: 1, borderBottomColor: colors.border, paddingTop: 2, paddingBottom: spacing.sm, gap: spacing.sm },
   supportTitle: { color: colors.textDim, fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase" },
@@ -3515,7 +3579,7 @@ const styles = StyleSheet.create({
   chatHeaderText: { flex: 1, justifyContent: "center" },
   chatTitle: { color: colors.white, fontSize: 16, fontWeight: "800" },
   chatHeaderSpacer: { width: 8 },
-  chatBookingBar: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.md, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
+  chatBookingBar: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.md, backgroundColor: colors.bgElevated, borderBottomWidth: 1, borderBottomColor: colors.border },
   chatBookingIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.blueSoft },
   chatBookingText: { flex: 1 },
   chatBookingReference: { color: colors.text, fontSize: 18, fontWeight: "900" },
@@ -3532,7 +3596,7 @@ const styles = StyleSheet.create({
   chatMessageRowMine: { justifyContent: "flex-end" },
   chatTextMessage: { maxWidth: "84%", alignItems: "flex-start" },
   chatTextMessageMine: { alignItems: "flex-end" },
-  messageBubble: { maxWidth: "100%", paddingHorizontal: 13, paddingTop: 10, paddingBottom: 7, borderRadius: 18, borderBottomLeftRadius: 5, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, shadowColor: "#101828", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1 },
+  messageBubble: { maxWidth: "100%", paddingHorizontal: 13, paddingTop: 10, paddingBottom: 7, borderRadius: 18, borderBottomLeftRadius: 5, backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.border, shadowColor: "#101828", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1 },
   myMessageBubble: { borderBottomLeftRadius: 18, borderBottomRightRadius: 5, backgroundColor: "#EAF1FF", borderColor: "#D4E2FF" },
   messageBody: { color: colors.text, fontSize: 15, lineHeight: 21 },
   messageMeta: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 3, marginTop: 4 },
@@ -3541,7 +3605,7 @@ const styles = StyleSheet.create({
   chatImageMessage: { maxWidth: "84%", alignItems: "flex-end" },
   chatImageMessageMeta: { marginTop: 3, paddingHorizontal: 2 },
   chatImageMessageMetaMine: { alignSelf: "flex-end" },
-  chatComposer: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.white },
+  chatComposer: { paddingHorizontal: spacing.sm, paddingTop: spacing.sm, paddingBottom: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bgElevated },
   chatComposerInner: { flexDirection: "row", alignItems: "flex-end", gap: spacing.xs },
   chatInput: { flex: 1, minHeight: 46, maxHeight: 110, paddingHorizontal: spacing.md, paddingVertical: 11, color: colors.text, backgroundColor: colors.bgInput, borderWidth: 1, borderColor: colors.border, borderRadius: 23, fontSize: 15 },
   sendButton: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.blue },
@@ -3556,7 +3620,7 @@ const styles = StyleSheet.create({
   photoPickerSubtitle: { color: colors.textMuted, fontSize: 13, marginTop: 4 },
   photoPickerClose: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
   photoPickerOptions: { gap: spacing.sm },
-  photoPickerOption: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.white },
+  photoPickerOption: { minHeight: 76, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.bgElevated },
   photoPickerOptionImage: { width: 42, height: 42 },
   photoPickerOptionCopy: { flex: 1 },
   photoPickerOptionTitle: { color: colors.text, fontSize: 15, fontWeight: "800" },
@@ -3575,4 +3639,5 @@ const styles = StyleSheet.create({
   chatImageViewer: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.96)" },
   chatImageViewerImage: { position: "absolute", top: "8%", bottom: "8%", width: "100%" },
   chatImageViewerClose: { position: "absolute", right: spacing.md, zIndex: 1, width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.18)" },
-});
+  });
+}

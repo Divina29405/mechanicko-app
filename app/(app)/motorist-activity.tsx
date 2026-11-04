@@ -21,13 +21,16 @@ import {
     Pressable,
     ScrollView,
     StyleSheet,
-    Text,
     TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
 
 import { MapWebView, type MapWebViewHandle } from "@/components/MapWebView";
+import {
+    MechanicText as Text,
+    translateMechanicValue,
+} from "@/components/mechanic/MechanicText";
 import { MotoristHomeHeader } from "@/components/MotoristHomeHeader";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { normalizeText } from "@/lib/typography";
@@ -82,6 +85,17 @@ function hasMechanicStartedTrip(status: unknown) {
   return TRIP_STARTED_STATUSES.includes(String(status ?? "").trim().toLowerCase());
 }
 
+function showBookingAlert(
+  language: "en" | "fil",
+  title: string,
+  message?: string,
+) {
+  Alert.alert(
+    translateMechanicValue(title, language),
+    message ? translateMechanicValue(message, language) : message,
+  );
+}
+
 function ScheduledBookingCard({
   request,
   colors,
@@ -95,6 +109,7 @@ function ScheduledBookingCard({
 }) {
   const mapRef = useRef<MapWebViewHandle | null>(null);
   const router = useRouter();
+  const { language } = useAppTheme();
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [updatingChargeId, setUpdatingChargeId] = useState<string | null>(null);
   const [bookingAddress, setBookingAddress] = useState("Address unavailable");
@@ -249,7 +264,7 @@ function ScheduledBookingCard({
       .eq("id", request.id)
       .eq("motorist_id", request.motorist_id);
     if (error) {
-      Alert.alert("Unable to update charge", error.message);
+      showBookingAlert(language, "Unable to update charge", error.message);
     }
     setUpdatingChargeId(null);
   }
@@ -374,7 +389,10 @@ function ScheduledBookingCard({
           <View style={styles.bookingMapControls}>
             <TouchableOpacity
               accessibilityLabel="Recenter booking map"
-              style={styles.mapControl}
+              style={[
+                styles.mapControl,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
               onPress={() =>
                 mapRef.current?.injectJavaScript(
                   "map.setView(mapCenter, 15, { animate: true }); true;",
@@ -389,7 +407,10 @@ function ScheduledBookingCard({
                   ? "Exit full screen booking map"
                   : "Open full screen booking map"
               }
-              style={styles.mapControl}
+              style={[
+                styles.mapControl,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
               onPress={() => setIsMapFullscreen((value) => !value)}
             >
               <Ionicons
@@ -420,22 +441,28 @@ function ScheduledBookingCard({
           />
           <TouchableOpacity
             accessibilityLabel="Close full screen booking map"
-            style={styles.fullscreenCloseButton}
+            style={[
+              styles.fullscreenCloseButton,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
             onPress={() => setIsMapFullscreen(false)}
           >
-            <Ionicons name="close" size={28} color="#172B66" />
+            <Ionicons name="close" size={28} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.fullscreenMapControls}>
             <TouchableOpacity
               accessibilityLabel="Recenter full screen booking map"
-              style={styles.mapControl}
+              style={[
+                styles.mapControl,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
               onPress={() =>
                 mapRef.current?.injectJavaScript(
                   "map.setView(mapCenter, 15, { animate: true }); true;",
                 )
               }
             >
-              <Ionicons name="locate-outline" size={24} color="#172B66" />
+              <Ionicons name="locate-outline" size={24} color={colors.primary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -453,7 +480,7 @@ function ScheduledBookingCard({
               backgroundColor="#7A8794"
             />
             <View style={styles.mechanicBookingIdentity}>
-              <Text style={[styles.mechanicBookingName, { color: "#2C2F35" }]}>
+              <Text style={[styles.mechanicBookingName, { color: colors.text }]}>
                 {isAwaitingMechanic
                   ? "Mechanic request sent"
                   : request.mechanic?.name ||
@@ -467,7 +494,10 @@ function ScheduledBookingCard({
                 </Text>
                 {request.mechanic?.servicesCount !== undefined ? (
                   <Text style={styles.servicesValue}>
-                    · {request.mechanic.servicesCount} services
+                    {translateMechanicValue(
+                      `· ${request.mechanic.servicesCount} services`,
+                      language,
+                    )}
                   </Text>
                 ) : null}
               </View>
@@ -476,7 +506,10 @@ function ScheduledBookingCard({
               </Text>
               <View style={styles.mechanicPlateBadge}>
                 <Text style={styles.mechanicPlateText}>
-                  {request.plate_number || "884-NK"}
+                  {translateMechanicValue(
+                    `PLATE: ${request.plate_number || "884-NK"}`,
+                    language,
+                  )}
                 </Text>
               </View>
             </View>
@@ -504,7 +537,8 @@ function ScheduledBookingCard({
               onPress={() => {
                 const phone = request.mechanic?.mobileNumber;
                 if (!phone) {
-                  Alert.alert(
+                  showBookingAlert(
+                    language,
                     "Number unavailable",
                     "This mechanic has not added a contact number.",
                   );
@@ -559,7 +593,9 @@ function ScheduledBookingCard({
           <Text style={[styles.progressTitle, { color: colors.text }]}>
             Service Progress
           </Text>
-          <Text style={styles.progressStep}>STEP {currentStep} OF 4</Text>
+          <Text style={styles.progressStep}>
+            {translateMechanicValue(`STEP ${currentStep} OF 4`, language)}
+          </Text>
         </View>
         {[
           {
@@ -828,7 +864,7 @@ function ScheduledBookingCard({
 export default function MotoristActivityScreen() {
   const bookingCancelledPlayer = useAudioPlayer(bookingCancelledSound);
   const { session } = useAuth();
-  const { colors } = useAppTheme();
+  const { colors, language } = useAppTheme();
   const motoristId = session?.user.id;
 
   const [requests, setRequests] = useState<any[]>(
@@ -1398,7 +1434,7 @@ export default function MotoristActivityScreen() {
           "The mechanic has already started the trip. For safety, this booking can no longer be cancelled.",
         );
       } else {
-        Alert.alert("Unable to cancel booking", error.message);
+        showBookingAlert(language, "Unable to cancel booking", error.message);
       }
     } else if (
       session?.user.id
@@ -1547,11 +1583,12 @@ export default function MotoristActivityScreen() {
     if (!session?.user.id) return;
     const { data, error } = await listVehicles(session.user.id);
     if (error) {
-      Alert.alert("Unable to load vehicles", error);
+      showBookingAlert(language, "Unable to load vehicles", error);
       return;
     }
     if (!data.length) {
-      Alert.alert(
+      showBookingAlert(
+        language,
         "Vehicle required",
         "Please add a vehicle in Profile > My Garage before booking.",
       );
@@ -1570,7 +1607,11 @@ export default function MotoristActivityScreen() {
   const submitScheduleBooking = async () => {
     if (!session?.user.id || !scheduleMechanic || !scheduleVehicle) return;
     if (!scheduleSelected.length) {
-      Alert.alert("Choose a service", "Select at least one service to continue.");
+      showBookingAlert(
+        language,
+        "Choose a service",
+        "Select at least one service to continue.",
+      );
       return;
     }
     let permission = await Location.getForegroundPermissionsAsync();
@@ -1578,7 +1619,8 @@ export default function MotoristActivityScreen() {
       permission = await Location.requestForegroundPermissionsAsync();
     }
     if (permission.status !== "granted") {
-      Alert.alert(
+      showBookingAlert(
+        language,
         "Location required",
         "Allow location access so the mechanic can navigate to your booking site.",
       );
@@ -1602,7 +1644,8 @@ export default function MotoristActivityScreen() {
         .maybeSingle();
     if (existingBookingError || existingBooking) {
       setSubmittingSchedule(false);
-      Alert.alert(
+      showBookingAlert(
+        language,
         existingBookingError ? "Booking unavailable" : "Booking in progress",
         existingBookingError
           ? existingBookingError.message
@@ -1649,7 +1692,7 @@ export default function MotoristActivityScreen() {
       .single();
     setSubmittingSchedule(false);
     if (error) {
-      Alert.alert("Booking failed", error.message);
+      showBookingAlert(language, "Booking failed", error.message);
       return;
     }
     if (createdBooking) {
@@ -1937,7 +1980,12 @@ export default function MotoristActivityScreen() {
               }}
               activeOpacity={0.8}
             >
-              <View style={styles.scheduleVehicleIcon}>
+              <View
+                style={[
+                  styles.scheduleVehicleIcon,
+                  { backgroundColor: colors.softCard },
+                ]}
+              >
                 <Ionicons name="car" size={23} color="#24439A" />
               </View>
               <View style={styles.scheduleVehicleCopy}>
@@ -1948,7 +1996,10 @@ export default function MotoristActivityScreen() {
                     : "Vehicle not set"}
                 </Text>
                 <Text style={[styles.scheduleVehiclePlate, { color: colors.textMuted }]}>
-                  PLATE: {scheduleVehicle?.plate_number ?? "NOT SET"}
+                  {translateMechanicValue(
+                    `PLATE: ${scheduleVehicle?.plate_number ?? "NOT SET"}`,
+                    language,
+                  )}
                 </Text>
               </View>
               <Ionicons name="checkmark-circle" size={22} color="#24439A" />
@@ -2050,7 +2101,10 @@ export default function MotoristActivityScreen() {
             <Text style={[styles.scheduleSectionTitle, { color: colors.text }]}>ADDITIONAL NOTES</Text>
             <TextInput
               style={[styles.scheduleNotesInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-              placeholder="Share anything the mechanic should know..."
+              placeholder={translateMechanicValue(
+                "Share anything the mechanic should know...",
+                language,
+              )}
               placeholderTextColor={colors.textMuted}
               multiline
               textAlignVertical="top"
@@ -2072,7 +2126,10 @@ export default function MotoristActivityScreen() {
               </View>
               <View style={styles.scheduleEstimateRow}>
                 <Text style={[styles.scheduleEstimateLabel, { color: colors.textMuted }]}>
-                  Distance fee ({scheduleMechanic?.distance})
+                  {translateMechanicValue(
+                    `Distance fee (${scheduleMechanic?.distance})`,
+                    language,
+                  )}
                 </Text>
                 <Text style={[styles.scheduleEstimateValue, { color: colors.primary }]}>
                   ₱{(scheduleMechanic
@@ -2117,7 +2174,12 @@ export default function MotoristActivityScreen() {
         onRequestClose={() => setScheduleVehiclePickerVisible(false)}
       >
         <View style={styles.scheduleVehiclePickerOverlay}>
-          <View style={styles.scheduleVehiclePickerSheet}>
+          <View
+            style={[
+              styles.scheduleVehiclePickerSheet,
+              { backgroundColor: colors.card },
+            ]}
+          >
             <View style={styles.scheduleVehiclePickerHeader}>
               <View style={styles.scheduleVehiclePickerTitleRow}>
                 <TouchableOpacity
@@ -2133,13 +2195,21 @@ export default function MotoristActivityScreen() {
               </View>
               <TouchableOpacity
                 onPress={() => setScheduleVehiclePickerVisible(false)}
-                style={styles.scheduleVehiclePickerClose}
+                style={[
+                  styles.scheduleVehiclePickerClose,
+                  { backgroundColor: colors.btnSecondary },
+                ]}
                 accessibilityLabel="Close vehicle choices"
               >
-                <Ionicons name="close" size={21} color="#536078" />
+                <Ionicons name="close" size={21} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.scheduleVehiclePickerSubtitle}>
+            <Text
+              style={[
+                styles.scheduleVehiclePickerSubtitle,
+                { color: colors.textMuted },
+              ]}
+            >
               Select the vehicle for this booking
             </Text>
             <ScrollView
@@ -2153,7 +2223,13 @@ export default function MotoristActivityScreen() {
                     key={vehicle.id}
                     style={[
                       styles.scheduleVehicleOption,
-                      selected && styles.scheduleVehicleOptionSelected,
+                      {
+                        backgroundColor: selected
+                          ? colors.softCard
+                          : colors.card,
+                        borderColor: selected ? colors.primary : colors.border,
+                        borderLeftWidth: selected ? 4 : 1,
+                      },
                     ]}
                     onPress={() => {
                       setScheduleVehicle(vehicle);
@@ -2161,31 +2237,59 @@ export default function MotoristActivityScreen() {
                     }}
                     activeOpacity={0.8}
                   >
-                    <View style={styles.scheduleVehicleOptionIcon}>
-                      <Ionicons name="car" size={22} color="#24439A" />
+                    <View
+                      style={[
+                        styles.scheduleVehicleOptionIcon,
+                        { backgroundColor: colors.softCard },
+                      ]}
+                    >
+                      <Ionicons name="car" size={22} color={colors.primary} />
                     </View>
                     <View style={styles.scheduleVehicleOptionCopy}>
                       <View style={styles.scheduleVehicleOptionMeta}>
-                        <Text style={styles.scheduleVehicleOptionBadge}>
+                        <Text
+                          style={[
+                            styles.scheduleVehicleOptionBadge,
+                            { color: colors.primary },
+                          ]}
+                        >
                           {vehicle.is_primary ? "GARAGE DEFAULT" : "GARAGE"}
                         </Text>
                         {vehicle.is_primary ? (
-                          <Text style={styles.scheduleVehicleOptionDefault}>
+                          <Text
+                            style={[
+                              styles.scheduleVehicleOptionDefault,
+                              { color: colors.textMuted },
+                            ]}
+                          >
                             Primary vehicle
                           </Text>
                         ) : null}
                       </View>
-                      <Text style={styles.scheduleVehicleOptionName}>
+                      <Text
+                        style={[
+                          styles.scheduleVehicleOptionName,
+                          { color: colors.text },
+                        ]}
+                      >
                         {vehicle.make} {vehicle.model}
                       </Text>
-                      <Text style={styles.scheduleVehicleOptionPlate}>
-                        PLATE: {vehicle.plate_number}
+                      <Text
+                        style={[
+                          styles.scheduleVehicleOptionPlate,
+                          { color: colors.textMuted },
+                        ]}
+                      >
+                        {translateMechanicValue(
+                          `PLATE: ${vehicle.plate_number}`,
+                          language,
+                        )}
                       </Text>
                     </View>
                     <Ionicons
                       name={selected ? "checkmark-circle" : "ellipse-outline"}
                       size={23}
-                      color={selected ? "#24439A" : "#7D8295"}
+                      color={selected ? colors.primary : colors.textMuted}
                     />
                   </TouchableOpacity>
                 );
@@ -2228,7 +2332,10 @@ export default function MotoristActivityScreen() {
                 <TextInput
                   value={nearbySearch}
                   onChangeText={setNearbySearch}
-                  placeholder="Search for mechanic name, service offer"
+                  placeholder={translateMechanicValue(
+                    "Search for mechanic name, service offer",
+                    language,
+                  )}
                   placeholderTextColor="#7B8499"
                   style={[styles.nearbySearchInput, { color: colors.text }]}
                   returnKeyType="search"
@@ -2361,7 +2468,7 @@ export default function MotoristActivityScreen() {
                           color="#172B66"
                         />
                         <Text style={styles.nearbyDetailsText}>
-                          View Services
+                          {language === "fil" ? "Mga Serbisyo" : "View Services"}
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
@@ -2530,7 +2637,7 @@ export default function MotoristActivityScreen() {
                 <TextInput
                   value={otherCancelReason}
                   onChangeText={setOtherCancelReason}
-                  placeholder="Enter reason"
+                  placeholder={translateMechanicValue("Enter reason", language)}
                   placeholderTextColor={colors.textMuted}
                   style={[
                     styles.otherIssueInput,

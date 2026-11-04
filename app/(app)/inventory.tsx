@@ -1,11 +1,16 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { MechanicScreen } from '@/components/mechanic/MechanicScreen';
+import { MechanicText as Text } from '@/components/mechanic/MechanicText';
 import { useMechanic } from '@/contexts/MechanicContext';
-import { colors, radii, spacing } from '@/lib/theme';
+import { useAppTheme } from '@/contexts/ThemeContext';
+import { getMechanicThemeColors, radii, spacing } from '@/lib/theme';
 
 export default function InventoryScreen() {
   const { inventory, togglePacked } = useMechanic();
+  const { colors: themeColors } = useAppTheme();
+  const colors = getMechanicThemeColors(themeColors);
+  const styles = createStyles(colors);
   const missing = inventory.filter((item) => !item.packed).length;
 
   return (
@@ -35,7 +40,8 @@ export default function InventoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
+  return StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,
@@ -84,4 +90,5 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.85,
   },
-});
+  });
+}

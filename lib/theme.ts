@@ -21,6 +21,27 @@ export const colors = {
   white: "#FFFFFF",
 } as const;
 
+export function getMechanicThemeColors(theme: {
+  bg: string;
+  card: string;
+  input: string;
+  text: string;
+  textMuted: string;
+  border: string;
+  primary: string;
+}) {
+  return {
+    ...colors,
+    bg: theme.bg,
+    bgElevated: theme.card,
+    bgInput: theme.input,
+    text: theme.text,
+    textMuted: theme.textMuted,
+    border: theme.border,
+    amber: theme.primary,
+  };
+}
+
 export const spacing = {
   xs: 6,
   sm: 10,

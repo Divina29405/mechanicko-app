@@ -3,8 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import * as SecureStore from 'expo-secure-store';
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,21 +21,23 @@ import type { Vehicle } from '@/types/vehicle';
 import { normalizeText } from '@/lib/typography';
 import { isValidPlateNumber, sanitizePlateNumber } from '@/lib/plateNumber';
 
-const motorcycleIcon = require('../../assets/images/motorcycle.png');
-const carIcon = require('../../assets/images/car.png');
+const motorcycleIcon = require('../../assets/images/motorsiklo.png');
+const carIcon = require('../../assets/images/kotse.png');
 const trashBinIcon = require('../../assets/images/trash-bin.png');
-const MOTORIST_RADIUS_KEY = 'motorist_search_radius_km';
-
+const trashBinIconDark = require('../../assets/images/trash-bin1.png');
 export default function MotoristProfileScreen() {
   const router = useRouter();
-  const { setupVehicle, openSettings } = useLocalSearchParams<{
+  const { setupVehicle } = useLocalSearchParams<{
     setupVehicle?: string;
-    openSettings?: string;
   }>();
   const { session, signOut } = useAuth();
   const { colors, isDarkMode } = useAppTheme();
 
   const email = session?.user.email ?? 'motorist@example.com';
+  const metadataMobileNumber =
+    typeof session?.user.user_metadata?.mobile_number === 'string'
+      ? session.user.user_metadata.mobile_number.trim()
+      : '';
   const fullName = typeof session?.user.user_metadata?.full_name === 'string'
     ? session.user.user_metadata.full_name
     : email.split('@')[0];
@@ -52,10 +53,14 @@ export default function MotoristProfileScreen() {
   const [avatarUploadSuccess, setAvatarUploadSuccess] = useState(false);
   const [avatarPickerVisible, setAvatarPickerVisible] = useState(false);
   const [accountDetailsVisible, setAccountDetailsVisible] = useState(false);
-  const [settingsVisible, setSettingsVisible] = useState(openSettings === '1');
-  const [searchRadius, setSearchRadius] = useState(10);
   const [editableEmail, setEditableEmail] = useState(email);
   const [mobileNumber, setMobileNumber] = useState('');
+  const [mobileNumberLoadedFor, setMobileNumberLoadedFor] = useState<
+    string | null
+  >(null);
+  const [mobileNumberLoadErrorFor, setMobileNumberLoadErrorFor] = useState<
+    string | null
+  >(null);
   const [savingDetails, setSavingDetails] = useState(false);
   const [accountDetailsSuccessVisible, setAccountDetailsSuccessVisible] =
     useState(false);
@@ -94,33 +99,41 @@ export default function MotoristProfileScreen() {
   useEffect(() => subscribeToSharedAvatar(setAvatarUrl), []);
 
   useEffect(() => {
-    void SecureStore.getItemAsync(MOTORIST_RADIUS_KEY).then((storedRadius) => {
-      const parsedRadius = Number(storedRadius);
-      if ([5, 10, 15].includes(parsedRadius)) setSearchRadius(parsedRadius);
-    });
-  }, []);
-
-  const updateSearchRadius = async (radius: number) => {
-    setSearchRadius(radius);
-    await SecureStore.setItemAsync(MOTORIST_RADIUS_KEY, String(radius));
-  };
-
-  useEffect(() => {
     if (!session?.user.id) return;
     let active = true;
+    const userId = session.user.id;
     const loadMobileNumber = async () => {
       const { data, error } = await supabase
         .from('profiles')
         .select('mobile_number')
-        .eq('id', session.user.id)
+        .eq('id', userId)
         .maybeSingle();
-      if (active && !error) setMobileNumber(data?.mobile_number ?? '');
+      if (!active) return;
+
+      if (error) {
+        console.warn('Motorist phone number load failed:', error.message);
+        setMobileNumber(metadataMobileNumber);
+        setMobileNumberLoadErrorFor(metadataMobileNumber ? null : userId);
+      } else {
+        setMobileNumber(
+          data?.mobile_number?.trim() || metadataMobileNumber,
+        );
+        setMobileNumberLoadErrorFor(null);
+      }
+      setMobileNumberLoadedFor(userId);
     };
     void loadMobileNumber();
     return () => {
       active = false;
     };
-  }, [accountDetailsVisible, session?.user.id]);
+  }, [accountDetailsVisible, metadataMobileNumber, session?.user.id]);
+
+  const isMobileNumberLoading =
+    Boolean(session?.user.id) && mobileNumberLoadedFor !== session?.user.id;
+  const mobileNumberDisplay =
+    mobileNumberLoadErrorFor === session?.user.id
+      ? 'Unable to load phone number'
+      : mobileNumber || 'Phone number not added';
 
   useEffect(() => {
     if (!session?.user.id) return;
@@ -417,7 +430,10 @@ export default function MotoristProfileScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity
-            style={[styles.avatar, { backgroundColor: '#FFF1D6', borderColor: '#F0A202' }]}
+            style={[
+              styles.avatar,
+              { backgroundColor: colors.softCard, borderColor: colors.primary },
+            ]}
             onPress={chooseAvatar}
             disabled={uploadingAvatar}
           >
@@ -426,14 +442,14 @@ export default function MotoristProfileScreen() {
                 uri={avatarPreviewUri}
                 name={fullName}
                 size={80}
-                backgroundColor="#FFF1D6"
+                backgroundColor={colors.softCard}
               />
             ) : (
               <ProfileAvatar
                 uri={avatarUrl}
                 name={fullName}
                 size={80}
-                backgroundColor="#FFF1D6"
+                backgroundColor={colors.softCard}
               />
             )}
             {uploadingAvatar ? (
@@ -450,16 +466,22 @@ export default function MotoristProfileScreen() {
             <View style={styles.profileNameRow}>
               <Text style={[styles.name, { color: colors.text }]}>{fullName}</Text>
               <TouchableOpacity
-                onPress={() => setSettingsVisible(true)}
+                onPress={() => router.push("/(app)/motorist-settings")}
                 style={styles.settingsButton}
                 accessibilityLabel="Open settings and preferences"
               >
                 <Ionicons name="settings-outline" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            <Text style={[styles.meta, { color: colors.textMuted }]}>
-              {mobileNumber || 'Phone number not added'}
-            </Text>
+            {isMobileNumberLoading ? (
+              <View style={[styles.meta, styles.phoneNumberLoading]}>
+                <ActivityIndicator size="small" color={colors.textMuted} />
+              </View>
+            ) : (
+              <Text style={[styles.meta, { color: colors.textMuted }]}>
+                {mobileNumberDisplay}
+              </Text>
+            )}
             <Text style={[styles.meta, { color: colors.textMuted }]}>{email}</Text>
           </View>
           <View style={[styles.editProfileContainer, { backgroundColor: colors.softCard }]}>
@@ -499,11 +521,14 @@ export default function MotoristProfileScreen() {
             key={vehicle.id}
             style={[styles.vehicleCard, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
-            <View style={styles.vehicleIconBox}>
+            <View style={[styles.vehicleIconBox, { backgroundColor: colors.softCard }]}>
               <Image
                 source={vehicle.type === 'car' ? carIcon : motorcycleIcon}
                 resizeMode="contain"
-                style={[styles.vehicleIconImage, { tintColor: colors.primary }]} 
+                style={[
+                  styles.vehicleIconImage,
+                  { tintColor: colors.primary },
+                ]}
               />
             </View>
             <View style={styles.vehicleCardCopy}>
@@ -539,7 +564,11 @@ export default function MotoristProfileScreen() {
               style={[styles.deleteVehicleButton, { backgroundColor: colors.btnSecondary }]}
               accessibilityLabel={`Delete ${vehicle.make} ${vehicle.model}`}
             >
-              <Image source={trashBinIcon} resizeMode="contain" style={styles.deleteVehicleIcon} />
+              <Image
+                source={isDarkMode ? trashBinIconDark : trashBinIcon}
+                resizeMode="contain"
+                style={styles.deleteVehicleIcon}
+              />
             </TouchableOpacity>
           </View>
         )        ) : (
@@ -547,7 +576,11 @@ export default function MotoristProfileScreen() {
             onPress={openAddVehicleForm}
             style={[styles.emptyVehicleCard, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
-            <Image source={carIcon} resizeMode="contain" style={[styles.vehicleIconImage, { tintColor: colors.textMuted }]} />
+            <Image
+              source={carIcon}
+              resizeMode="contain"
+              style={[styles.vehicleIconImage, { tintColor: colors.primary }]}
+            />
             <Text style={[styles.emptyVehicleText, { color: colors.textMuted }]}>
               No vehicles added yet
             </Text>
@@ -759,7 +792,11 @@ export default function MotoristProfileScreen() {
                     resizeMode="contain"
                     style={[
                       styles.vehicleTypeIcon,
-                      { opacity: vehicleType === type ? 1 : 0.7, tintColor: vehicleType === type ? '#FFFFFF' : colors.primary },
+                      {
+                        tintColor:
+                          vehicleType === type ? '#FFFFFF' : colors.primary,
+                        opacity: vehicleType === type ? 1 : 0.7,
+                      },
                     ]}
                   />
                   <Text style={{ color: vehicleType === type ? '#FFFFFF' : colors.text, fontWeight: '700', fontSize: normalizeText(15) }}>
@@ -779,93 +816,6 @@ export default function MotoristProfileScreen() {
         </SafeAreaView>
       </Modal>
 
-      {settingsVisible ? (
-        <View style={styles.settingsOverlay}>
-          <SafeAreaView style={[styles.detailScreen, { backgroundColor: colors.bg }]}>
-          <View style={[styles.detailHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-            <TouchableOpacity
-              onPress={() => setSettingsVisible(false)}
-              style={styles.closeButton}
-              accessibilityRole="button"
-              accessibilityLabel="Back to profile"
-            >
-              <Ionicons name="arrow-back" size={24} color={colors.text} />
-            </TouchableOpacity>
-            <Text
-              style={[
-                styles.detailTitle,
-                styles.settingsHeaderTitle,
-                { color: colors.text },
-              ]}
-            >
-              Settings & Preferences
-            </Text>
-            <View style={styles.settingsHeaderSpacer} />
-          </View>
-          <View style={[styles.settingsPanel, { backgroundColor: colors.card }]}>
-            <TouchableOpacity
-              style={[styles.settingsRow, { borderBottomColor: colors.border }]}
-              onPress={() => {
-                router.push('/(app)/payment-methods');
-              }}
-            >
-              <Ionicons name="card-outline" size={24} color={colors.primary} style={styles.settingsRowIcon} />
-              <View style={styles.settingsRowCopy}>
-                <Text style={[styles.settingsRowText, { color: colors.text }]}>Payment Method</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={21} color={colors.primary} />
-            </TouchableOpacity>
-            <View style={styles.settingsRow}>
-              <Ionicons name="moon-outline" size={24} color={colors.primary} style={styles.settingsRowIcon} />
-              <View style={styles.settingsRowCopy}>
-                <Text style={[styles.settingsRowText, { color: colors.text }]}>Dark Mode</Text>
-              </View>
-              <Switch
-                value={isDarkMode}
-                disabled
-                trackColor={{ false: colors.border, true: colors.border }}
-                thumbColor="#FFFFFF"
-              />
-              <Text style={[styles.settingsRowHint, { color: colors.textMuted }]}>
-                Temporarily unavailable
-              </Text>
-            </View>
-            <View style={[styles.settingsRow, styles.radiusSettingsRow, { borderBottomColor: colors.border }]}>
-              <Ionicons name="radio-outline" size={24} color={colors.primary} style={styles.settingsRowIcon} />
-              <View style={styles.settingsRowCopy}>
-                <Text style={[styles.settingsRowText, { color: colors.text }]}>Mechanic Search Radius</Text>
-                <Text style={[styles.settingsRowHint, { color: colors.textMuted }]}>
-                  Show mechanics within {searchRadius} km
-                </Text>
-                <View style={styles.radiusOptions}>
-                  {[5, 10, 15].map((radius) => (
-                    <TouchableOpacity
-                      key={radius}
-                      style={[
-                        styles.radiusOption,
-                        { borderColor: colors.border },
-                        searchRadius === radius && styles.radiusOptionSelected,
-                      ]}
-                      onPress={() => void updateSearchRadius(radius)}
-                    >
-                      <Text
-                        style={[
-                          styles.radiusOptionText,
-                          { color: searchRadius === radius ? "#FFFFFF" : colors.text },
-                        ]}
-                      >
-                        {radius} km
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            </View>
-          </View>
-          </SafeAreaView>
-        </View>
-      ) : null}
-
       <Modal
         visible={accountDetailsVisible}
         animationType="slide"
@@ -874,14 +824,16 @@ export default function MotoristProfileScreen() {
       >
         <SafeAreaView style={[styles.detailScreen, { backgroundColor: colors.bg }]}>
           <View style={[styles.detailHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-            <Text style={[styles.detailTitle, { color: colors.text }]}>Account Details</Text>
             <TouchableOpacity
               onPress={() => setAccountDetailsVisible(false)}
               style={styles.closeButton}
-              accessibilityLabel="Close account details"
+              accessibilityRole="button"
+              accessibilityLabel="Back to profile"
             >
-              <Ionicons name="close" size={26} color={colors.text} />
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
+            <Text style={[styles.detailTitle, { color: colors.text }]}>Account Details</Text>
+            <View style={styles.closeButton} />
           </View>
 
           <ScrollView
@@ -1089,7 +1041,6 @@ export default function MotoristProfileScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  settingsOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 10, elevation: 10 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16, borderBottomWidth: 1 },
   backButton: { padding: 4 },
   headerTitle: { fontSize: normalizeText(20), fontWeight: '800' },
@@ -1172,6 +1123,7 @@ const styles = StyleSheet.create({
   editProfileText: { color: '#0037B0', fontSize: normalizeText(15), fontWeight: '800' },
   name: { fontSize: normalizeText(23), fontWeight: '800' },
   meta: { fontSize: normalizeText(15), marginTop: 2 },
+  phoneNumberLoading: { height: normalizeText(20), width: 20, justifyContent: 'center' },
   status: { fontSize: normalizeText(16), fontWeight: '700', marginTop: 4 },
   sectionTitle: { fontSize: normalizeText(17), fontWeight: '800', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 10 },
   menuGroup: { marginBottom: 24 },
@@ -1229,17 +1181,6 @@ const styles = StyleSheet.create({
   logoutModalConfirmText: { color: '#FFFFFF', fontSize: normalizeText(16), fontWeight: '800' },
   logoutButton: { minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, marginTop: 10 },
   logoutButtonText: { color: '#D92D20', fontSize: normalizeText(16), fontWeight: '800' },
-  settingsPanel: { marginTop: 32, borderRadius: 12, overflow: 'hidden' },
-  settingsRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 0, paddingHorizontal: 22, borderBottomWidth: 1 },
-  settingsRowIcon: { width: 30, height: 30, marginRight: 18, textAlign: 'center' },
-  settingsRowCopy: { flex: 1, minHeight: 30, justifyContent: 'center' },
-  settingsRowText: { fontSize: normalizeText(17), lineHeight: normalizeText(24), fontWeight: '700' },
-  settingsRowHint: { fontSize: normalizeText(14), lineHeight: normalizeText(22), marginTop: 2 },
-  radiusSettingsRow: { alignItems: 'flex-start', paddingVertical: 18 },
-  radiusOptions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  radiusOption: { minWidth: 64, minHeight: 38, paddingHorizontal: 12, borderWidth: 1, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  radiusOptionSelected: { backgroundColor: '#0037B0', borderColor: '#0037B0' },
-  radiusOptionText: { fontSize: normalizeText(14), fontWeight: '800' },
   settingsRowSubtitle: { fontSize: normalizeText(14), marginTop: 2 },
   addVehicleForm: { padding: 22, gap: 16 },
   vehicleTypeRow: { flexDirection: 'row', gap: 12 },
@@ -1252,8 +1193,6 @@ const styles = StyleSheet.create({
   detailScreen: { flex: 1 },
   detailHeader: { minHeight: 64, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1 },
   detailTitle: { fontSize: normalizeText(20), fontWeight: '800' },
-  settingsHeaderTitle: { flex: 1, marginLeft: 12 },
-  settingsHeaderSpacer: { width: 44 },
   closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   detailsList: { flex: 1 },
   accountDetailsContent: { padding: 18, paddingBottom: 36, gap: 16 },

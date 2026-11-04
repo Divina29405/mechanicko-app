@@ -260,6 +260,64 @@ function isRecentLocation(location: Location.LocationObject) {
   );
 }
 
+type DeviceOrientationEventWithCompass = DeviceOrientationEvent & {
+  webkitCompassHeading?: number;
+};
+
+type DeviceOrientationConstructorWithPermission = typeof DeviceOrientationEvent & {
+  requestPermission?: () => Promise<string>;
+};
+
+async function getBrowserCompassHeading() {
+  if (
+    typeof window === "undefined" ||
+    typeof window.DeviceOrientationEvent === "undefined"
+  ) {
+    return null;
+  }
+
+  const OrientationEvent = window
+    .DeviceOrientationEvent as DeviceOrientationConstructorWithPermission;
+  if (OrientationEvent.requestPermission) {
+    try {
+      const permission = await OrientationEvent.requestPermission();
+      if (permission !== "granted") return null;
+    } catch (error) {
+      console.warn("Unable to request browser compass permission:", error);
+      return null;
+    }
+  }
+
+  return new Promise<number | null>((resolve) => {
+    let settled = false;
+    const finish = (heading: number | null) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("deviceorientation", onOrientation);
+      window.removeEventListener("deviceorientationabsolute", onOrientation);
+      clearTimeout(timeout);
+      resolve(heading);
+    };
+    const onOrientation = (event: Event) => {
+      const orientation = event as DeviceOrientationEventWithCompass;
+      let heading = orientation.webkitCompassHeading;
+      if (
+        typeof heading !== "number" &&
+        orientation.absolute &&
+        typeof orientation.alpha === "number"
+      ) {
+        heading = (360 - orientation.alpha) % 360;
+      }
+      if (typeof heading === "number" && Number.isFinite(heading)) {
+        finish((heading + 360) % 360);
+      }
+    };
+    const timeout = setTimeout(() => finish(null), 1200);
+    window.addEventListener("deviceorientation", onOrientation);
+    window.addEventListener("deviceorientationabsolute", onOrientation);
+  });
+}
+
 export default function MotoristMap() {
   const bookingAcceptedPlayer = useAudioPlayer(bookingAcceptedSound);
   const bookingCancelledPlayer = useAudioPlayer(bookingCancelledSound);
@@ -280,9 +338,11 @@ export default function MotoristMap() {
   };
   const motoristId = session?.user.id;
 
-  const [location, setLocation] = useState<Location.LocationObject | null>(
-    cachedDeviceLocation,
-  );
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [initialMapLocation, setInitialMapLocation] =
+    useState<Location.LocationObject | null>(() =>
+      Platform.OS === "web" ? webLocation : null,
+    );
   const [heading, setHeading] = useState(0);
   const [liveMechanics, setLiveMechanics] = useState<any[]>([]);
   const [searchRadius, setSearchRadius] = useState(10);
@@ -443,6 +503,7 @@ export default function MotoristMap() {
         : null),
   );
   const mapRef = useRef<MapWebViewHandle | null>(null);
+  const headingRef = useRef<number | null>(null);
   const previousBookingStatus = useRef<string | null>(null);
   const [radarRotation] = useState(() => new Animated.Value(0));
   const motoristAvatarPath = useRef<string | null>(null);
@@ -1008,6 +1069,7 @@ export default function MotoristMap() {
             if (!active) return;
             if (isRecentLocation(currentLocation)) {
               setLocation(currentLocation);
+              setInitialMapLocation((current) => current ?? currentLocation);
               void fetchLiveMechanics(
                 currentLocation.coords.latitude,
                 currentLocation.coords.longitude,
@@ -1024,6 +1086,7 @@ export default function MotoristMap() {
                   return;
                 }
                 setLocation(nextLocation);
+                setInitialMapLocation((current) => current ?? nextLocation);
               },
             );
             return;
@@ -1049,7 +1112,6 @@ export default function MotoristMap() {
         const lastKnown = await Location.getLastKnownPositionAsync();
         if (lastKnown && active && isRecentLocation(lastKnown)) {
           cachedDeviceLocation = lastKnown;
-          setLocation(lastKnown);
           void fetchLiveMechanics(
             lastKnown.coords.latitude,
             lastKnown.coords.longitude,
@@ -1062,6 +1124,7 @@ export default function MotoristMap() {
         if (isRecentLocation(currentLoc)) {
           cachedDeviceLocation = currentLoc;
           setLocation(currentLoc);
+          setInitialMapLocation((current) => current ?? currentLoc);
           void fetchLiveMechanics(
             currentLoc.coords.latitude,
             currentLoc.coords.longitude,
@@ -1079,13 +1142,20 @@ export default function MotoristMap() {
             if (!isUsableLocation(nextLocation, cachedDeviceLocation)) return;
             cachedDeviceLocation = nextLocation;
             setLocation(nextLocation);
+            setInitialMapLocation((current) => current ?? nextLocation);
           }
         );
 
         // This activates the device compass
         headingSubscription = await Location.watchHeadingAsync((headingData) => {
           if (!active) return;
-          setHeading(headingData.trueHeading >= 0 ? headingData.trueHeading : headingData.magHeading);
+          const nextHeading =
+            headingData.trueHeading >= 0
+              ? headingData.trueHeading
+              : headingData.magHeading;
+          if (!Number.isFinite(nextHeading) || nextHeading < 0) return;
+          headingRef.current = nextHeading;
+          setHeading(nextHeading);
         });
 
       } else if (active) {
@@ -1152,6 +1222,7 @@ export default function MotoristMap() {
         accuracy: Location.Accuracy.Balanced,
       });
       setLocation(currentLocation);
+      setInitialMapLocation((current) => current ?? currentLocation);
       recenterMap(currentLocation);
       void fetchLiveMechanics(
         currentLocation.coords.latitude,
@@ -1163,22 +1234,47 @@ export default function MotoristMap() {
   };
 
   const handleMapOrientation = async () => {
+    if (Platform.OS !== "web" && !location) {
+      Alert.alert(
+        "Location Required",
+        "Please wait while we pinpoint your location before orienting the map.",
+      );
+      return;
+    }
+
     const currentLocation = location ?? webLocation;
-    let heading = currentLocation.coords.heading;
-    if (Platform.OS !== "web") {
+    let headingDegrees: number | null = null;
+    if (Platform.OS === "web") {
+      headingDegrees = await getBrowserCompassHeading();
+    } else {
       try {
         const headingData = await Location.getHeadingAsync();
-        heading =
-          headingData.trueHeading >= 0
+        const currentHeading =
+          headingData.trueHeading >= 0 && Number.isFinite(headingData.trueHeading)
             ? headingData.trueHeading
             : headingData.magHeading;
+        if (Number.isFinite(currentHeading) && currentHeading >= 0) {
+          headingDegrees = currentHeading;
+        }
       } catch {
-        heading = currentLocation.coords.heading;
+        console.warn("Unable to read a fresh device compass heading.");
       }
     }
-    const rotation = typeof heading === "number" && heading >= 0 ? -heading : 0;
+
+    if (headingDegrees === null) headingDegrees = headingRef.current;
+    const courseHeading = currentLocation.coords.heading;
+    if (
+      headingDegrees === null &&
+      typeof courseHeading === "number" &&
+      Number.isFinite(courseHeading) &&
+      courseHeading >= 0
+    ) {
+      headingDegrees = courseHeading;
+    }
+    const bearing =
+      headingDegrees === null ? 0 : (360 - headingDegrees + 360) % 360;
     mapRef.current?.injectJavaScript(
-      `map.setView([${currentLocation.coords.latitude}, ${currentLocation.coords.longitude}], Math.max(map.getZoom(), 17), { animate: true, duration: 0.35 }); map.setBearing(${rotation}); true;`,
+      `if (window.orientMap) { window.orientMap(${currentLocation.coords.latitude}, ${currentLocation.coords.longitude}, ${bearing}); } true;`,
     );
   };
 
@@ -1526,8 +1622,7 @@ export default function MotoristMap() {
     };
   }, [activeRequest?.id, session?.user.id]);
 
-  const displayLocation = location ?? webLocation;
-  const [initialMapLocation] = useState(displayLocation);
+  const mapInitialLocation = initialMapLocation ?? webLocation;
   const { width: screenWidth } = useWindowDimensions();
 
   useEffect(() => {
@@ -1615,11 +1710,16 @@ export default function MotoristMap() {
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.js"></script>
         <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
         <style>html, body, #map { height: 100%; width: 100%; padding: 0; margin: 0; overflow: hidden; } body { background-color: ${colors.bg}; } .leaflet-tile { filter: ${isDarkMode ? "brightness(.65) invert(1) hue-rotate(180deg)" : "none"}; } .user-marker-wrap { position: relative; width: 240px; height: 135px; } .user-pulse-ring { position: absolute; z-index: 1; left: 91px; bottom: 15px; width: 58px; height: 58px; border-radius: 50%; background: rgba(66, 165, 245, .32); border: 2px solid rgba(66, 165, 245, .7); box-shadow: 0 0 0 3px rgba(66, 165, 245, .18); animation: user-pulse 1.4s ease-out infinite; } .user-marker { position: absolute; z-index: 2; left: 101px; bottom: 25px; width: 38px; height: 38px; border-radius: 50%; background: #2450D8; border: 3px solid #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,.3); display: flex; align-items: center; justify-content: center; } .user-nav-icon { width: 22px; height: 22px; object-fit: contain; } .user-location-card { display: none; position: absolute; left: 50%; bottom: -30px; width: max-content; max-width: 220px; min-height: 0; padding: 6px 10px; border-radius: 26px; background: #FFFFFF; box-shadow: 0 4px 12px rgba(0,0,0,.18); box-sizing: border-box; text-align: center; transform: translateX(-50%); } .user-location-card.visible { display: block; } .user-location-title { color: #172033; font-size: 15px; font-weight: 800; line-height: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .user-location-subtitle { color: #4B5568; font-size: 13px; line-height: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } @keyframes user-pulse { 0% { transform: scale(.7); opacity: .95; } 70% { transform: scale(1.35); opacity: .3; } 100% { transform: scale(1.55); opacity: 0; } } .mechanic-marker { width: 42px; height: 42px; border: 3px solid #F0A202; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.3); overflow: hidden; display: flex; align-items: center; justify-content: center; } .mechanic-marker img { width: 100%; height: 100%; object-fit: cover; } .mechanic-fallback { width: 18px; height: 18px; position: relative; display: block; } .mechanic-fallback:before { content: ''; position: absolute; width: 8px; height: 8px; left: 5px; top: 0; border-radius: 50%; background: #F0A202; } .mechanic-fallback:after { content: ''; position: absolute; width: 18px; height: 9px; left: 0; bottom: 0; border-radius: 10px 10px 4px 4px; background: #F0A202; } </style>
+        <style>
+          .user-location-card { background: ${colors.card}; }
+          .user-location-title { color: ${colors.text}; }
+          .user-location-subtitle { color: ${colors.textMuted}; }
+        </style>
       </head>
       <body>
         <div id="map"></div>
         <script>
-          var mapCenter = [${initialMapLocation.coords.latitude}, ${initialMapLocation.coords.longitude}];
+          var mapCenter = [${mapInitialLocation.coords.latitude}, ${mapInitialLocation.coords.longitude}];
           var map = L.map('map', {
             zoomControl: false,
             minZoom: 12,
@@ -1628,7 +1728,7 @@ export default function MotoristMap() {
             touchGestures: true,
             rotateControl: false,
             bearing: 0
-          }).setView([${initialMapLocation.coords.latitude}, ${initialMapLocation.coords.longitude}], 15);
+          }).setView([${mapInitialLocation.coords.latitude}, ${mapInitialLocation.coords.longitude}], 15);
           var touchRotationStartBearing = null;
           var originalSetBearing = map.setBearing;
           map.setBearing = function(bearing, options) {
@@ -1681,7 +1781,7 @@ export default function MotoristMap() {
             iconAnchor: [120, 91]
           });
           
-          var userMarker = L.marker([${initialMapLocation.coords.latitude}, ${initialMapLocation.coords.longitude}], {icon: userIcon}).addTo(map);
+          var userMarker = L.marker([${mapInitialLocation.coords.latitude}, ${mapInitialLocation.coords.longitude}], {icon: userIcon}).addTo(map);
           var hasCenteredOnLiveLocation = false;
           
           window.updateUserLocation = function(lat, lng, heading) {
@@ -1695,6 +1795,16 @@ export default function MotoristMap() {
             if (compass) {
               compass.style.transform = 'rotate(0deg)';
             }
+          };
+          window.orientMap = function(lat, lng, bearing) {
+            if (typeof map === 'undefined') {
+              return false;
+            }
+            map.setView([lat, lng], Math.max(map.getZoom(), 17), { animate: true, duration: 0.35 });
+            if (typeof map.setBearing === 'function') {
+              map.setBearing(bearing);
+            }
+            return true;
           };
           
           function updateLocationCardVisibility() {
@@ -1731,48 +1841,59 @@ export default function MotoristMap() {
         </script>
       </body>
     </html>
-  `, [colors.bg, initialMapLocation, isDarkMode]);
+  `, [
+    colors.bg,
+    colors.card,
+    colors.text,
+    colors.textMuted,
+    mapInitialLocation,
+    isDarkMode,
+  ]);
   const mapSource = useMemo(() => ({ html: mapHtml }), [mapHtml]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      <MapWebView
-        ref={mapRef}
-        source={mapSource}
-        style={styles.map}
-        androidLayerType={Platform.OS === "android" ? "hardware" : undefined}
-        javaScriptEnabled
-        domStorageEnabled
-        originWhitelist={["*"]}
-        scrollEnabled={false}
-        onLoadEnd={() => {
-          mapRef.current?.injectJavaScript(
-            "if (window.refreshMapLayout) { window.refreshMapLayout(true); } true;",
-          );
-        }}
-        onLoad={() => {
-          const locationScript = location
-            ? `if (window.updateUserLocation) { window.updateUserLocation(${location.coords.latitude}, ${location.coords.longitude}, ${heading}); }`
-            : "";
-          mapRef.current?.injectJavaScript(
-            `${locationScript}; if (window.updateMechanics) { window.updateMechanics(${JSON.stringify(liveMechanics)}); } true;`,
-          );
-        }}
-        onMessage={(event) => {
-          try {
-            const data = JSON.parse(event.nativeEvent.data);
-            if (data.type === "MECHANIC_SELECTED") {
-              setSelectedMechanic(data.mechanic);
-              setDisplayedMechanic(data.mechanic);
-              setShowServices(false);
-            }
-            if (data.type === "MAP_TAPPED") {
-              setSelectedMechanic(null);
-              setShowServices(false);
-            }
-          } catch {}
-        }}
-      />
+      {(location && initialMapLocation) || Platform.OS === "web" ? (
+        <MapWebView
+          ref={mapRef}
+          source={mapSource}
+          style={styles.map}
+          androidLayerType={Platform.OS === "android" ? "hardware" : undefined}
+          javaScriptEnabled
+          domStorageEnabled
+          originWhitelist={["*"]}
+          scrollEnabled={false}
+          onLoadEnd={() => {
+            mapRef.current?.injectJavaScript(
+              "if (window.refreshMapLayout) { window.refreshMapLayout(true); } true;",
+            );
+          }}
+          onLoad={() => {
+            const locationScript = location
+              ? `if (window.updateUserLocation) { window.updateUserLocation(${location.coords.latitude}, ${location.coords.longitude}, ${heading}); }`
+              : "";
+            mapRef.current?.injectJavaScript(
+              `${locationScript}; if (window.updateMechanics) { window.updateMechanics(${JSON.stringify(liveMechanics)}); } true;`,
+            );
+          }}
+          onMessage={(event) => {
+            try {
+              const data = JSON.parse(event.nativeEvent.data);
+              if (data.type === "MECHANIC_SELECTED") {
+                setSelectedMechanic(data.mechanic);
+                setDisplayedMechanic(data.mechanic);
+                setShowServices(false);
+              }
+              if (data.type === "MAP_TAPPED") {
+                setSelectedMechanic(null);
+                setShowServices(false);
+              }
+            } catch {}
+          }}
+        />
+      ) : (
+        <View style={styles.map} />
+      )}
 
       <MotoristHomeHeader title="Home" floating />
       <Modal
@@ -1820,19 +1941,28 @@ export default function MotoristMap() {
         String(activeRequest.status).toLowerCase(),
       ) ? (
         <TouchableOpacity
-          style={styles.ongoingOrderTopNotice}
+        style={[
+          styles.ongoingOrderTopNotice,
+          {
+            backgroundColor: colors.softCard,
+            borderColor: colors.border,
+          },
+        ]}
           onPress={() => router.navigate("/motorist-activity")}
           activeOpacity={1}
           accessibilityLabel="Open ongoing booking"
         >
-          <Text style={styles.ongoingOrderTitle}>
+          <Text style={[styles.ongoingOrderTitle, { color: colors.primary }]}>
             You have an ongoing order
           </Text>
         </TouchableOpacity>
       ) : null}
       <View style={[styles.mapControlStack, { top: 190 }]}>
         <TouchableOpacity
-          style={styles.mapControlButton}
+          style={[
+            styles.mapControlButton,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
           onPress={() => void handleRecenterLocation()}
           accessibilityLabel="Recenter map"
           hitSlop={8}
@@ -1840,7 +1970,10 @@ export default function MotoristMap() {
           <Image source={recenterIcon} style={styles.mapControlImage} />
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.mapControlButton}
+          style={[
+            styles.mapControlButton,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
           onPress={handleMapOrientation}
           accessibilityLabel="Orient map"
           hitSlop={8}
@@ -2390,11 +2523,14 @@ export default function MotoristMap() {
                   </Text>
                 </View>
                 <TouchableOpacity
-                  style={styles.mechanicPanelClose}
+                  style={[
+                    styles.mechanicPanelClose,
+                    { backgroundColor: colors.btnSecondary },
+                  ]}
                   onPress={() => setSelectedMechanic(null)}
                   accessibilityLabel="Close mechanic details"
                 >
-                  <Ionicons name="close" size={18} color="#536078" />
+                  <Ionicons name="close" size={18} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
               <View style={styles.profileHeader}>
@@ -2408,7 +2544,12 @@ export default function MotoristMap() {
                       style={styles.mechanicAvatar}
                     />
                   ) : (
-                    <View style={styles.mechanicAvatarFallback}>
+                    <View
+                      style={[
+                        styles.mechanicAvatarFallback,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    >
                       <Ionicons name="person" size={26} color="#FFFFFF" />
                     </View>
                   )}
@@ -2416,7 +2557,12 @@ export default function MotoristMap() {
                     <Text style={[styles.title, { color: colors.text }]}>
                       {displayedMechanic.name}
                     </Text>
-                    <Text style={styles.mechanicServiceSummary}>
+                    <Text
+                      style={[
+                        styles.mechanicServiceSummary,
+                        { color: colors.textMuted },
+                      ]}
+                    >
                       {displayedMechanic.skills || "Specialist"}
                       {displayedMechanic.experience
                         ? ` • ${displayedMechanic.experience}`
@@ -2455,26 +2601,44 @@ export default function MotoristMap() {
                   </View>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.bookmarkButton}
+                  style={[
+                    styles.bookmarkButton,
+                    { backgroundColor: colors.btnSecondary },
+                  ]}
                   accessibilityLabel="Save mechanic"
                 >
                   <Ionicons name="bookmark-outline" size={22} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
               <View style={styles.mechanicStatsRow}>
-                <View style={styles.mechanicStatBox}>
+                <View
+                  style={[
+                    styles.mechanicStatBox,
+                    { backgroundColor: colors.btnSecondary },
+                  ]}
+                >
                   <Text style={[styles.mechanicStatLabel, { color: colors.textMuted }]}>STATUS</Text>
                   <Text style={[styles.mechanicStatValue, { color: colors.primary }]}>
                     {displayedMechanic.isOnline ? "Online" : "Offline"}
                   </Text>
                 </View>
-                <View style={styles.mechanicStatBox}>
+                <View
+                  style={[
+                    styles.mechanicStatBox,
+                    { backgroundColor: colors.btnSecondary },
+                  ]}
+                >
                   <Text style={[styles.mechanicStatLabel, { color: colors.textMuted }]}>DISTANCE</Text>
                   <Text style={[styles.mechanicStatValue, { color: colors.primary }]}>
                     {displayedMechanic.distance}
                   </Text>
                 </View>
-                <View style={styles.mechanicStatBox}>
+                <View
+                  style={[
+                    styles.mechanicStatBox,
+                    { backgroundColor: colors.btnSecondary },
+                  ]}
+                >
                   <Text style={[styles.mechanicStatLabel, { color: colors.textMuted }]}>EST. ARRIVAL</Text>
                   <Text style={[styles.mechanicStatValue, { color: colors.primary }]}>
                     ~{Math.max(2, Math.ceil(displayedMechanic.distanceKm * 4))}{" "}

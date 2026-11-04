@@ -1,23 +1,23 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { router, useNavigation } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Modal,
   Pressable,
-  RefreshControl,
-  ScrollView,
   StyleProp,
   StyleSheet,
-  Text,
   View,
   ViewStyle,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { MechanicText as Text } from "@/components/mechanic/MechanicText";
 import { useNotificationCount } from "@/contexts/NotificationContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
+import { getNotificationCutoff } from "@/lib/notificationRetention";
 import { supabase } from "@/lib/supabase";
 
 type AppNotification = {
@@ -30,15 +30,25 @@ type AppNotification = {
   read_at: string | null;
 };
 
+const notificationAccent = "#2563EB";
+const notificationBadgeColor = "#FF6B00";
+
 export function NotificationBell({
   color,
   style,
+  variant = "motorist",
 }: {
   color: string;
   style?: StyleProp<ViewStyle>;
+  variant?: "mechanic" | "motorist";
 }) {
   const { session } = useAuth();
   const { colors } = useAppTheme();
+  const accentColor = notificationAccent;
+  const appNavigation = useNavigation<{
+    navigate: (screen: "notifications") => void;
+  }>("/(app)");
+  const insets = useSafeAreaInsets();
   const {
     unreadCount,
     markNotificationRead,
@@ -48,48 +58,101 @@ export function NotificationBell({
   const [visible, setVisible] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyRefreshing, setHistoryRefreshing] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [isMechanic, setIsMechanic] = useState(false);
+  const hasLoadedHistory = useRef(false);
+  const navigationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingNavigation = useRef<(() => void) | null>(null);
+
+  useEffect(
+    () => () => {
+      if (navigationTimer.current) clearTimeout(navigationTimer.current);
+    },
+    [],
+  );
+
+  const closePreview = () => {
+    setVisible(false);
+  };
+
+  const closePreviewAndNavigate = (
+    destination: Parameters<typeof router.push>[0],
+  ) => {
+    pendingNavigation.current = () => router.push(destination);
+    setVisible(false);
+    if (navigationTimer.current) clearTimeout(navigationTimer.current);
+    navigationTimer.current = setTimeout(() => {
+      const navigate = pendingNavigation.current;
+      pendingNavigation.current = null;
+      navigationTimer.current = null;
+      navigate?.();
+    }, 500);
+  };
+
+  const navigateAfterModalDismiss = () => {
+    const navigate = pendingNavigation.current;
+    if (!navigate) return;
+    pendingNavigation.current = null;
+    if (navigationTimer.current) clearTimeout(navigationTimer.current);
+    navigationTimer.current = null;
+    navigate();
+  };
+
+  const openAllNotifications = () => {
+    pendingNavigation.current = () => appNavigation.navigate("notifications");
+    setVisible(false);
+    if (navigationTimer.current) clearTimeout(navigationTimer.current);
+    navigationTimer.current = setTimeout(navigateAfterModalDismiss, 500);
+  };
 
   useEffect(() => {
     if (!visible || !userId) return;
     let active = true;
-    const loadNotifications = async (refresh = false) => {
-      if (refresh) setHistoryRefreshing(true);
-      else setHistoryLoading(true);
-
-      const [{ data, error }, { data: profile, error: profileError }] =
-        await Promise.all([
-          supabase
-            .from("app_notifications")
-            .select("id,type,title,body,service_request_id,created_at,read_at")
-            .eq("user_id", userId)
-            .order("created_at", { ascending: false })
-            .limit(100),
-          supabase
-            .from("profiles")
-            .select("role")
-            .eq("id", userId)
-            .maybeSingle(),
-        ]);
-      if (!active) return;
-      if (error) {
-        setHistoryError(error.message);
-      } else {
-        setNotifications((data ?? []) as AppNotification[]);
-        setHistoryError(null);
+    const loadNotifications = async (showLoading = false) => {
+      if (showLoading) setHistoryLoading(true);
+      try {
+        const [{ data, error }, { data: profile, error: profileError }] =
+          await Promise.all([
+            supabase
+              .from("app_notifications")
+              .select("id,type,title,body,service_request_id,created_at,read_at")
+              .eq("user_id", userId)
+              .gte("created_at", getNotificationCutoff())
+              .order("created_at", { ascending: false })
+              .limit(2),
+            supabase
+              .from("profiles")
+              .select("role")
+              .eq("id", userId)
+              .maybeSingle(),
+          ]);
+        if (!active) return;
+        if (error) {
+          setHistoryError(error.message);
+        } else {
+          setNotifications((data ?? []) as AppNotification[]);
+          setHistoryError(null);
+          hasLoadedHistory.current = true;
+        }
+        if (profileError) {
+          console.warn("Could not load notification role:", profileError.message);
+        } else {
+          setIsMechanic(profile?.role?.toLowerCase() === "mechanic");
+        }
+      } catch (error) {
+        if (active) {
+          setHistoryError(
+            error instanceof Error
+              ? error.message
+              : "Could not load notification preview.",
+          );
+        }
+      } finally {
+        if (active && showLoading) setHistoryLoading(false);
       }
-      if (profileError) {
-        console.warn("Could not load notification role:", profileError.message);
-      } else {
-        setIsMechanic(profile?.role?.toLowerCase() === "mechanic");
-      }
-      setHistoryLoading(false);
-      setHistoryRefreshing(false);
     };
 
-    void loadNotifications();
+    void loadNotifications(!hasLoadedHistory.current);
     const channelId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const channel = supabase
       .channel(`notification_history_${userId}_${channelId}`)
@@ -101,7 +164,7 @@ export function NotificationBell({
           table: "app_notifications",
           filter: `user_id=eq.${userId}`,
         },
-        () => void loadNotifications(true),
+        () => void loadNotifications(),
       )
       .subscribe((status, error) => {
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
@@ -125,6 +188,7 @@ export function NotificationBell({
       .from("app_notifications")
       .update({ read_at: readAt })
       .eq("user_id", userId)
+      .gte("created_at", getNotificationCutoff())
       .is("read_at", null);
     if (error) {
       setHistoryError(error.message);
@@ -159,16 +223,37 @@ export function NotificationBell({
       markNotificationRead();
     }
 
-    setVisible(false);
+    const isCancelledBooking =
+      item.type === "booking_status" &&
+      item.title.trim().toLowerCase() === "booking cancelled";
+    const isClosedBooking =
+      item.type === "booking_status" &&
+      item.title.trim().toLowerCase() === "booking closed";
+
     if (item.type === "chat_message" && item.service_request_id) {
-      router.push({
+      closePreviewAndNavigate({
         pathname: "/messages",
         params: { serviceRequestId: item.service_request_id },
       });
+    } else if (isCancelledBooking && isMechanic) {
+      closePreviewAndNavigate({
+        pathname: "/(app)/jobs",
+        params: { filter: "dropped" },
+      });
+    } else if (isClosedBooking && isMechanic) {
+      closePreviewAndNavigate({
+        pathname: "/(app)/jobs",
+        params: { filter: "resolved" },
+      });
+    } else if (isCancelledBooking) {
+      closePreviewAndNavigate({
+        pathname: "/(app)/help-center",
+        params: { filter: "revoked" },
+      });
     } else if (isMechanic) {
-      router.push("/jobs");
+      closePreviewAndNavigate("/(app)/jobs");
     } else {
-      router.push("/motorist-activity");
+      closePreviewAndNavigate("/(app)/motorist-activity");
     }
   };
 
@@ -184,7 +269,15 @@ export function NotificationBell({
             : "Open notifications"
         }
       >
-        <Ionicons name="notifications-outline" size={22} color={color} />
+        {variant === "mechanic" ? (
+          <Image
+            source={require("../assets/images/mechanicnotification.png")}
+            style={styles.bellIcon}
+            resizeMode="contain"
+          />
+        ) : (
+          <Ionicons name="notifications-outline" size={22} color={color} />
+        )}
         {unreadCount > 0 ? (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>
@@ -195,161 +288,205 @@ export function NotificationBell({
       </Pressable>
       <Modal
         visible={visible}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={() => setVisible(false)}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        navigationBarTranslucent
+        onRequestClose={closePreview}
+        onDismiss={navigateAfterModalDismiss}
       >
-        <SafeAreaView
-          style={[styles.modal, { backgroundColor: colors.bg }]}
-          edges={["top", "left", "right"]}
+        <Pressable
+          style={[
+            styles.previewOverlay,
+            {
+              paddingTop: insets.top + 48,
+              paddingBottom: insets.bottom + 12,
+            },
+          ]}
+          onPress={closePreview}
         >
-          <View
+          <Pressable
             style={[
-              styles.modalHeader,
-              { backgroundColor: colors.card, borderBottomColor: colors.border },
+              styles.previewPanel,
+              { backgroundColor: colors.card, borderColor: accentColor },
             ]}
+            onPress={(event) => event.stopPropagation()}
           >
-            <Pressable
-              onPress={() => setVisible(false)}
-              style={styles.closeButton}
-              accessibilityRole="button"
-              accessibilityLabel="Close notifications"
+            <View
+              style={[
+                styles.previewHeader,
+                { borderBottomColor: colors.border },
+              ]}
             >
-              <Ionicons name="arrow-back" size={24} color={colors.text} />
-            </Pressable>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Notifications
-            </Text>
-            {notifications.some((item) => !item.read_at) ? (
-              <Pressable
-                onPress={() => void markAllAsRead()}
-                accessibilityRole="button"
-              >
-                <Text style={[styles.markAll, { color: colors.primary }]}>
-                  Mark all read
+              <View style={styles.previewHeaderTitleGroup}>
+                <Text style={[styles.previewTitle, { color: colors.text }]}>
+                  Notifications
                 </Text>
-              </Pressable>
-            ) : (
-              <View style={styles.headerSpacer} />
-            )}
-          </View>
-          <ScrollView
-            contentContainerStyle={styles.historyContent}
-            refreshControl={
-              <RefreshControl
-                refreshing={historyRefreshing}
-                onRefresh={() => {
-                  if (!userId) return;
-                  setHistoryRefreshing(true);
-                  void supabase
-                    .from("app_notifications")
-                    .select(
-                      "id,type,title,body,service_request_id,created_at,read_at",
-                    )
-                    .eq("user_id", userId)
-                    .order("created_at", { ascending: false })
-                    .limit(100)
-                    .then(({ data, error }) => {
-                      if (error) setHistoryError(error.message);
-                      else {
-                        setNotifications((data ?? []) as AppNotification[]);
-                        setHistoryError(null);
-                      }
-                      setHistoryRefreshing(false);
-                    });
-                }}
-                tintColor={colors.primary}
-              />
-            }
-          >
-            {historyError ? (
-              <Text style={[styles.historyError, { color: "#DC2626" }]}>
-                {historyError}
-              </Text>
-            ) : null}
-            {historyLoading ? (
-              <ActivityIndicator color={colors.primary} style={styles.loader} />
-            ) : notifications.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Ionicons
-                  name="notifications-outline"
-                  size={42}
-                  color={colors.primary}
-                />
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                  No notifications yet
-                </Text>
-                <Text style={[styles.emptyMessage, { color: colors.textMuted }]}>
-                  Booking updates and new messages will appear here.
-                </Text>
+                {unreadCount > 0 ? (
+                  <View
+                    style={[
+                      styles.unreadBadge,
+                      { backgroundColor: notificationBadgeColor },
+                    ]}
+                  >
+                    <Text style={styles.unreadBadgeText}>
+                      UNREAD ({unreadCount > 99 ? "99+" : unreadCount})
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-            ) : (
-              notifications.map((item) => (
+              <View style={styles.previewHeaderActions}>
                 <Pressable
-                  key={item.id}
-                  onPress={() => void openNotification(item)}
+                  onPress={() => void markAllAsRead()}
+                  disabled={unreadCount === 0}
+                  accessibilityRole="button"
+                  accessibilityLabel="Mark all notifications as read"
+                  style={styles.markAllButton}
+                >
+                  <Ionicons
+                    name="checkmark-done"
+                    size={18}
+                    color={unreadCount > 0 ? accentColor : colors.textMuted}
+                  />
+                  <Text
+                    style={[
+                      styles.markAll,
+                      {
+                        color:
+                          unreadCount > 0 ? accentColor : colors.textMuted,
+                      },
+                    ]}
+                  >
+                    Mark all as read
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+            {historyError ? (
+              <Text style={styles.historyError}>{historyError}</Text>
+            ) : historyLoading ? (
+              <ActivityIndicator color={accentColor} style={styles.loader} />
+            ) : notifications.length > 0 ? (
+              notifications.map((notification, index) => (
+                <Pressable
+                  key={notification.id}
+                  onPress={() => void openNotification(notification)}
                   style={[
-                    styles.notificationCard,
+                    styles.previewNotification,
                     {
-                      backgroundColor: item.read_at ? colors.card : colors.btnSecondary,
-                      borderColor: colors.border,
+                      marginTop: index === 0 ? 8 : 3,
+                      marginBottom:
+                        index === notifications.length - 1 ? 8 : 0,
                     },
+                    { backgroundColor: colors.btnSecondary },
                   ]}
                   accessibilityRole="button"
+                  accessibilityLabel={`${notification.read_at ? "" : "Unread: "}${notification.title}. ${notification.body}`}
                 >
-                  <View style={styles.notificationIcon}>
+                  <View
+                    style={[
+                      styles.notificationIcon,
+                      { backgroundColor: accentColor + "20" },
+                    ]}
+                  >
                     <Ionicons
                       name={
-                        item.type === "chat_message"
+                        notification.type === "chat_message"
                           ? "chatbubble-ellipses-outline"
-                          : "calendar-outline"
+                          : notification.type === "emergency_request"
+                            ? "shield-outline"
+                            : "calendar-outline"
                       }
-                      size={21}
-                      color={colors.primary}
+                      size={23}
+                      color={accentColor}
                     />
                   </View>
                   <View style={styles.notificationCopy}>
-                    <View style={styles.notificationTitleRow}>
+                    <Text
+                      style={[
+                        styles.notificationTitle,
+                        { color: colors.text },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {notification.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.notificationBody,
+                        { color: colors.textMuted },
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {notification.body}
+                    </Text>
+                    <View style={styles.timeRow}>
+                      <Ionicons
+                        name="time-outline"
+                        size={15}
+                        color={colors.textMuted}
+                      />
                       <Text
-                        style={[styles.notificationTitle, { color: colors.text }]}
+                        style={[styles.timeText, { color: colors.textMuted }]}
                       >
-                        {item.title}
+                        {new Date(notification.created_at).toLocaleString(
+                          [],
+                          { dateStyle: "medium", timeStyle: "short" },
+                        )}
                       </Text>
-                      {!item.read_at ? (
-                        <View
-                          style={[
-                            styles.unreadDot,
-                            { backgroundColor: colors.primary },
-                          ]}
-                        />
-                      ) : null}
                     </View>
-                    <Text style={[styles.notificationBody, { color: colors.textMuted }]}>
-                      {item.body}
-                    </Text>
-                    <Text style={[styles.notificationTime, { color: colors.textMuted }]}>
-                      {new Date(item.created_at).toLocaleString([], {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                    </Text>
                   </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={18}
-                    color={colors.textMuted}
-                  />
+                  {!notification.read_at ? (
+                    <View
+                      style={[
+                        styles.unreadDot,
+                        { backgroundColor: accentColor },
+                      ]}
+                    />
+                  ) : null}
                 </Pressable>
               ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons
+                  name="notifications-outline"
+                  size={30}
+                  color={accentColor}
+                />
+                <Text style={[styles.emptyMessage, { color: colors.textMuted }]}>
+                  No notifications yet.
+                </Text>
+              </View>
             )}
-          </ScrollView>
-        </SafeAreaView>
+            <Pressable
+              style={[
+                styles.viewAllButton,
+                { borderTopColor: colors.border },
+              ]}
+              onPress={openAllNotifications}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.viewAllText, { color: accentColor }]}>
+                View all notifications
+              </Text>
+              <Ionicons
+                name="arrow-forward"
+                size={21}
+                color={accentColor}
+              />
+            </Pressable>
+          </Pressable>
+        </Pressable>
       </Modal>
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  bellIcon: {
+    width: 22,
+    height: 22,
+  },
   button: {
     width: 36,
     height: 36,
@@ -367,7 +504,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E11D48",
+    backgroundColor: notificationBadgeColor,
     borderWidth: 1,
     borderColor: "#FFFFFF",
   },
@@ -376,60 +513,122 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "800",
   },
-  modal: { flex: 1 },
-  modalHeader: {
-    minHeight: 56,
-    paddingHorizontal: 16,
+  previewOverlay: {
+    flex: 1,
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(12, 20, 38, 0.08)",
+  },
+  previewPanel: {
+    width: "92%",
+    maxWidth: 400,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    overflow: "hidden",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  previewHeader: {
+    minHeight: 44,
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 5,
     borderBottomWidth: 1,
+    borderStyle: "dotted",
   },
-  closeButton: { width: 40, height: 40, justifyContent: "center" },
-  modalTitle: { fontSize: 18, fontWeight: "800" },
-  markAll: { fontSize: 12, fontWeight: "700" },
-  headerSpacer: { width: 40 },
-  historyContent: { padding: 16, paddingBottom: 32, flexGrow: 1 },
-  loader: { marginTop: 44 },
-  historyError: { fontSize: 13, marginBottom: 12 },
-  emptyState: {
+  previewHeaderTitleGroup: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  emptyTitle: { fontSize: 17, fontWeight: "800", marginTop: 12 },
-  emptyMessage: {
-    fontSize: 13,
-    lineHeight: 19,
-    textAlign: "center",
-    marginTop: 6,
-  },
-  notificationCard: {
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
+    gap: 5,
+  },
+  previewTitle: {
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  previewHeaderActions: {
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  unreadBadge: {
+    flexShrink: 0,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
+    backgroundColor: notificationBadgeColor,
+  },
+  unreadBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 8,
+    fontWeight: "800",
+  },
+  markAllButton: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  markAll: { flexShrink: 1, fontSize: 10, fontWeight: "700" },
+  loader: { marginVertical: 26 },
+  historyError: { color: "#DC2626", fontSize: 13, margin: 14 },
+  emptyState: {
+    minHeight: 82,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    flexDirection: "row",
     gap: 10,
   },
+  emptyMessage: { fontSize: 14, lineHeight: 20, textAlign: "center" },
+  previewNotification: {
+    minHeight: 82,
+    marginHorizontal: 8,
+    padding: 8,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderRadius: 13,
+  },
   notificationIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 38,
+    height: 38,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
-  notificationCopy: { flex: 1 },
-  notificationTitleRow: {
+  notificationCopy: { flex: 1, minWidth: 0 },
+  notificationTitle: {
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: "800",
+  },
+  notificationBody: { fontSize: 14, lineHeight: 20, marginTop: 3 },
+  timeRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
+    gap: 4,
+    marginTop: 3,
   },
-  notificationTitle: { flex: 1, fontSize: 14, fontWeight: "800" },
-  notificationBody: { fontSize: 13, lineHeight: 18, marginTop: 3 },
-  notificationTime: { fontSize: 11, marginTop: 5 },
+  timeText: { fontSize: 12, fontWeight: "600" },
   unreadDot: { width: 8, height: 8, borderRadius: 4 },
+  viewAllButton: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderTopWidth: 1,
+    borderStyle: "dotted",
+  },
+  viewAllText: { fontSize: 16, fontWeight: "800" },
 });

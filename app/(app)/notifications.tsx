@@ -7,13 +7,14 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 
 import { MechanicScreen } from "@/components/mechanic/MechanicScreen";
+import { MechanicText as Text } from "@/components/mechanic/MechanicText";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
+import { getNotificationCutoff } from "@/lib/notificationRetention";
 import { supabase } from "@/lib/supabase";
 
 type AppNotification = {
@@ -53,6 +54,7 @@ export default function NotificationsScreen() {
               "id,type,title,body,service_request_id,created_at,read_at",
             )
             .eq("user_id", userId)
+            .gte("created_at", getNotificationCutoff())
             .order("created_at", { ascending: false })
             .limit(100),
           supabase
@@ -142,6 +144,7 @@ export default function NotificationsScreen() {
       .from("app_notifications")
       .update({ read_at: readAt })
       .eq("user_id", userId)
+      .gte("created_at", getNotificationCutoff())
       .is("read_at", null);
     if (updateError) {
       setError(updateError.message);
@@ -174,15 +177,37 @@ export default function NotificationsScreen() {
       }
     }
 
+    const isCancelledBooking =
+      item.type === "booking_status" &&
+      item.title.trim().toLowerCase() === "booking cancelled";
+    const isClosedBooking =
+      item.type === "booking_status" &&
+      item.title.trim().toLowerCase() === "booking closed";
+
     if (item.type === "chat_message" && item.service_request_id) {
       router.push({
         pathname: "/messages",
         params: { serviceRequestId: item.service_request_id },
       });
+    } else if (isCancelledBooking && isMechanic) {
+      router.push({
+        pathname: "/(app)/jobs",
+        params: { filter: "dropped" },
+      });
+    } else if (isClosedBooking && isMechanic) {
+      router.push({
+        pathname: "/(app)/jobs",
+        params: { filter: "resolved" },
+      });
+    } else if (isCancelledBooking) {
+      router.push({
+        pathname: "/(app)/help-center",
+        params: { filter: "revoked" },
+      });
     } else if (isMechanic) {
-      router.push("/jobs");
+      router.push("/(app)/jobs");
     } else {
-      router.push("/motorist-activity");
+      router.push("/(app)/motorist-activity");
     }
   };
 
@@ -249,7 +274,7 @@ export default function NotificationsScreen() {
               No notifications yet
             </Text>
             <Text style={[styles.emptyMessage, { color: colors.textMuted }]}>
-              Booking updates and new messages will appear here.
+              Emergency SOS alerts, booking updates, and new messages will appear here.
             </Text>
           </View>
         ) : (
@@ -277,6 +302,8 @@ export default function NotificationsScreen() {
                   name={
                     item.type === "chat_message"
                       ? "chatbubble-ellipses-outline"
+                      : item.type === "emergency_request"
+                        ? "warning-outline"
                       : item.type === "booking_status"
                         ? "calendar-outline"
                         : "notifications-outline"

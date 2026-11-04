@@ -6,10 +6,10 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 
+import { MechanicText as Text } from "@/components/mechanic/MechanicText";
 import { MotoristHomeHeader } from "@/components/MotoristHomeHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
@@ -147,7 +147,10 @@ export default function ActivityScreen() {
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryValue, { color: colors.text }]}>{completedCount} completed</Text>
             <View>
-              <Pressable onPress={() => setPeriodMenuVisible((visible) => !visible)} style={styles.periodPill}>
+              <Pressable
+                onPress={() => setPeriodMenuVisible((visible) => !visible)}
+                style={[styles.periodPill, { backgroundColor: colors.primary }]}
+              >
                 <Text style={styles.periodText}>{periodLabel}</Text>
                 <Ionicons name="chevron-down" size={16} color="#FFFFFF" />
               </Pressable>

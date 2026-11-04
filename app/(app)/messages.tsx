@@ -19,12 +19,15 @@ import {
     Platform,
     Pressable,
     StyleSheet,
-    Text,
     TextInput,
     View,
 } from 'react-native';
 
 import { MechanicScreen } from '@/components/mechanic/MechanicScreen';
+import {
+    MechanicText as Text,
+    translateMechanicValue,
+} from '@/components/mechanic/MechanicText';
 import { MotoristHomeHeader } from '@/components/MotoristHomeHeader';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,7 +35,7 @@ import { useMechanic } from '@/contexts/MechanicContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { imageAssetToBytes, refreshChatImageUrl } from '@/lib/chatMedia';
 import { supabase } from '@/lib/supabase';
-import { colors as palette } from '@/lib/theme';
+import { getMechanicThemeColors } from '@/lib/theme';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -132,7 +135,9 @@ function isUuid(value: string | null): value is string {
 export default function MessagesScreen() {
   const { session } = useAuth();
   const { isMechanic } = useMechanic();
-  const { colors } = useAppTheme();
+  const { colors, language } = useAppTheme();
+  const palette = useMemo(() => getMechanicThemeColors(colors), [colors]);
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const insets = useSafeAreaInsets();
   const { serviceRequestId, counterpartId } = useLocalSearchParams<{
     serviceRequestId?: string;
@@ -806,7 +811,7 @@ export default function MessagesScreen() {
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search mechanic name..."
+            placeholder={translateMechanicValue('Search mechanic name...', language)}
             placeholderTextColor={colors.textMuted}
             style={[styles.searchInput, { color: colors.text }]}
             returnKeyType="search"
@@ -1298,7 +1303,7 @@ export default function MessagesScreen() {
               <TextInput
                 value={draft}
                 onChangeText={setDraft}
-                placeholder="Type a message..."
+                placeholder={translateMechanicValue('Type a message...', language)}
                 placeholderTextColor={colors.textMuted}
                 style={[styles.input, { backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }]}
                 multiline
@@ -1364,7 +1369,8 @@ export default function MessagesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(palette: ReturnType<typeof getMechanicThemeColors>) {
+  return StyleSheet.create({
   screen: { flex: 1 },
   mechanicHeader: { minHeight: 58, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1 },
   mechanicBackButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
@@ -1457,4 +1463,5 @@ const styles = StyleSheet.create({
   chatImageViewerClose: { position: 'absolute', top: 50, right: 16, zIndex: 1, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.18)' },
   sendButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.5 },
-});
+  });
+}

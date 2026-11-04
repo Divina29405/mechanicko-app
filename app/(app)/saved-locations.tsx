@@ -57,7 +57,7 @@ export default function SavedLocationsScreen() {
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.replace('/motorist-profile')} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={26} color="#000000" />
+          <Ionicons name="arrow-back" size={26} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Saved Locations</Text>
         <View style={{ width: 26 }} />

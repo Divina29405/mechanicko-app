@@ -7,7 +7,9 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
 import {
   Animated,
+  ActivityIndicator,
   Dimensions,
+  Easing,
   Image,
   Modal,
   PanResponder,
@@ -15,7 +17,6 @@ import {
   ScrollView,
   StyleSheet,
   Switch,
-  Text,
   TextInput,
   View,
 } from "react-native";
@@ -28,10 +29,20 @@ import { ComingSoonModal } from "@/components/ComingSoonModal";
 import { NotificationBell } from "@/components/NotificationBell";
 import { MiniMapPreview } from "@/components/mechanic/MiniMapPreview";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
+import {
+  MechanicText as Text,
+  translateMechanicValue,
+} from "@/components/mechanic/MechanicText";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMechanic } from "@/contexts/MechanicContext";
+import { useAppTheme } from "@/contexts/ThemeContext";
+import {
+  getPreferredMapApp,
+  savePreferredMapApp,
+  type PreferredMapApp,
+} from "@/lib/mechanicPreferences";
 import { supabase } from "@/lib/supabase";
-import { colors, radii, spacing } from "@/lib/theme";
+import { getMechanicThemeColors, radii, spacing } from "@/lib/theme";
 import { normalizeText } from "@/lib/typography";
 
 type AvailableJob = {
@@ -153,12 +164,29 @@ const MECHANIC_RADIUS_STORAGE_KEY = "mechanic_search_radius_km";
 export default function MechanicHomeScreen() {
   const { session } = useAuth();
   const { online, setOnline, rating, avatarUrl } = useMechanic();
+  const {
+    colors: themeColors,
+    isDarkMode,
+    toggleTheme,
+    language,
+    setLanguage,
+  } = useAppTheme();
+  const colors = useMemo(() => getMechanicThemeColors(themeColors), [themeColors]);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
+  const headerExtendUp = Math.min(39, insets.top);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settingsMounted, setSettingsMounted] = useState(false);
   const [mechanicSearchRadius, setMechanicSearchRadius] = useState(10);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [preferredMapApp, setPreferredMapApp] = useState<PreferredMapApp | null>(null);
+  const [securityVisible, setSecurityVisible] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [passwordUpdating, setPasswordUpdating] = useState(false);
   const [sidebarProgress] = useState(() => new Animated.Value(0));
   const [settingsProgress] = useState(() => new Animated.Value(0));
   const [availableJobs, setAvailableJobs] = useState<AvailableJob[]>([]);
@@ -193,7 +221,8 @@ export default function MechanicHomeScreen() {
     const opening = settingsVisible;
     const animation = Animated.timing(settingsProgress, {
       toValue: opening ? 1 : 0,
-      duration: opening ? 240 : 190,
+      duration: opening ? 280 : 220,
+      easing: opening ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
       useNativeDriver: true,
     });
     animation.start(({ finished }) => {
@@ -220,6 +249,68 @@ export default function MechanicHomeScreen() {
       active = false;
     };
   }, [session?.user.id]);
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) return;
+    let active = true;
+    void getPreferredMapApp(userId)
+      .then((app) => {
+        if (active) setPreferredMapApp(app);
+      })
+      .catch((error) => {
+        console.warn("Could not load preferred map app:", error);
+        if (active) {
+          setSettingsError("Could not load your map preference. Please try again.");
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [session?.user.id]);
+
+  async function updatePreferredMapApp(app: PreferredMapApp) {
+    const userId = session?.user.id;
+    if (!userId) return;
+    setSettingsError(null);
+    try {
+      await savePreferredMapApp(userId, app);
+      setPreferredMapApp(app);
+    } catch (error) {
+      console.warn("Could not save preferred map app:", error);
+      setSettingsError("Could not save your map preference. Please try again.");
+    }
+  }
+
+  async function updateAccountPassword() {
+    setPasswordError(null);
+    setPasswordSuccess(null);
+    if (newPassword.length < 8) {
+      setPasswordError("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match.");
+      return;
+    }
+    setPasswordUpdating(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordSuccess("Password updated successfully.");
+    } catch (error) {
+      console.warn("Could not update mechanic password:", error);
+      setPasswordError(
+        error instanceof Error
+          ? error.message
+          : "Unable to update password. Please try again.",
+      );
+    } finally {
+      setPasswordUpdating(false);
+    }
+  }
 
   async function updateMechanicSearchRadius(radius: number) {
     const userId = session?.user.id;
@@ -327,10 +418,18 @@ export default function MechanicHomeScreen() {
     }
     const coordinates = `${job.latitude},${job.longitude}`;
     setMapChoiceError(null);
-    setMapChoice({
+    const choices = {
       googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(coordinates)}`,
       wazeUrl: `https://waze.com/ul?ll=${encodeURIComponent(coordinates)}&navigate=yes`,
-    });
+    };
+    setMapChoice(choices);
+    if (preferredMapApp) {
+      void selectMapApp(
+        preferredMapApp === "google_maps"
+          ? choices.googleMapsUrl
+          : choices.wazeUrl,
+      );
+    }
   }
 
   async function selectMapApp(url: string) {
@@ -640,14 +739,28 @@ export default function MechanicHomeScreen() {
   );
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" />
+    <View
+      style={[
+        styles.root,
+        { paddingTop: insets.top - headerExtendUp, backgroundColor: themeColors.bg },
+      ]}
+    >
+      <StatusBar style={isDarkMode ? "light" : "dark"} />
       <ScrollView
-        style={styles.homeScroll}
+        style={[styles.homeScroll, { backgroundColor: themeColors.bg }]}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: themeColors.card,
+              borderBottomColor: themeColors.border,
+              paddingTop: 10 + headerExtendUp,
+            },
+          ]}
+        >
           <Pressable
             style={styles.identity}
             onPress={() => setSidebarVisible(true)}
@@ -679,12 +792,17 @@ export default function MechanicHomeScreen() {
           </Pressable>
           <View style={styles.headerActions}>
             <View style={styles.headerRating}>
-              <Ionicons name="star" size={20} color={colors.amber} />
+              <Image
+                source={require("../../assets/images/star.png")}
+                style={styles.headerRatingIcon}
+                resizeMode="contain"
+              />
               <Text style={styles.headerRatingValue}>{rating.toFixed(1)}</Text>
             </View>
             <NotificationBell
               color={colors.amber}
               style={styles.notificationButton}
+              variant="mechanic"
             />
           </View>
         </View>
@@ -1419,6 +1537,7 @@ export default function MechanicHomeScreen() {
           <Animated.View
             style={[
               styles.sidebar,
+              { backgroundColor: themeColors.card },
               {
                 transform: [
                   {
@@ -1441,29 +1560,29 @@ export default function MechanicHomeScreen() {
                 size={50}
                 backgroundColor={colors.amberSoft}
               />
-              <Text style={styles.sidebarName} numberOfLines={2}>
+              <Text               style={[styles.sidebarName, { color: themeColors.text }]} numberOfLines={2}>
                 {name}
               </Text>
             </Pressable>
-            <View style={styles.sidebarDivider} />
+            <View style={[styles.sidebarDivider, { backgroundColor: themeColors.border }]} />
             <Pressable
-              style={styles.sidebarRow}
+              style={[styles.sidebarRow, { borderBottomColor: themeColors.border }]}
               onPress={() => setComingSoonVisible(true)}
             >
               <Ionicons
                 name="help-circle-outline"
                 size={23}
-                color={colors.text}
+                color={themeColors.text}
               />
-              <Text style={styles.sidebarRowText}>Help</Text>
+              <Text style={[styles.sidebarRowText, { color: themeColors.text }]}>Help</Text>
               <Ionicons
                 name="chevron-forward"
                 size={19}
-                color={colors.textDim}
+                color={themeColors.textMuted}
               />
             </Pressable>
             <Pressable
-              style={styles.sidebarRow}
+              style={[styles.sidebarRow, { borderBottomColor: themeColors.border }]}
               onPress={() => {
                 setSettingsError(null);
                 settingsProgress.setValue(0);
@@ -1473,12 +1592,12 @@ export default function MechanicHomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Open mechanic settings"
             >
-              <Ionicons name="settings-outline" size={23} color={colors.text} />
-              <Text style={styles.sidebarRowText}>Settings</Text>
+              <Ionicons name="settings-outline" size={23} color={themeColors.text} />
+              <Text style={[styles.sidebarRowText, { color: themeColors.text }]}>Settings</Text>
               <Ionicons
                 name="chevron-forward"
                 size={19}
-                color={colors.textDim}
+                color={themeColors.textMuted}
               />
             </Pressable>
           </Animated.View>
@@ -1492,67 +1611,97 @@ export default function MechanicHomeScreen() {
               style={[
                 styles.settingsOverlay,
                 {
-                  opacity: settingsProgress,
                   transform: [
                     {
-                      translateY: settingsProgress.interpolate({
+                      translateX: settingsProgress.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [18, 0],
+                        outputRange: [Dimensions.get("window").width, 0],
                       }),
                     },
                   ],
                 },
               ]}
             >
-              <SafeAreaView style={styles.settingsScreen} edges={["top", "bottom"]}>
-                <View style={styles.settingsHeader}>
+              <SafeAreaView
+                style={[styles.settingsScreen, { backgroundColor: themeColors.bg }]}
+                edges={["top", "bottom"]}
+              >
+                <View
+                  style={[
+                    styles.settingsHeader,
+                    { backgroundColor: themeColors.card, borderBottomColor: themeColors.border },
+                  ]}
+                >
                   <Pressable
                     onPress={() => setSettingsVisible(false)}
                     style={styles.settingsBackButton}
                     accessibilityRole="button"
                     accessibilityLabel="Back to sidebar"
                   >
-                    <Ionicons name="arrow-back" size={24} color={colors.text} />
+                    <Ionicons name="arrow-back" size={24} color={themeColors.text} />
                   </Pressable>
-                  <Text style={styles.settingsTitle}>Settings & Preferences</Text>
+                  <Text style={[styles.settingsTitle, { color: themeColors.text }]}>
+                    Settings & Preferences
+                  </Text>
                 </View>
                 <ScrollView
                   contentContainerStyle={styles.settingsContent}
                   showsVerticalScrollIndicator={false}
                 >
-                  <View style={styles.settingsPanel}>
-                    <View style={styles.settingsRow}>
+                  <View
+                    style={[
+                      styles.settingsPanel,
+                      { backgroundColor: themeColors.card, borderColor: themeColors.border },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.settingsRow,
+                        { borderBottomColor: themeColors.border },
+                      ]}
+                    >
                       <Ionicons
                         name="moon-outline"
                         size={24}
-                        color={colors.blue}
+                        color={themeColors.primary}
                         style={styles.settingsRowIcon}
                       />
                       <View style={styles.settingsRowCopy}>
-                        <Text style={styles.settingsRowTitle}>Dark Mode</Text>
-                        <Text style={styles.settingsRowHint}>
-                          Temporarily unavailable
+                        <Text style={[styles.settingsRowTitle, { color: themeColors.text }]}>
+                          Dark Mode
+                        </Text>
+                        <Text style={[styles.settingsRowHint, { color: themeColors.textMuted }]}>
+                          Use a darker appearance
                         </Text>
                       </View>
                       <Switch
-                        value={false}
-                        disabled
-                        trackColor={{ false: colors.border, true: colors.border }}
-                        thumbColor={colors.white}
+                        value={isDarkMode}
+                        onValueChange={toggleTheme}
+                        trackColor={{
+                          false: themeColors.border,
+                          true: themeColors.primary,
+                        }}
+                        thumbColor="#FFFFFF"
                       />
                     </View>
-                    <View style={[styles.settingsRow, styles.settingsRadiusRow]}>
+                    <View
+                      style={[
+                        styles.settingsRow,
+                        styles.settingsRadiusRow,
+                        { borderBottomColor: themeColors.border, borderBottomWidth: 1 },
+                      ]}
+                    >
                       <Ionicons
                         name="navigate-outline"
                         size={24}
-                        color={colors.blue}
+                        color={themeColors.primary}
                         style={styles.settingsRowIcon}
                       />
                       <View style={styles.settingsRowCopy}>
-                        <Text style={styles.settingsRowTitle}>
+                        <Text style={[styles.settingsRowTitle, { color: themeColors.text }]}>
                           Mechanic Search Radius
                         </Text>
-                        <Text style={styles.settingsRowHint}>
+                        <Text style={[styles.settingsRowHint, { color: themeColors.textMuted }]}>
                           Show service requests within {mechanicSearchRadius} km
                         </Text>
                         <View style={styles.settingsRadiusOptions}>
@@ -1566,6 +1715,14 @@ export default function MechanicHomeScreen() {
                                 }
                                 style={[
                                   styles.settingsRadiusOption,
+                                  {
+                                    backgroundColor: selected
+                                      ? themeColors.primary
+                                      : themeColors.card,
+                                    borderColor: selected
+                                      ? themeColors.primary
+                                      : themeColors.border,
+                                  },
                                   selected && styles.settingsRadiusOptionSelected,
                                 ]}
                                 accessibilityRole="button"
@@ -1575,6 +1732,7 @@ export default function MechanicHomeScreen() {
                                 <Text
                                   style={[
                                     styles.settingsRadiusOptionText,
+                                    { color: themeColors.text },
                                     selected &&
                                       styles.settingsRadiusOptionTextSelected,
                                   ]}
@@ -1587,14 +1745,197 @@ export default function MechanicHomeScreen() {
                         </View>
                       </View>
                     </View>
+                      <View style={[styles.settingsPreferenceSection, { borderBottomColor: themeColors.border }]}>
+                        <View style={styles.settingsPreferenceHeading}>
+                          <Ionicons name="map-outline" size={23} color={themeColors.primary} />
+                          <View style={styles.settingsRowCopy}>
+                            <Text style={[styles.settingsRowTitle, { color: themeColors.text }]}>
+                              Preferred map app
+                            </Text>
+                            <Text style={[styles.settingsRowHint, { color: themeColors.textMuted }]}>
+                              Choose which app opens directions
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.settingsChoiceOptions}>
+                          {([
+                            ["google_maps", "Google Maps"],
+                            ["waze", "Waze"],
+                          ] as const).map(([app, label]) => {
+                            const selected = preferredMapApp === app;
+                            return (
+                              <Pressable
+                                key={app}
+                                onPress={() => void updatePreferredMapApp(app)}
+                                style={[
+                                  styles.settingsChoiceOption,
+                                  {
+                                    backgroundColor: selected ? themeColors.primary : themeColors.card,
+                                    borderColor: selected ? themeColors.primary : themeColors.border,
+                                  },
+                                ]}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected }}
+                              >
+                                <Text
+                                  style={[
+                                    styles.settingsChoiceOptionText,
+                                    { color: selected ? "#FFFFFF" : themeColors.text },
+                                  ]}
+                                >
+                                  {label}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </View>
+                      <View style={[styles.settingsPreferenceSection, { borderBottomColor: themeColors.border }]}>
+                        <View style={styles.settingsPreferenceHeading}>
+                          <Ionicons name="globe-outline" size={23} color={themeColors.primary} />
+                          <View style={styles.settingsRowCopy}>
+                            <Text style={[styles.settingsRowTitle, { color: themeColors.text }]}>
+                              Language
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.settingsChoiceOptions}>
+                          {([
+                            ["en", "English"],
+                            ["fil", "Filipino"],
+                          ] as const).map(([nextLanguage, label]) => {
+                            const selected = language === nextLanguage;
+                            return (
+                              <Pressable
+                                key={nextLanguage}
+                                onPress={() => setLanguage(nextLanguage)}
+                                style={[
+                                  styles.settingsChoiceOption,
+                                  {
+                                    backgroundColor: selected ? themeColors.primary : themeColors.card,
+                                    borderColor: selected ? themeColors.primary : themeColors.border,
+                                  },
+                                ]}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected }}
+                              >
+                                <Text
+                                  style={[
+                                    styles.settingsChoiceOptionText,
+                                    { color: selected ? "#FFFFFF" : themeColors.text },
+                                  ]}
+                                >
+                                  {label}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </View>
+                      <Pressable
+                        onPress={() => {
+                          setPasswordError(null);
+                          setPasswordSuccess(null);
+                          setSecurityVisible(true);
+                        }}
+                        style={[
+                          styles.settingsRow,
+                          { borderBottomWidth: 0 },
+                        ]}
+                        accessibilityRole="button"
+                      >
+                        <Ionicons name="shield-checkmark-outline" size={23} color={themeColors.primary} style={styles.settingsRowIcon} />
+                        <View style={styles.settingsRowCopy}>
+                          <Text style={[styles.settingsRowTitle, { color: themeColors.text }]}>
+                            Account security
+                          </Text>
+                          <Text style={[styles.settingsRowHint, { color: themeColors.textMuted }]}>
+                            Manage your password and sign-in
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={19} color={themeColors.textMuted} />
+                      </Pressable>
                   </View>
                   {settingsError ? (
-                    <Text style={styles.settingsError}>{settingsError}</Text>
+                    <Text style={[styles.settingsError, { color: "#D64545" }]}>
+                      {settingsError}
+                    </Text>
                   ) : null}
                 </ScrollView>
               </SafeAreaView>
             </Animated.View>
           ) : null}
+        </View>
+      </Modal>
+      <Modal
+        visible={securityVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSecurityVisible(false)}
+      >
+        <View style={styles.securityOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setSecurityVisible(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close account security"
+          />
+          <View style={[styles.securityCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <View style={styles.securityHeader}>
+              <Text style={[styles.securityTitle, { color: themeColors.text }]}>
+                Account security
+              </Text>
+              <Pressable
+                onPress={() => setSecurityVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <Ionicons name="close" size={24} color={themeColors.textMuted} />
+              </Pressable>
+            </View>
+            <Text style={[styles.securityHint, { color: themeColors.textMuted }]}>
+              Update your sign-in password
+            </Text>
+            <TextInput
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder={translateMechanicValue("New password", language)}
+              placeholderTextColor={themeColors.textMuted}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="new-password"
+              textContentType="newPassword"
+              style={[styles.securityInput, { backgroundColor: themeColors.input, borderColor: themeColors.border, color: themeColors.text }]}
+            />
+            <TextInput
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder={translateMechanicValue("Confirm new password", language)}
+              placeholderTextColor={themeColors.textMuted}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="new-password"
+              textContentType="newPassword"
+              style={[styles.securityInput, { backgroundColor: themeColors.input, borderColor: themeColors.border, color: themeColors.text }]}
+            />
+            {passwordError ? (
+              <Text style={[styles.securityMessage, { color: "#D64545" }]}>{passwordError}</Text>
+            ) : null}
+            {passwordSuccess ? (
+              <Text style={[styles.securityMessage, { color: "#16803C" }]}>{passwordSuccess}</Text>
+            ) : null}
+            <Pressable
+              onPress={() => void updateAccountPassword()}
+              disabled={passwordUpdating}
+              style={[styles.securitySubmit, { backgroundColor: themeColors.primary }, passwordUpdating && styles.securitySubmitDisabled]}
+            >
+              {passwordUpdating ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.securitySubmitText}>Update password</Text>
+              )}
+            </Pressable>
+          </View>
         </View>
       </Modal>
       <ComingSoonModal
@@ -1605,7 +1946,8 @@ export default function MechanicHomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
+  return StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
@@ -1626,7 +1968,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderRadius: 0,
     paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    paddingTop: 10,
+    paddingBottom: 10,
     marginHorizontal: -spacing.sm,
     marginBottom: spacing.md,
     elevation: 2,
@@ -1733,6 +2076,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+  },
+  headerRatingIcon: {
+    width: 20,
+    height: 20,
   },
   headerRatingValue: {
     color: colors.text,
@@ -1904,6 +2251,91 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     paddingVertical: spacing.md,
     borderBottomWidth: 0,
+  },
+  settingsPreferenceSection: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+  },
+  settingsPreferenceHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  settingsChoiceOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginLeft: 31,
+    marginTop: spacing.sm,
+  },
+  settingsChoiceOption: {
+    minHeight: 38,
+    minWidth: 96,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  settingsChoiceOptionText: {
+    fontSize: normalizeText(14),
+    fontWeight: "800",
+  },
+  securityOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
+    backgroundColor: "rgba(16, 24, 40, 0.56)",
+  },
+  securityCard: {
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderRadius: radii.lg,
+  },
+  securityHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  securityTitle: {
+    fontSize: normalizeText(20),
+    fontWeight: "800",
+  },
+  securityHint: {
+    fontSize: normalizeText(14),
+    lineHeight: normalizeText(20),
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  securityInput: {
+    minHeight: 50,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderRadius: 12,
+    fontSize: normalizeText(15),
+    marginTop: spacing.sm,
+  },
+  securityMessage: {
+    fontSize: normalizeText(13),
+    lineHeight: normalizeText(19),
+    marginTop: spacing.sm,
+  },
+  securitySubmit: {
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    marginTop: spacing.md,
+  },
+  securitySubmitDisabled: {
+    opacity: 0.6,
+  },
+  securitySubmitText: {
+    color: "#FFFFFF",
+    fontSize: normalizeText(15),
+    fontWeight: "800",
   },
   settingsRadiusOptions: {
     flexDirection: "row",
@@ -2124,7 +2556,7 @@ const styles = StyleSheet.create({
     marginHorizontal: -10,
     paddingHorizontal: 12,
     paddingVertical: 5,
-    backgroundColor: colors.white,
+    backgroundColor: colors.bgElevated,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     minHeight: 38,
@@ -2216,7 +2648,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sosDetailsContainer: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.bgElevated,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
@@ -2961,7 +3393,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.white,
+    backgroundColor: colors.bgElevated,
   },
   mapChoiceOptionIcon: {
     width: 42,
@@ -3142,4 +3574,5 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.8,
   },
-});
+  });
+}

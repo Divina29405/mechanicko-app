@@ -1,5 +1,6 @@
-import { Modal, Pressable, StyleSheet, Text } from "react-native";
+import { Modal, Pressable, StyleSheet } from "react-native";
 
+import { MechanicText as Text } from "@/components/mechanic/MechanicText";
 import { colors, radii, spacing } from "@/lib/theme";
 import { normalizeText } from "@/lib/typography";
 

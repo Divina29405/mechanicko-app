@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { File } from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,7 +13,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from 'react-native';
@@ -22,10 +21,15 @@ import { WebView } from 'react-native-webview';
 
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { MechanicScreen } from '@/components/mechanic/MechanicScreen';
+import {
+  MechanicText as Text,
+  translateMechanicValue,
+} from '@/components/mechanic/MechanicText';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMechanic } from '@/contexts/MechanicContext';
+import { useAppTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import { colors, radii, spacing } from '@/lib/theme';
+import { getMechanicThemeColors, radii, spacing } from '@/lib/theme';
 import { createVehicle, listVehicles, setPrimaryVehicle } from '@/services/vehicleService';
 import type { FuelType, Vehicle, VehicleType } from '@/types/vehicle';
 import { isValidPlateNumber, sanitizePlateNumber } from '@/lib/plateNumber';
@@ -69,6 +73,9 @@ function createAddressMapHtml(latitude: number, longitude: number) {
 export default function ProfileScreen() {
   const { session, signOut } = useAuth();
   const { rating, online, avatarUrl, setAvatarUrl, avatarLoading } = useMechanic();
+  const { colors: themeColors, isDarkMode, language } = useAppTheme();
+  const colors = useMemo(() => getMechanicThemeColors(themeColors), [themeColors]);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarUploadSuccess, setAvatarUploadSuccess] = useState(false);
   const [avatarPreviewUri, setAvatarPreviewUri] = useState<string | null>(null);
@@ -704,7 +711,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <MechanicScreen back title="My Profile">
+    <MechanicScreen back title="My Profile" extendTitleHeaderUp>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
           <View style={styles.avatarColumn}>
@@ -752,7 +759,15 @@ export default function ProfileScreen() {
             onPress={() => toggleSection('garage')}
             style={({ pressed }) => [styles.sectionHeader, pressed && styles.pressed]}
           >
-            <Ionicons name="car-sport-outline" size={24} color={colors.blue} />
+            <Image
+              source={
+                isDarkMode
+                  ? require('../../assets/images/garagedmode.png')
+                  : require('../../assets/images/garage.png')
+              }
+              style={styles.sectionIconImage}
+              resizeMode="contain"
+            />
             <Text style={styles.section}>My Garage</Text>
             <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </Pressable>
@@ -765,7 +780,11 @@ export default function ProfileScreen() {
               style={({ pressed }) => [styles.sectionHeader, pressed && styles.pressed]}
             >
               <Image
-                source={require('../../assets/images/specializations.png')}
+                source={
+                  isDarkMode
+                    ? require('../../assets/images/specializationdmode.png')
+                    : require('../../assets/images/specializations.png')
+                }
                 style={styles.sectionIconImage}
               />
               <Text style={styles.section}>Specializations</Text>
@@ -783,7 +802,11 @@ export default function ProfileScreen() {
               style={({ pressed }) => [styles.sectionHeader, pressed && styles.pressed]}
             >
               <Image
-                source={require('../../assets/images/documents.png')}
+                source={
+                  isDarkMode
+                    ? require('../../assets/images/documentsdmode.png')
+                    : require('../../assets/images/documents.png')
+                }
                 style={styles.sectionIconImage}
               />
               <Text style={styles.section}>Documents</Text>
@@ -801,7 +824,11 @@ export default function ProfileScreen() {
               style={({ pressed }) => [styles.sectionHeader, pressed && styles.pressed]}
             >
               <Image
-                source={require('../../assets/images/certifications.png')}
+                source={
+                  isDarkMode
+                    ? require('../../assets/images/certificationsdmode.png')
+                    : require('../../assets/images/certifications.png')
+                }
                 style={styles.sectionIconImage}
               />
               <Text style={styles.section}>Certifications</Text>
@@ -818,7 +845,11 @@ export default function ProfileScreen() {
               style={({ pressed }) => [styles.sectionHeader, pressed && styles.pressed]}
             >
               <Image
-                source={require('../../assets/images/maintenance-pricing.png')}
+                source={
+                  isDarkMode
+                    ? require('../../assets/images/maintenance-pricingdmode.png')
+                    : require('../../assets/images/maintenance-pricing.png')
+                }
                 style={styles.sectionIconImage}
               />
               <Text style={styles.section}>Maintenance Pricing</Text>
@@ -836,7 +867,11 @@ export default function ProfileScreen() {
               style={({ pressed }) => [styles.sectionHeader, pressed && styles.pressed]}
             >
               <Image
-                source={require('../../assets/images/account-details.png')}
+                source={
+                  isDarkMode
+                    ? require('../../assets/images/account-detailsdmode.png')
+                    : require('../../assets/images/account-details.png')
+                }
                 style={styles.sectionIconImage}
               />
               <Text style={styles.section}>Account Details</Text>
@@ -854,8 +889,13 @@ export default function ProfileScreen() {
           style={({ pressed }) => [styles.logout, pressed && styles.pressed]}
         >
           <Image
-            source={require('../../assets/images/logout.png')}
+            source={
+              isDarkMode
+                ? require('../../assets/images/mechaniclogoutdmode.png')
+                : require('../../assets/images/mechaniclogout.png')
+            }
             style={styles.logoutIcon}
+            resizeMode="contain"
           />
           <Text style={styles.logoutText}>Log out</Text>
         </Pressable>
@@ -979,11 +1019,17 @@ export default function ProfileScreen() {
             >
               <Ionicons name="close" size={24} color={colors.textMuted} />
             </Pressable>
-            <Image
-              source={require('../../assets/images/logoutconfirmation.jpg')}
-              style={styles.logoutModalImage}
-              resizeMode="contain"
-            />
+            {isDarkMode ? (
+              <View style={styles.logoutModalDarkIcon}>
+                <Ionicons name="log-out-outline" size={68} color={colors.amber} />
+              </View>
+            ) : (
+              <Image
+                source={require('../../assets/images/logoutconfirmation.jpg')}
+                style={styles.logoutModalImage}
+                resizeMode="contain"
+              />
+            )}
             <Text style={styles.logoutModalTitle}>Are You Logging Out?</Text>
             <Text style={styles.logoutModalMessage}>
               You can always log back in at any time.
@@ -1006,6 +1052,7 @@ export default function ProfileScreen() {
                 onPress={() => void confirmSignOut()}
                 style={({ pressed }) => [
                   styles.logoutModalConfirm,
+                  { backgroundColor: isDarkMode ? colors.amber : '#050505' },
                   pressed && !loggingOut && styles.pressed,
                 ]}
               >
@@ -1099,14 +1146,14 @@ export default function ProfileScreen() {
                     <TextInput
                       value={garageMake}
                       onChangeText={setGarageMake}
-                      placeholder="Make"
+                      placeholder={translateMechanicValue('Make', language)}
                       placeholderTextColor={colors.textMuted}
                       style={[styles.priceInput, styles.garageHalfInput]}
                     />
                     <TextInput
                       value={garageModel}
                       onChangeText={setGarageModel}
-                      placeholder="Model"
+                      placeholder={translateMechanicValue('Model', language)}
                       placeholderTextColor={colors.textMuted}
                       style={[styles.priceInput, styles.garageHalfInput]}
                     />
@@ -1115,14 +1162,14 @@ export default function ProfileScreen() {
                     <TextInput
                       value={garageYear}
                       onChangeText={setGarageYear}
-                      placeholder="Year"
+                      placeholder={translateMechanicValue('Year', language)}
                       placeholderTextColor={colors.textMuted}
                       keyboardType="number-pad"
                       style={[styles.priceInput, styles.garageHalfInput]}
                     />
                     <TextInput
                       value={garagePlate}
-                      placeholder="Plate number"
+                      placeholder={translateMechanicValue('Plate number', language)}
                       placeholderTextColor={colors.textMuted}
                       autoCapitalize="characters"
                       maxLength={8}
@@ -1297,14 +1344,14 @@ export default function ProfileScreen() {
                   <TextInput
                     value={newService}
                     onChangeText={setNewService}
-                    placeholder="Labor name (e.g. Change oil)"
+                    placeholder={translateMechanicValue('Labor name (e.g. Change oil)', language)}
                     placeholderTextColor={colors.textMuted}
                     style={styles.priceInput}
                   />
                   <TextInput
                     value={newPrice}
                     onChangeText={setNewPrice}
-                    placeholder="Price (e.g. ₱250)"
+                    placeholder={translateMechanicValue('Price (e.g. ₱250)', language)}
                     placeholderTextColor={colors.textMuted}
                     style={styles.priceInput}
                   />
@@ -1362,7 +1409,7 @@ export default function ProfileScreen() {
                 <TextInput
                   value={specializationDraft}
                   onChangeText={setSpecializationDraft}
-                  placeholder="e.g. Engine repair, Oil change"
+                  placeholder={translateMechanicValue('e.g. Engine repair, Oil change', language)}
                   placeholderTextColor={colors.textMuted}
                   style={styles.specializationInput}
                   multiline
@@ -1490,7 +1537,7 @@ export default function ProfileScreen() {
                     <TextInput
                       value={editingService}
                       onChangeText={setEditingService}
-                      placeholder="Labor name"
+                      placeholder={translateMechanicValue('Labor name', language)}
                       placeholderTextColor={colors.textMuted}
                       style={styles.editPriceInput}
                     />
@@ -1601,7 +1648,8 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
+  return StyleSheet.create({
   content: {
     paddingBottom: spacing.xxl,
   },
@@ -2399,7 +2447,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.lg,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.bgElevated,
     borderRadius: radii.md,
     elevation: 8,
     shadowColor: '#000',
@@ -2422,8 +2470,17 @@ const styles = StyleSheet.create({
     height: 170,
     marginBottom: spacing.sm,
   },
+  logoutModalDarkIcon: {
+    width: 120,
+    height: 120,
+    marginBottom: spacing.md,
+    borderRadius: radii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.amberSoft,
+  },
   logoutModalTitle: {
-    color: '#111111',
+    color: colors.text,
     fontSize: 20,
     fontWeight: '800',
     textAlign: 'center',
@@ -2431,7 +2488,7 @@ const styles = StyleSheet.create({
   logoutModalMessage: {
     marginTop: spacing.xs,
     marginBottom: spacing.md,
-    color: '#4B4B4B',
+    color: colors.textMuted,
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
@@ -2447,11 +2504,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#8A8A8A',
+    borderColor: colors.border,
     borderRadius: radii.full,
   },
   logoutModalCancelText: {
-    color: '#333333',
+    color: colors.text,
     fontSize: 17,
     fontWeight: '600',
   },
@@ -2460,7 +2517,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#050505',
+    backgroundColor: colors.text,
     borderRadius: radii.full,
   },
   logoutModalConfirmText: {
@@ -2471,4 +2528,5 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.8,
   },
-});
+  });
+}

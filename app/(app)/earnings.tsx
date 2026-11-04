@@ -6,13 +6,14 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 
 import { MechanicScreen } from "@/components/mechanic/MechanicScreen";
+import { MechanicText as Text } from "@/components/mechanic/MechanicText";
 import { useMechanic } from "@/contexts/MechanicContext";
-import { colors, spacing } from "@/lib/theme";
+import { useAppTheme } from "@/contexts/ThemeContext";
+import { getMechanicThemeColors, spacing } from "@/lib/theme";
 
 type EarningsPeriod = "today" | "week" | "month";
 
@@ -23,6 +24,9 @@ function formatPeso(value: number) {
 }
 
 export default function EarningsScreen() {
+  const { colors: themeColors } = useAppTheme();
+  const colors = getMechanicThemeColors(themeColors);
+  const styles = createStyles(colors);
   const {
     todayEarnings,
     weeklyEarnings,
@@ -164,7 +168,8 @@ export default function EarningsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
+  return StyleSheet.create({
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
   pageTitle: {
     color: colors.text,
@@ -194,7 +199,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    backgroundColor: colors.white,
+    backgroundColor: colors.bgElevated,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 16,
@@ -228,7 +233,7 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
   statCard: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.bgElevated,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 14,
@@ -252,7 +257,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.white,
+    backgroundColor: colors.bgElevated,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 14,
@@ -271,4 +276,5 @@ const styles = StyleSheet.create({
   payoutTitle: { color: colors.text, fontSize: 14, fontWeight: "800" },
   payoutDate: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   payoutAmount: { color: colors.success, fontSize: 14, fontWeight: "900" },
-});
+  });
+}

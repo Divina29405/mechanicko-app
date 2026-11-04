@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ProfileAvatar } from '@/components/ProfileAvatar';
+import { MechanicText as Text } from '@/components/mechanic/MechanicText';
 import { NotificationBell } from '@/components/NotificationBell';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMechanic } from '@/contexts/MechanicContext';
@@ -19,6 +20,7 @@ type Props = {
   right?: ReactNode;
   back?: boolean;
   profileHeader?: boolean;
+  extendTitleHeaderUp?: boolean;
   hideHeader?: boolean;
   safeAreaTop?: boolean;
 };
@@ -36,6 +38,7 @@ export function MechanicScreen({
   right,
   back,
   profileHeader = false,
+  extendTitleHeaderUp = false,
   hideHeader = false,
   safeAreaTop = true,
 }: Props) {
@@ -43,6 +46,9 @@ export function MechanicScreen({
   const { session } = useAuth();
   const { online, rating, avatarUrl } = useMechanic();
   const insets = useSafeAreaInsets();
+  const headerExtendUp = (profileHeader || extendTitleHeaderUp) && safeAreaTop
+    ? Math.min(39, insets.top)
+    : 0;
   
   const name = displayName(
     typeof session?.user.user_metadata?.full_name === 'string'
@@ -61,8 +67,29 @@ export function MechanicScreen({
         },
       ]}
     >
+      {(profileHeader || extendTitleHeaderUp) && safeAreaTop && insets.top > 0 ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.safeAreaHeaderBackground,
+            {
+              height: insets.top,
+              backgroundColor: theme.colors.card,
+            },
+          ]}
+        />
+      ) : null}
       {profileHeader ? (
-        <View style={[styles.profileHeader, { backgroundColor: theme.colors.card }]}>
+        <View
+          style={[
+            styles.profileHeader,
+            {
+              backgroundColor: theme.colors.card,
+              marginTop: -headerExtendUp,
+              paddingTop: 10 + headerExtendUp,
+            },
+          ]}
+        >
           <Pressable
             style={styles.profileIdentity}
             onPress={() => router.push('./profile')}
@@ -95,17 +122,33 @@ export function MechanicScreen({
           </Pressable>
           <View style={styles.profileActions}>
             <View style={styles.profileRating}>
-              <Ionicons name="star" size={20} color={colors.amber} />
+              <Image
+                source={require('../../assets/images/star.png')}
+                style={styles.profileRatingIcon}
+                resizeMode="contain"
+              />
               <Text style={[styles.profileRatingValue, { color: theme.colors.text }]}>
                 {rating.toFixed(1)}
               </Text>
             </View>
-            <NotificationBell color={colors.amber} style={styles.profileNotification} />
+            <NotificationBell
+              color={colors.amber}
+              style={styles.profileNotification}
+              variant="mechanic"
+            />
           </View>
         </View>
       ) : null}
       {!hideHeader ? (
-        <View style={[styles.header, { backgroundColor: theme.colors.card, borderBottomColor: theme.colors.border }]}>
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: theme.colors.card,
+              borderBottomColor: theme.colors.border,
+            },
+          ]}
+        >
           {back ? (
             <Pressable
               onPress={() => {
@@ -150,6 +193,12 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  safeAreaHeaderBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
   header: {
     minHeight: 56,
@@ -210,6 +259,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  profileRatingIcon: {
+    width: 20,
+    height: 20,
   },
   profileRatingValue: {
     fontSize: normalizeText(16),

@@ -13,6 +13,7 @@ import { AppState, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } 
 
 import { LocationGate } from "@/components/LocationGate";
 import { GlobalMotoristRatingPrompt } from "@/components/GlobalMotoristRatingPrompt";
+import { IncomingNotificationPreview } from "@/components/IncomingNotificationPreview";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { ThemeProvider, useAppTheme } from "@/contexts/ThemeContext";
@@ -380,6 +381,7 @@ function RootLayoutNav() {
           <GlobalMotoristCancellationNotice />
           <GlobalMotoristBookingAcceptedNotice />
           <GlobalMotoristRatingPrompt />
+          <IncomingNotificationPreview />
         </NetworkGate>
       </LocationGate>
     </>

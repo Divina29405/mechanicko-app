@@ -1,13 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { MechanicScreen } from '@/components/mechanic/MechanicScreen';
+import { MechanicText as Text } from '@/components/mechanic/MechanicText';
 import { useMechanic } from '@/contexts/MechanicContext';
+import { useAppTheme } from '@/contexts/ThemeContext';
 import { formatPeso } from '@/lib/mechanic-mock';
-import { colors, radii, spacing } from '@/lib/theme';
+import { getMechanicThemeColors, radii, spacing } from '@/lib/theme';
 
 export default function HistoryScreen() {
   const { history } = useMechanic();
+  const { colors: themeColors } = useAppTheme();
+  const colors = getMechanicThemeColors(themeColors);
+  const styles = createStyles(colors);
 
   return (
     <MechanicScreen back title="Job history" subtitle="Completed work and reviews">
@@ -39,7 +44,8 @@ export default function HistoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
+  return StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxl,
@@ -83,4 +89,5 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontStyle: 'italic',
   },
-});
+  });
+}
