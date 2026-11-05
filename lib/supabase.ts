@@ -62,6 +62,12 @@ const LargeSecureStore = {
   },
 };
 
+const AUTH_STORAGE_KEY = "supabase.auth.token";
+
+export async function clearPersistedSupabaseSession() {
+  await LargeSecureStore.removeItem(AUTH_STORAGE_KEY);
+}
+
 const supabaseUrl = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? "").trim();
 const supabaseAnonKey = (
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
@@ -81,6 +87,7 @@ export const supabase = createClient(
   supabaseAnonKey || "placeholder-anon-key",
   {
     auth: {
+      storageKey: AUTH_STORAGE_KEY,
       storage: LargeSecureStore,
       autoRefreshToken: true,
       persistSession: true,

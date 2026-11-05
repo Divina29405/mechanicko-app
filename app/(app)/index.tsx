@@ -176,6 +176,10 @@ export default function MechanicHomeScreen() {
   const insets = useSafeAreaInsets();
   const headerExtendUp = Math.min(39, insets.top);
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [profileName, setProfileName] = useState<{
+    userId: string;
+    name: string | null;
+  } | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settingsMounted, setSettingsMounted] = useState(false);
   const [mechanicSearchRadius, setMechanicSearchRadius] = useState(10);
@@ -214,6 +218,30 @@ export default function MechanicHomeScreen() {
   const [comingSoonVisible, setComingSoonVisible] = useState(false);
   const [sliderActivated, setSliderActivated] = useState(false);
   const [slidePosition] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) return;
+
+    let active = true;
+    void supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", userId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          console.warn("Could not load mechanic profile name:", error.message);
+          return;
+        }
+        setProfileName({ userId, name: data?.full_name?.trim() || null });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [session?.user.id]);
 
   useEffect(() => {
     if (!settingsMounted) return;
@@ -732,9 +760,12 @@ export default function MechanicHomeScreen() {
   }, [sidebarProgress, sidebarVisible]);
 
   const name = displayName(
-    typeof session?.user.user_metadata?.full_name === "string"
+    (profileName && profileName.userId === session?.user.id
+      ? profileName.name
+      : null) ??
+      (typeof session?.user.user_metadata?.full_name === "string"
       ? session.user.user_metadata.full_name
-      : undefined,
+      : undefined),
     session?.user.email,
   );
 

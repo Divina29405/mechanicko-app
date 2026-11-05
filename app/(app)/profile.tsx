@@ -116,6 +116,7 @@ export default function ProfileScreen() {
   const [addressPickerVisible, setAddressPickerVisible] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<SelectedAddress | null>(null);
+  const [profileFullName, setProfileFullName] = useState<string | null>(null);
   const [profile, setProfile] = useState<{
     mobile_number: string | null;
     home_address: string | null;
@@ -132,9 +133,10 @@ export default function ProfileScreen() {
   const avatarSuccessTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const email = session?.user.email ?? '';
   const fullName =
-    typeof session?.user.user_metadata?.full_name === 'string'
+    profileFullName ??
+    (typeof session?.user.user_metadata?.full_name === 'string'
       ? session.user.user_metadata.full_name
-      : email.split('@')[0];
+      : email.split('@')[0]);
 
   useEffect(
     () => () => {
@@ -153,7 +155,7 @@ export default function ProfileScreen() {
       const metadataLongitude =
         typeof metadata.home_longitude === 'number' ? metadata.home_longitude : null;
       const profileFields =
-        'mobile_number,home_address,home_latitude,home_longitude,skills,certifications,maintenance_pricing,experience,license_front_path,license_back_path';
+        'full_name,mobile_number,home_address,home_latitude,home_longitude,skills,certifications,maintenance_pricing,experience,license_front_path,license_back_path';
       const [
         { data, error },
         { data: application, error: applicationError },
@@ -178,6 +180,7 @@ export default function ProfileScreen() {
         Alert.alert('Application details unavailable', applicationError.message);
       }
 
+      setProfileFullName(data?.full_name?.trim() || null);
       const mergedProfile = {
         mobile_number: data?.mobile_number ?? null,
         home_address:

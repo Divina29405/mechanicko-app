@@ -755,7 +755,7 @@ begin
   end if;
 
   profile_role := case
-    when user_role in ('customer', 'mechanic', 'admin') then user_role
+    when user_role in ('customer', 'mechanic') then user_role
     else 'customer'
   end;
   profile_status := case

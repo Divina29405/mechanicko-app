@@ -1,4 +1,8 @@
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import {
+  clearPersistedSupabaseSession,
+  isSupabaseConfigured,
+  supabase,
+} from "@/lib/supabase";
 import { Session } from "@supabase/supabase-js";
 import * as ExpoLinking from "expo-linking";
 import * as SecureStore from "expo-secure-store";
@@ -41,6 +45,7 @@ type AuthContextValue = {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signInAsMechanic: (email: string, password: string) => Promise<AuthResult>;
+  signInAsAdmin: (email: string, password: string) => Promise<AuthResult>;
   signInWithGoogle: () => Promise<AuthResult>;
   signUp: (
     email: string,
@@ -175,17 +180,18 @@ async function uploadLicensePhoto(
 
 async function completeSignIn(
   user: Session["user"],
-  expectedRole?: "customer" | "mechanic",
+  expectedRole?: AuthRole,
 ) {
   const profile = await getAccountStatus(user.id);
   if (expectedRole && profile?.role !== expectedRole) {
     await supabase.auth.signOut();
-    return {
-      error:
-        expectedRole === "customer"
-          ? "Only customer accounts can access the customer login."
-          : "Only mechanic accounts can access the mechanic login.",
-    };
+    const roleName =
+      expectedRole === "admin"
+        ? "admin"
+        : expectedRole === "mechanic"
+          ? "mechanic"
+          : "customer";
+    return { error: `Only ${roleName} accounts can use this login.` };
   }
 
   if (
@@ -371,6 +377,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
 
           const result = await completeSignIn(data.user, "mechanic");
+          if (!result.error) {
+            setSignedOutRole(null);
+            setSession(data.session);
+          }
+          return result;
+        } finally {
+          authOperationInProgress.current = false;
+        }
+      },
+      async signInAsAdmin(email, password) {
+        if (!isSupabaseConfigured) {
+          return {
+            error:
+              "Supabase is not configured. Check your environment settings.",
+          };
+        }
+
+        authOperationInProgress.current = true;
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password,
+          });
+
+          if (error) {
+            return { error: error.message };
+          }
+
+          const result = await completeSignIn(data.user, "admin");
           if (!result.error) {
             setSignedOutRole(null);
             setSession(data.session);
@@ -574,19 +609,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async signOut(returnTo = "customer") {
         setSignedOutRole(returnTo);
+        setSession(null);
         if (!isSupabaseConfigured) {
-          setSession(null);
           return;
         }
-        // Force the database to register the mechanic as offline before they log out
         if (session?.user?.id) {
-          await supabase
-            .from("profiles")
-            .update({ is_online: false })
-            .eq("id", session.user.id);
+          void Promise.resolve(
+            supabase
+              .from("profiles")
+              .update({ is_online: false })
+              .eq("id", session.user.id)
+              .then(({ error }) => {
+                if (error) {
+                  console.warn(
+                    "Could not mark user offline during sign out:",
+                    error.message,
+                  );
+                }
+              }),
+          )
+            .catch((error: unknown) => {
+              console.warn("Could not mark user offline during sign out:", error);
+            });
         }
-        await supabase.auth.signOut();
-        setSession(null);
+        void clearPersistedSupabaseSession().catch((error: unknown) => {
+          console.error("Could not clear the saved Supabase session:", error);
+        });
+        void supabase.auth
+          .signOut({ scope: "local" })
+          .then(({ error }) => {
+            if (error) {
+              console.warn(
+                "Supabase server-side sign out failed after local sign out:",
+                error.message,
+              );
+            }
+          })
+          .catch((error: unknown) => {
+            console.warn(
+              "Supabase server-side sign out failed after local sign out:",
+              error,
+            );
+          });
       },
     }),
     [session, loading, signedOutRole],

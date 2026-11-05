@@ -254,6 +254,12 @@ export default function LoginScreen() {
               <Text style={styles.adminArrow}>→</Text>
             </Pressable>
           </Link>
+          <Link href="/(auth)/admin-access" asChild>
+            <Pressable style={styles.adminLink}>
+              <Text style={styles.adminLinkText}>Admin access</Text>
+              <Text style={styles.adminArrow}>→</Text>
+            </Pressable>
+          </Link>
         </View>
 
         <View style={styles.footer}>
