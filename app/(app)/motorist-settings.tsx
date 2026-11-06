@@ -242,6 +242,8 @@ export default function MotoristSettingsScreen() {
       <Modal
         visible={securityVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => {
           if (!passwordUpdating) setSecurityVisible(false);

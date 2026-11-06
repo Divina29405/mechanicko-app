@@ -19,6 +19,10 @@ import { NotificationProvider } from "@/contexts/NotificationContext";
 import { ThemeProvider, useAppTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
 import { normalizeText } from "@/lib/typography";
+import {
+  SafeAreaProvider,
+  initialWindowMetrics,
+} from "react-native-safe-area-context";
 
 export { ErrorBoundary } from "expo-router";
 
@@ -159,6 +163,8 @@ function GlobalMotoristCancellationNotice() {
     <Modal
       visible={notice !== null}
       transparent
+      statusBarTranslucent
+      navigationBarTranslucent
       animationType="fade"
       onRequestClose={() => setNotice(null)}
     >
@@ -410,13 +416,15 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <NotificationProvider>
-          <RootLayoutNav />
-        </NotificationProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <ThemeProvider>
+        <AuthProvider>
+          <NotificationProvider>
+            <RootLayoutNav />
+          </NotificationProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 

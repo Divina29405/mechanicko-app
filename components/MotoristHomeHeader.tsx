@@ -107,10 +107,15 @@ export function MotoristHomeHeader({
         styles.topContainer,
         floating && styles.floatingTopContainer,
         {
-          paddingTop:
-            Platform.OS === "ios"
-              ? Math.max(insets.top, 58)
-              : Math.max(insets.top, 44),
+          height:
+            Math.max(
+              insets.top,
+              Platform.OS === "ios" ? 58 : 44,
+            ) + 43,
+          paddingTop: Math.max(
+            insets.top,
+            Platform.OS === "ios" ? 58 : 44,
+          ),
           backgroundColor: colors.card,
           borderColor: colors.border,
         },

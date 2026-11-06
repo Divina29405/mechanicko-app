@@ -16,7 +16,11 @@ export default function AuthLayout() {
   }
 
   if (session) {
-    return <Redirect href="/(app)" />;
+    return (
+      <View style={styles.transitionCover}>
+        <Redirect href="/(app)" />
+      </View>
+    );
   }
 
   return (
@@ -36,5 +40,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  transitionCover: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
   },
 });

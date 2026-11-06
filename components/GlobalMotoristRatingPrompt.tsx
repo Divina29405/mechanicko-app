@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -290,6 +291,8 @@ export function GlobalMotoristRatingPrompt() {
         visible={!!currentRating}
         animationType="slide"
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => undefined}
       >
         <View style={styles.modalOverlay}>
@@ -335,10 +338,13 @@ export function GlobalMotoristRatingPrompt() {
                     accessibilityState={{ selected: star === rating }}
                     hitSlop={6}
                   >
-                    <Ionicons
-                      name="star"
-                      size={30}
-                      color={star <= rating ? "#F5A623" : colors.border}
+                    <Image
+                      source={require("../assets/images/star.png")}
+                      style={[
+                        styles.ratingStarImage,
+                        { opacity: star <= rating ? 1 : 0.3 },
+                      ]}
+                      resizeMode="contain"
                     />
                   </TouchableOpacity>
                 ))}
@@ -503,6 +509,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     marginTop: 12,
+  },
+  ratingStarImage: {
+    width: 30,
+    height: 30,
   },
   feedbackHeading: {
     fontSize: normalizeText(14),

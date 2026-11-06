@@ -399,7 +399,7 @@ function ScheduledBookingCard({
                 )
               }
             >
-              <Ionicons name="locate-outline" size={24} color="#172B66" />
+              <Ionicons name="locate-outline" size={24} color={colors.text} />
             </TouchableOpacity>
             <TouchableOpacity
               accessibilityLabel={
@@ -416,7 +416,7 @@ function ScheduledBookingCard({
               <Ionicons
                 name={isMapFullscreen ? "contract-outline" : "scan-outline"}
                 size={24}
-                color="#172B66"
+                color={colors.text}
               />
             </TouchableOpacity>
           </View>
@@ -493,7 +493,7 @@ function ScheduledBookingCard({
                   {Number(request.mechanic?.rating ?? 5).toFixed(1)}
                 </Text>
                 {request.mechanic?.servicesCount !== undefined ? (
-                  <Text style={styles.servicesValue}>
+                  <Text style={[styles.servicesValue, { color: colors.textMuted }]}>
                     {translateMechanicValue(
                       `· ${request.mechanic.servicesCount} services`,
                       language,
@@ -501,7 +501,7 @@ function ScheduledBookingCard({
                   </Text>
                 ) : null}
               </View>
-              <Text style={styles.mechanicVehicleText}>
+              <Text style={[styles.mechanicVehicleText, { color: colors.textMuted }]}>
                 {request.vehicle_type || "Honda Click 125"}
               </Text>
               <View style={styles.mechanicPlateBadge}>
@@ -1744,6 +1744,8 @@ export default function MotoristActivityScreen() {
         visible={cancelSuccessVisible}
         animationType="fade"
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setCancelSuccessVisible(false)}
       >
         <View style={styles.cancelSuccessOverlay}>
@@ -1773,6 +1775,8 @@ export default function MotoristActivityScreen() {
       <Modal
         visible={warningRecordedVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setWarningRecordedVisible(false)}
       >
@@ -1813,6 +1817,8 @@ export default function MotoristActivityScreen() {
       <Modal
         visible={bookingSubmittedVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setBookingSubmittedVisible(false)}
       >
@@ -1852,6 +1858,8 @@ export default function MotoristActivityScreen() {
         visible={servicesMechanic !== null}
         animationType="slide"
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setServicesMechanic(null)}
       >
         <View
@@ -2170,6 +2178,8 @@ export default function MotoristActivityScreen() {
       <Modal
         visible={scheduleVehiclePickerVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="slide"
         onRequestClose={() => setScheduleVehiclePickerVisible(false)}
       >
@@ -2610,6 +2620,8 @@ export default function MotoristActivityScreen() {
         visible={cancelModalVisible}
         animationType="slide"
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => {
           if (!isCancelling) {
             setCancelModalVisible(false);
@@ -2716,6 +2728,8 @@ export default function MotoristActivityScreen() {
       <Modal
         visible={unableToCancelMessage !== null}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setUnableToCancelMessage(null)}
       >
@@ -2773,6 +2787,8 @@ export default function MotoristActivityScreen() {
       <Modal
         visible={reasonRequiredMessage !== null}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setReasonRequiredMessage(null)}
       >
@@ -2808,6 +2824,8 @@ export default function MotoristActivityScreen() {
       <Modal
         visible={confirmationReason !== null}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => {
           if (!isCancelling) setConfirmationReason(null);

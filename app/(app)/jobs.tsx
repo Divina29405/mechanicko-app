@@ -370,9 +370,10 @@ function isUuid(value: string) {
 }
 
 export default function JobsScreen() {
-  const { colors: themeColors, language } = useAppTheme();
+  const { colors: themeColors, language, isDarkMode } = useAppTheme();
   const colors = useMemo(() => getMechanicThemeColors(themeColors), [themeColors]);
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const detailAccentColor = isDarkMode ? colors.white : colors.blue;
+  const styles = useMemo(() => createStyles(colors, isDarkMode), [colors, isDarkMode]);
   const bookingCancelledPlayer = useAudioPlayer(bookingCancelledSound);
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
@@ -1882,7 +1883,7 @@ export default function JobsScreen() {
                         <Ionicons
                           name="navigate-outline"
                           size={16}
-                          color={colors.blue}
+                          color={detailAccentColor}
                         />
                         {selectedJob.latitude === null ||
                         selectedJob.longitude === null ||
@@ -1909,7 +1910,7 @@ export default function JobsScreen() {
                         ) : (
                           <ActivityIndicator
                             size="small"
-                            color={colors.blue}
+                            color={detailAccentColor}
                             accessibilityLabel="Loading distance"
                           />
                         )}
@@ -2082,7 +2083,7 @@ export default function JobsScreen() {
                       setChargeJob(selectedJob);
                     }}
                   >
-                    <Ionicons name="add-circle-outline" size={18} color={colors.blue} />
+                    <Ionicons name="add-circle-outline" size={18} color={detailAccentColor} />
                     <Text style={styles.addChargeText}>Add repair charge for approval</Text>
                   </Pressable>
                 ) : null}
@@ -2095,7 +2096,7 @@ export default function JobsScreen() {
                     style={styles.chatButton}
                     onPress={() => void openCustomerChat(selectedJob)}
                   >
-                    <Ionicons name="chatbubble-outline" size={19} color={colors.blue} />
+                    <Ionicons name="chatbubble-outline" size={19} color={detailAccentColor} />
                     <Text style={styles.chatText}>
                       {(unreadChatCounts[selectedJob.id] ?? 0) > 0
                         ? "New message"
@@ -2217,6 +2218,8 @@ export default function JobsScreen() {
       <Modal
         visible={mapChoice !== null}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => {
           setMapChoice(null);
@@ -2324,6 +2327,8 @@ export default function JobsScreen() {
       <Modal
         visible={chargeJob !== null}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="slide"
         onRequestClose={() => {
           if (!chargeSubmitting) setChargeJob(null);
@@ -2446,6 +2451,8 @@ export default function JobsScreen() {
       <Modal
         visible={issueJob !== null}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setIssueJob(null)}
       >
@@ -2566,6 +2573,8 @@ export default function JobsScreen() {
       <Modal
         visible={pendingCancellationJob !== null}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => {
           setPendingCancellationJob(null);
@@ -2643,6 +2652,8 @@ export default function JobsScreen() {
       <Modal
         visible={cannotCancelBookingVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setCannotCancelBookingVisible(false)}
       >
@@ -2682,6 +2693,8 @@ export default function JobsScreen() {
       <Modal
         visible={cancelSuccessVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setCancelSuccessVisible(false)}
       >
@@ -2798,7 +2811,7 @@ export default function JobsScreen() {
                             : "chatbubble-ellipses-outline"
                         }
                         size={28}
-                        color={colors.blue}
+                        color={detailAccentColor}
                       />
                     </View>
                     <Text style={styles.chatEmptyTitle}>
@@ -2905,7 +2918,15 @@ export default function JobsScreen() {
                                     styles.myMessageBubble,
                                 ]}
                               >
-                                <Text style={styles.messageBody}>{message.body}</Text>
+                                <Text
+                                  style={[
+                                    styles.messageBody,
+                                    message.sender_id === mechanicId &&
+                                      styles.myMessageBody,
+                                  ]}
+                                >
+                                  {message.body}
+                                </Text>
                               </View>
                             ) : null}
                             <View
@@ -2953,7 +2974,15 @@ export default function JobsScreen() {
                               ]}
                             >
                               {message.body ? (
-                                <Text style={styles.messageBody}>{message.body}</Text>
+                                <Text
+                                  style={[
+                                    styles.messageBody,
+                                    message.sender_id === mechanicId &&
+                                      styles.myMessageBody,
+                                  ]}
+                                >
+                                  {message.body}
+                                </Text>
                               ) : null}
                             </View>
                             <View style={styles.messageMeta}>
@@ -3041,6 +3070,7 @@ export default function JobsScreen() {
         animationType="fade"
         presentationStyle="overFullScreen"
         statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setViewingChatImage(null)}
       >
         <View style={styles.chatImageViewer}>
@@ -3074,6 +3104,8 @@ export default function JobsScreen() {
       <Modal
         visible={chatPhotoPickerVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setChatPhotoPickerVisible(false)}
       >
@@ -3168,7 +3200,11 @@ export default function JobsScreen() {
   );
 }
 
-function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
+function createStyles(
+  colors: ReturnType<typeof getMechanicThemeColors>,
+  isDarkMode: boolean,
+) {
+  const detailAccent = isDarkMode ? colors.white : colors.blue;
   return StyleSheet.create({
   content: { paddingHorizontal: 8, paddingBottom: spacing.xxl },
   toolbar: { marginBottom: spacing.md },
@@ -3405,7 +3441,7 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
   backButton: { width: 42, height: 42, justifyContent: "center" },
   headerSpacer: { width: 42 },
   detailHeaderTitle: { color: colors.white, fontSize: 18, fontWeight: "800" },
-  headerActionImage: { width: 27, height: 27, resizeMode: "contain" },
+  headerActionImage: { width: 27, height: 27, resizeMode: "contain", tintColor: colors.text },
   issueModalKeyboard: { flex: 1, justifyContent: "center" },
   issueModalOverlay: { flex: 1, justifyContent: "center", padding: spacing.md, backgroundColor: "rgba(16, 24, 40, 0.58)" },
   issueModalCard: { maxHeight: "92%", padding: spacing.lg, borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgElevated, shadowColor: "#101828", shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 12 },
@@ -3499,11 +3535,11 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
   chargeSubmitButtonDisabled: { opacity: 0.7 },
   chargeSubmitText: { color: colors.white, fontSize: 14, fontWeight: "800" },
   receiptCard: { marginTop: spacing.lg, padding: spacing.md, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgElevated },
-  receiptImage: { backgroundColor: colors.white },
+  receiptImage: { backgroundColor: colors.bgElevated },
   receiptHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   receiptHeaderActionSpace: { width: 44, height: 44 },
   receiptDownloadButton: { position: "absolute", top: spacing.md, right: spacing.md, width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  receiptDownloadIcon: { width: 24, height: 24 },
+  receiptDownloadIcon: { width: 24, height: 24, tintColor: colors.text },
   receiptEyebrow: { color: colors.textMuted, fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
   receiptTitle: { color: colors.text, fontSize: 16, fontWeight: "800", marginTop: 2 },
   receiptRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.sm, paddingTop: spacing.sm },
@@ -3512,15 +3548,15 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
   pendingCharge: { color: colors.amber },
   receiptTotalRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
   receiptTotalLabel: { color: colors.text, fontSize: 14, fontWeight: "800" },
-  receiptTotal: { color: colors.blue, fontSize: 17, fontWeight: "900" },
-  addChargeButton: { minHeight: 42, marginTop: spacing.md, borderWidth: 1, borderColor: colors.blue, borderRadius: 8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  addChargeText: { color: colors.blue, fontSize: 13, fontWeight: "800" },
+  receiptTotal: { color: detailAccent, fontSize: 17, fontWeight: "900" },
+  addChargeButton: { minHeight: 42, marginTop: spacing.md, borderWidth: 1, borderColor: detailAccent, borderRadius: 8, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  addChargeText: { color: detailAccent, fontSize: 13, fontWeight: "800" },
   detailContent: { padding: spacing.md, paddingBottom: spacing.lg },
   scheduledDetailContent: { paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.lg },
   detailType: { color: colors.amber, fontSize: 12, fontWeight: "800", letterSpacing: 1 },
   detailBookingTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginTop: spacing.sm },
   detailReferenceLabel: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 0.7 },
-  detailReference: { color: colors.blue, fontSize: 17, fontWeight: "900", marginTop: 3 },
+  detailReference: { color: detailAccent, fontSize: 17, fontWeight: "900", marginTop: 3 },
   detailAmount: { alignItems: "flex-end" },
   detailAmountValue: { color: colors.text, fontSize: 17, fontWeight: "900" },
   detailAmountLabel: { color: colors.textMuted, fontSize: 10, marginTop: 2 },
@@ -3535,7 +3571,7 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
   emergencyBookingEyebrow: { color: colors.sos },
   scheduledCompactCustomer: { color: colors.text, fontSize: 22, fontWeight: "800" },
   scheduledDistanceBadge: { maxWidth: "48%", minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: spacing.sm, borderRadius: 999, backgroundColor: colors.blueSoft },
-  scheduledCompactDistance: { color: colors.blue, fontSize: 14, fontWeight: "800" },
+  scheduledCompactDistance: { color: detailAccent, fontSize: 14, fontWeight: "800" },
   scheduledReferenceRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
   scheduledReference: { color: colors.textMuted, fontSize: 13, fontWeight: "700" },
   scheduledAmount: { color: colors.text, fontSize: 17, fontWeight: "900" },
@@ -3557,12 +3593,12 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
   tripTitle: { color: colors.text, fontSize: 14, fontWeight: "800" },
   tripDistance: { color: colors.blue, fontSize: 12, fontWeight: "700", marginTop: 2 },
   tripHint: { color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: spacing.sm },
-  chatButton: { flex: 1, minHeight: 48, borderWidth: 1, borderColor: colors.blue, flexDirection: "row", gap: spacing.sm, alignItems: "center", justifyContent: "center" },
+  chatButton: { flex: 1, minHeight: 48, borderWidth: 1, borderColor: detailAccent, flexDirection: "row", gap: spacing.sm, alignItems: "center", justifyContent: "center" },
   chatUnreadCount: { minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.success },
   chatUnreadCountText: { color: colors.white, fontSize: 11, fontWeight: "800" },
   chatSupportRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   supportIconButton: { width: 48, height: 48, borderWidth: 1.5, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.bgElevated, alignItems: "center", justifyContent: "center", shadowColor: "#101828", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
-  chatText: { color: colors.blue, fontWeight: "800", fontSize: 14 },
+  chatText: { color: detailAccent, fontWeight: "800", fontSize: 14 },
   chatSupportSection: { borderBottomWidth: 1, borderBottomColor: colors.border, paddingTop: 2, paddingBottom: spacing.sm, gap: spacing.sm },
   supportTitle: { color: colors.textDim, fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase" },
   arrivedButton: { minHeight: 48, borderWidth: 1, borderColor: colors.amber, alignItems: "center", justifyContent: "center" },
@@ -3590,8 +3626,8 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
   chatEmptyIcon: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", marginBottom: spacing.md, backgroundColor: colors.blueSoft },
   chatEmptyTitle: { color: colors.text, fontSize: 17, fontWeight: "800", textAlign: "center" },
   chatEmptyDescription: { color: colors.textMuted, fontSize: 13, lineHeight: 19, textAlign: "center", marginTop: spacing.xs },
-  chatDateSeparatorWrap: { alignSelf: "center", paddingHorizontal: spacing.md, paddingVertical: 6, marginVertical: spacing.sm, borderRadius: 999, backgroundColor: "#E9EDF3" },
-  chatDateSeparator: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
+  chatDateSeparatorWrap: { alignSelf: "center", paddingHorizontal: spacing.md, paddingVertical: 6, marginVertical: spacing.sm, borderRadius: 999, backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.border },
+  chatDateSeparator: { color: colors.text, fontSize: 11, fontWeight: "700" },
   chatMessageRow: { width: "100%", flexDirection: "row", justifyContent: "flex-start" },
   chatMessageRowMine: { justifyContent: "flex-end" },
   chatTextMessage: { maxWidth: "84%", alignItems: "flex-start" },
@@ -3599,6 +3635,7 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
   messageBubble: { maxWidth: "100%", paddingHorizontal: 13, paddingTop: 10, paddingBottom: 7, borderRadius: 18, borderBottomLeftRadius: 5, backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.border, shadowColor: "#101828", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 3, elevation: 1 },
   myMessageBubble: { borderBottomLeftRadius: 18, borderBottomRightRadius: 5, backgroundColor: "#EAF1FF", borderColor: "#D4E2FF" },
   messageBody: { color: colors.text, fontSize: 15, lineHeight: 21 },
+  myMessageBody: { color: "#172B4D" },
   messageMeta: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 3, marginTop: 4 },
   messageTime: { color: colors.textDim, fontSize: 10, textAlign: "right" },
   myMessageTime: { color: "#5C78B8" },

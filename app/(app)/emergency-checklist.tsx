@@ -361,6 +361,8 @@ export default function EmergencyChecklistScreen({
       <Modal
         visible={vehiclePickerVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="slide"
         onRequestClose={() => setVehiclePickerVisible(false)}
       >
@@ -431,6 +433,8 @@ export default function EmergencyChecklistScreen({
       <Modal
         visible={validationNotice !== null}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setValidationNotice(null)}
       >
@@ -475,6 +479,8 @@ export default function EmergencyChecklistScreen({
       <Modal
         visible={sosSentVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => {
           setSosSentVisible(false);

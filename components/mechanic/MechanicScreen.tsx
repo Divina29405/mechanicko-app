@@ -9,6 +9,7 @@ import { MechanicText as Text } from '@/components/mechanic/MechanicText';
 import { NotificationBell } from '@/components/NotificationBell';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMechanic } from '@/contexts/MechanicContext';
+import { useOptionalMechanicSidebar } from '@/contexts/MechanicSidebarContext';
 import { colors, spacing } from '@/lib/theme';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { normalizeText } from '@/lib/typography';
@@ -45,6 +46,7 @@ export function MechanicScreen({
   const theme = useAppTheme();
   const { session } = useAuth();
   const { online, rating, avatarUrl } = useMechanic();
+  const sidebar = useOptionalMechanicSidebar();
   const insets = useSafeAreaInsets();
   const headerExtendUp = (profileHeader || extendTitleHeaderUp) && safeAreaTop
     ? Math.min(39, insets.top)
@@ -92,9 +94,9 @@ export function MechanicScreen({
         >
           <Pressable
             style={styles.profileIdentity}
-            onPress={() => router.push('./profile')}
+            onPress={() => sidebar?.openSidebar()}
             accessibilityRole="button"
-            accessibilityLabel="Open profile"
+            accessibilityLabel="Open profile menu"
           >
             <View style={styles.profileAvatarWrap}>
               <ProfileAvatar

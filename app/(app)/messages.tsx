@@ -1,19 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import {
-    useCallback,
     useEffect,
     useMemo,
     useRef,
     useState,
-    type ComponentRef,
 } from 'react';
 import {
     ActivityIndicator,
     Alert,
     FlatList,
     Image,
-    Keyboard,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -31,6 +28,7 @@ import {
 import { MotoristHomeHeader } from '@/components/MotoristHomeHeader';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOptionalMotoristChat } from '@/contexts/MotoristChatContext';
 import { useMechanic } from '@/contexts/MechanicContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { imageAssetToBytes, refreshChatImageUrl } from '@/lib/chatMedia';
@@ -133,12 +131,17 @@ function isUuid(value: string | null): value is string {
 }
 
 export default function MessagesScreen() {
+  return <MessagesScreenContent />;
+}
+
+function MessagesScreenContent() {
   const { session } = useAuth();
+  const motoristChat = useOptionalMotoristChat();
   const { isMechanic } = useMechanic();
+  const insets = useSafeAreaInsets();
   const { colors, language } = useAppTheme();
   const palette = useMemo(() => getMechanicThemeColors(colors), [colors]);
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const insets = useSafeAreaInsets();
   const { serviceRequestId, counterpartId } = useLocalSearchParams<{
     serviceRequestId?: string;
     counterpartId?: string;
@@ -162,7 +165,6 @@ export default function MessagesScreen() {
   const activeMessageFilter =
     messageFilter ?? (isMechanic ? 'resolved' : 'all');
   const [conversationOpen, setConversationOpen] = useState(false);
-  const [keyboardOverlap, setKeyboardOverlap] = useState(0);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [hasUnlinkedBookings, setHasUnlinkedBookings] = useState(false);
   const [chatImageSizes, setChatImageSizes] = useState<
@@ -175,38 +177,17 @@ export default function MessagesScreen() {
   const chatImageSizeRequests = useRef(new Set<string>());
   const chatImageRefreshRequests = useRef(new Set<string>());
   const historyListRef = useRef<FlatList<ChatMessage>>(null);
-  const chatLayoutRef = useRef<ComponentRef<typeof View>>(null);
-  const keyboardTopRef = useRef<number | null>(null);
   const initialHistoryPositionSet = useRef(false);
   const newestFirstMessages = useMemo(() => [...messages].reverse(), [messages]);
 
-  const updateChatKeyboardOverlap = useCallback(() => {
-    if (Platform.OS !== 'android' || keyboardTopRef.current === null) return;
-    requestAnimationFrame(() => {
-      chatLayoutRef.current?.measureInWindow((_x, y, _width, height) => {
-        const keyboardTop = keyboardTopRef.current;
-        if (keyboardTop === null) return;
-        setKeyboardOverlap(Math.max(0, y + height - keyboardTop));
-      });
-    });
-  }, []);
-
   useEffect(() => {
-    if (Platform.OS !== 'android') return undefined;
-    const showSubscription = Keyboard.addListener('keyboardDidShow', (event) => {
-      keyboardTopRef.current = event.endCoordinates.screenY - insets.top;
-      updateChatKeyboardOverlap();
-    });
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-      keyboardTopRef.current = null;
-      setKeyboardOverlap(0);
-    });
+    motoristChat?.setConversationOpen(isMechanic === false && conversationOpen);
+  }, [conversationOpen, isMechanic, motoristChat]);
 
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, [insets.top, updateChatKeyboardOverlap]);
+  useEffect(
+    () => () => motoristChat?.setConversationOpen(false),
+    [motoristChat],
+  );
 
   const visibleConversations = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -785,16 +766,16 @@ export default function MessagesScreen() {
     ]);
   };
 
-  return (
+  const screen = (
     <MechanicScreen
       back
       title="Chat"
       profileHeader={isMechanic === true}
       hideHeader={isMechanic !== true}
-      safeAreaTop={isMechanic !== false}
+      safeAreaTop={isMechanic === true || conversationOpen}
     >
       <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      {isMechanic === false ? (
+      {isMechanic === false && !conversationOpen ? (
         <MotoristHomeHeader />
       ) : null}
       {isMechanic === false && !conversationOpen && <View style={[styles.messagesHeader, { backgroundColor: colors.bg }]}>
@@ -860,14 +841,9 @@ export default function MessagesScreen() {
           <Text style={[styles.recentTitle, { color: colors.text }]}>RECENT CONVERSATIONS</Text>
         </View>
       </View>}
-      <View
-        ref={chatLayoutRef}
-        onLayout={updateChatKeyboardOverlap}
-        style={styles.root}
-      >
       <KeyboardAvoidingView
         style={[styles.root, { backgroundColor: colors.bg }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
       >
         {isMechanic && !conversationOpen ? (
@@ -1291,12 +1267,10 @@ export default function MessagesScreen() {
             {conversationIsActive ? <View
               style={[
                 styles.composer,
-                { backgroundColor: colors.card, borderTopColor: colors.border },
-                Platform.OS === 'android' && keyboardOverlap > 0 && {
-                  position: 'absolute',
-                  left: 0,
-                  right: 0,
-                  bottom: keyboardOverlap,
+                {
+                  backgroundColor: colors.card,
+                  borderTopColor: colors.border,
+                  paddingBottom: Math.max(insets.bottom, 10),
                 },
               ]}
             >
@@ -1330,13 +1304,13 @@ export default function MessagesScreen() {
           </>
         )}
       </KeyboardAvoidingView>
-      </View>
       <Modal
         visible={viewingChatImage !== null}
         transparent
         animationType="fade"
         presentationStyle="overFullScreen"
         statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setViewingChatImage(null)}
       >
         <View style={styles.chatImageViewer}>
@@ -1367,6 +1341,8 @@ export default function MessagesScreen() {
       </View>
     </MechanicScreen>
   );
+
+  return screen;
 }
 
 function createStyles(palette: ReturnType<typeof getMechanicThemeColors>) {

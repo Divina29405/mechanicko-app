@@ -1,12 +1,14 @@
 import { Redirect, Tabs, useSegments } from "expo-router";
 import type { BottomTabBarProps } from "expo-router/build/layouts/Tabs.js";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { MechanicProvider } from "@/contexts/MechanicContext";
+import { MechanicSidebarProvider } from "@/contexts/MechanicSidebarContext";
+import { MotoristChatProvider } from "@/contexts/MotoristChatContext";
 import { MechanicText as Text } from "@/components/mechanic/MechanicText";
 import { MechanicThemeProvider, useAppTheme } from "@/contexts/ThemeContext";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
@@ -23,25 +25,28 @@ function MechanicTabsContent() {
   );
 
   return (
-    <Tabs
-      tabBar={(props) => <MechanicTabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-        animation: "none",
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: {
-          backgroundColor: colors.card,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          width: "100%",
-        },
-      }}
-    >
+    <MechanicSidebarProvider>
+      <Tabs
+        detachInactiveScreens={false}
+        tabBar={(props) => <MechanicTabBar {...props} />}
+        screenOptions={{
+          headerShown: false,
+          animation: "none",
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textMuted,
+          tabBarStyle: {
+            backgroundColor: colors.card,
+            borderTopColor: colors.border,
+            borderTopWidth: 1,
+            width: "100%",
+          },
+        }}
+      >
       <Tabs.Screen
         name="index"
         options={{
           title: "Home",
+          freezeOnBlur: false,
           tabBarIcon: () =>
             mechanicTabIcon(
               require("../../assets/images/mechanichome.png"),
@@ -112,7 +117,8 @@ function MechanicTabsContent() {
       />
       <Tabs.Screen name="emergency-checklist" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />
-    </Tabs>
+      </Tabs>
+    </MechanicSidebarProvider>
   );
 }
 
@@ -211,6 +217,7 @@ function CustomerTabs() {
   const { colors, isDarkMode } = useAppTheme();
   const segments = useSegments();
   const currentRoute = String(segments[segments.length - 1]);
+  const [conversationOpen, setConversationOpen] = useState(false);
   const isEmergencyChecklist =
     currentRoute === "emergency-checklist";
   const isFullScreenRoute = ["motorist-settings", "payment-methods"].includes(
@@ -226,11 +233,16 @@ function CustomerTabs() {
       ]}
     />
   );
+  const chatContextValue = useMemo(
+    () => ({ setConversationOpen }),
+    [setConversationOpen],
+  );
 
   return (
-    <Tabs
-      detachInactiveScreens={false}
-      screenOptions={{
+    <MotoristChatProvider value={chatContextValue}>
+      <Tabs
+        detachInactiveScreens={false}
+        screenOptions={{
         headerShown: false,
         animation: "none",
         tabBarActiveTintColor: colors.primary,
@@ -240,9 +252,17 @@ function CustomerTabs() {
           borderTopColor: colors.border,
           borderTopWidth: 15,
           height: 112,
+          minHeight: 112,
+          maxHeight: 112,
+          flexShrink: 0,
           paddingTop: 6,
           paddingBottom: 8,
-          display: isEmergencyChecklist || isFullScreenRoute ? "none" : "flex",
+          display:
+            isEmergencyChecklist ||
+            isFullScreenRoute ||
+            (currentRoute === "messages" && conversationOpen)
+              ? "none"
+              : "flex",
         },
         tabBarLabelStyle: {
           fontSize: normalizeText(12),
@@ -345,12 +365,13 @@ function CustomerTabs() {
       />
       <Tabs.Screen name="emergency-checklist" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />
-    </Tabs>
+      </Tabs>
+    </MotoristChatProvider>
   );
 }
 
 export default function AppLayout() {
-  const { session, loading, signedOutRole } = useAuth();
+  const { session, authenticatedRole, loading, signedOutRole } = useAuth();
   const segments = useSegments();
   const { colors } = useAppTheme();
 
@@ -358,6 +379,10 @@ export default function AppLayout() {
   const [roleSessionId, setRoleSessionId] = useState<string | null>(
     "__unresolved__",
   );
+  const verifiedRole =
+    authenticatedRole && authenticatedRole.userId === session?.user?.id
+      ? authenticatedRole.role
+      : null;
 
   useEffect(() => {
     let active = true;
@@ -367,6 +392,14 @@ export default function AppLayout() {
         if (active) {
           setRole(null);
           setRoleSessionId(null);
+        }
+        return;
+      }
+
+      if (verifiedRole) {
+        if (active) {
+          setRole(verifiedRole);
+          setRoleSessionId(session.user.id);
         }
         return;
       }
@@ -403,10 +436,12 @@ export default function AppLayout() {
     return () => {
       active = false;
     };
-  }, [session]);
+  }, [session, verifiedRole]);
 
+  const trustedRole = verifiedRole ?? role;
   const fetchingRole =
-    roleSessionId !== (session?.user?.id ?? null);
+    roleSessionId !== (session?.user?.id ?? null) &&
+    verifiedRole === null;
 
   if (loading || fetchingRole) {
     return (
@@ -418,21 +453,27 @@ export default function AppLayout() {
 
   if (!session) {
     return (
-      <Redirect
-        href={
-          signedOutRole === "mechanic"
-            ? "/(auth)/admin-login"
-            : "/(auth)/login"
-        }
-      />
+      <View style={[styles.transitionCover, { backgroundColor: colors.bg }]}>
+        <Redirect
+          href={
+            signedOutRole === "mechanic"
+              ? "/(auth)/admin-login"
+              : "/(auth)/login"
+          }
+        />
+      </View>
     );
   }
 
-  if (role === "admin") {
-    return <Redirect href="/admin" />;
+  if (trustedRole === "admin") {
+    return (
+      <View style={[styles.transitionCover, { backgroundColor: colors.bg }]}>
+        <Redirect href="/admin" />
+      </View>
+    );
   }
 
-  const isCustomer = role !== "mechanic";
+  const isCustomer = trustedRole !== "mechanic";
   const currentRoute = segments[segments.length - 1];
   if (
     isCustomer &&
@@ -440,12 +481,16 @@ export default function AppLayout() {
       String(currentRoute) === "(app)" ||
       String(currentRoute) === "index")
   ) {
-    return <Redirect href="/MotoristMap" />;
+    return (
+      <View style={[styles.transitionCover, { backgroundColor: colors.bg }]}>
+        <Redirect href="/MotoristMap" />
+      </View>
+    );
   }
 
   return (
-    <MechanicProvider isMechanic={role === "mechanic"}>
-      {role === "mechanic" ? (
+    <MechanicProvider isMechanic={trustedRole === "mechanic"}>
+      {trustedRole === "mechanic" ? (
         <MechanicTabs key="mechanic-navigator" />
       ) : (
         <CustomerTabs key="customer-navigator" />
@@ -459,6 +504,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+  },
+  transitionCover: {
+    flex: 1,
   },
   mechanicTabBar: {
     width: "100%",

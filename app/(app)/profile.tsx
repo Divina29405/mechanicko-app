@@ -906,6 +906,8 @@ export default function ProfileScreen() {
       <Modal
         visible={avatarUploadSuccess}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setAvatarUploadSuccess(false)}
       >
@@ -927,6 +929,8 @@ export default function ProfileScreen() {
       <Modal
         visible={avatarPickerVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="slide"
         onRequestClose={() => setAvatarPickerVisible(false)}
       >
@@ -1003,6 +1007,8 @@ export default function ProfileScreen() {
       <Modal
         visible={logoutConfirmationVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => {
           if (!loggingOut) setLogoutConfirmationVisible(false);
@@ -1073,6 +1079,8 @@ export default function ProfileScreen() {
         visible={expandedSection !== null}
         animationType="slide"
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setExpandedSection(null)}
       >
         <KeyboardAvoidingView

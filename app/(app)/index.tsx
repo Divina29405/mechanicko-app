@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -35,6 +35,7 @@ import {
 } from "@/components/mechanic/MechanicText";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMechanic } from "@/contexts/MechanicContext";
+import { useMechanicSidebar } from "@/contexts/MechanicSidebarContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import {
   getPreferredMapApp,
@@ -162,6 +163,8 @@ function displayName(fullName: string | undefined, email: string | undefined) {
 const MECHANIC_RADIUS_STORAGE_KEY = "mechanic_search_radius_km";
 
 export default function MechanicHomeScreen() {
+  const { openSettings } = useLocalSearchParams<{ openSettings?: string }>();
+  const { openSidebar } = useMechanicSidebar();
   const { session } = useAuth();
   const { online, setOnline, rating, avatarUrl } = useMechanic();
   const {
@@ -175,7 +178,6 @@ export default function MechanicHomeScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const headerExtendUp = Math.min(39, insets.top);
-  const [sidebarVisible, setSidebarVisible] = useState(false);
   const [profileName, setProfileName] = useState<{
     userId: string;
     name: string | null;
@@ -191,7 +193,6 @@ export default function MechanicHomeScreen() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [passwordUpdating, setPasswordUpdating] = useState(false);
-  const [sidebarProgress] = useState(() => new Animated.Value(0));
   const [settingsProgress] = useState(() => new Animated.Value(0));
   const [availableJobs, setAvailableJobs] = useState<AvailableJob[]>([]);
   const [dismissedJobIds, setDismissedJobIds] = useState<Set<string>>(
@@ -218,6 +219,18 @@ export default function MechanicHomeScreen() {
   const [comingSoonVisible, setComingSoonVisible] = useState(false);
   const [sliderActivated, setSliderActivated] = useState(false);
   const [slidePosition] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    if (openSettings !== "true") return;
+    const frame = requestAnimationFrame(() => {
+      setSettingsError(null);
+      settingsProgress.setValue(0);
+      setSettingsMounted(true);
+      setSettingsVisible(true);
+      router.setParams({ openSettings: undefined });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [openSettings, settingsProgress]);
 
   useEffect(() => {
     const userId = session?.user.id;
@@ -734,31 +747,6 @@ export default function MechanicHomeScreen() {
     setAcceptingJobId(null);
   }
 
-  const closeSidebar = (onComplete?: () => void) => {
-    if (!sidebarVisible) {
-      onComplete?.();
-      return;
-    }
-    Animated.timing(sidebarProgress, {
-      toValue: 0,
-      duration: 220,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) setSidebarVisible(false);
-      onComplete?.();
-    });
-  };
-
-  useEffect(() => {
-    if (!sidebarVisible) return;
-    sidebarProgress.setValue(0);
-    Animated.timing(sidebarProgress, {
-      toValue: 1,
-      duration: 260,
-      useNativeDriver: true,
-    }).start();
-  }, [sidebarProgress, sidebarVisible]);
-
   const name = displayName(
     (profileName && profileName.userId === session?.user.id
       ? profileName.name
@@ -794,7 +782,7 @@ export default function MechanicHomeScreen() {
         >
           <Pressable
             style={styles.identity}
-            onPress={() => setSidebarVisible(true)}
+            onPress={openSidebar}
             accessibilityRole="button"
             accessibilityLabel="Open profile menu"
           >
@@ -1409,6 +1397,8 @@ export default function MechanicHomeScreen() {
       <Modal
         visible={mapChoice !== null}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => {
           setMapChoice(null);
@@ -1517,6 +1507,8 @@ export default function MechanicHomeScreen() {
       <Modal
         visible={declineJobId !== null}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setDeclineJobId(null)}
       >
@@ -1559,85 +1551,12 @@ export default function MechanicHomeScreen() {
       </Modal>
 
       <Modal
-        visible={sidebarVisible}
-        transparent
+        visible={settingsMounted}
         animationType="none"
-        onRequestClose={() => closeSidebar()}
+        presentationStyle="fullScreen"
+        onRequestClose={() => setSettingsVisible(false)}
       >
-        <View style={styles.sidebarOverlay}>
-          <Animated.View
-            style={[
-              styles.sidebar,
-              { backgroundColor: themeColors.card },
-              {
-                transform: [
-                  {
-                    translateX: sidebarProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-300, 0],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <Pressable
-              style={styles.sidebarProfile}
-              onPress={() => closeSidebar(() => router.push("./profile"))}
-            >
-              <ProfileAvatar
-                uri={avatarUrl}
-                name={name}
-                size={50}
-                backgroundColor={colors.amberSoft}
-              />
-              <Text               style={[styles.sidebarName, { color: themeColors.text }]} numberOfLines={2}>
-                {name}
-              </Text>
-            </Pressable>
-            <View style={[styles.sidebarDivider, { backgroundColor: themeColors.border }]} />
-            <Pressable
-              style={[styles.sidebarRow, { borderBottomColor: themeColors.border }]}
-              onPress={() => setComingSoonVisible(true)}
-            >
-              <Ionicons
-                name="help-circle-outline"
-                size={23}
-                color={themeColors.text}
-              />
-              <Text style={[styles.sidebarRowText, { color: themeColors.text }]}>Help</Text>
-              <Ionicons
-                name="chevron-forward"
-                size={19}
-                color={themeColors.textMuted}
-              />
-            </Pressable>
-            <Pressable
-              style={[styles.sidebarRow, { borderBottomColor: themeColors.border }]}
-              onPress={() => {
-                setSettingsError(null);
-                settingsProgress.setValue(0);
-                setSettingsMounted(true);
-                setSettingsVisible(true);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Open mechanic settings"
-            >
-              <Ionicons name="settings-outline" size={23} color={themeColors.text} />
-              <Text style={[styles.sidebarRowText, { color: themeColors.text }]}>Settings</Text>
-              <Ionicons
-                name="chevron-forward"
-                size={19}
-                color={themeColors.textMuted}
-              />
-            </Pressable>
-          </Animated.View>
-          <Pressable
-            style={styles.sidebarDismiss}
-            onPress={() => closeSidebar()}
-            accessibilityLabel="Close profile menu"
-          />
-          {settingsMounted ? (
+        {settingsMounted ? (
             <Animated.View
               style={[
                 styles.settingsOverlay,
@@ -1896,11 +1815,12 @@ export default function MechanicHomeScreen() {
               </SafeAreaView>
             </Animated.View>
           ) : null}
-        </View>
       </Modal>
       <Modal
         visible={securityVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setSecurityVisible(false)}
       >
@@ -3336,6 +3256,7 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
   detailAcceptButton: {
     flex: 1,
     minHeight: 50,
+    borderRadius: 10,
     backgroundColor: colors.success,
     alignItems: "center",
     justifyContent: "center",
@@ -3346,6 +3267,7 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
   detailDeclineButton: {
     flex: 1,
     minHeight: 50,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.sos,
     alignItems: "center",

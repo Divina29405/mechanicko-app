@@ -596,6 +596,8 @@ export default function MotoristProfileScreen() {
       <Modal
         visible={vehicleLimitVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setVehicleLimitVisible(false)}
       >
@@ -634,6 +636,8 @@ export default function MotoristProfileScreen() {
       <Modal
         visible={avatarUploadSuccess}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setAvatarUploadSuccess(false)}
       >
@@ -658,6 +662,8 @@ export default function MotoristProfileScreen() {
       <Modal
         visible={logoutConfirmationVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setLogoutConfirmationVisible(false)}
       >
@@ -700,6 +706,8 @@ export default function MotoristProfileScreen() {
       <Modal
         visible={avatarPickerVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="slide"
         onRequestClose={() => setAvatarPickerVisible(false)}
       >
@@ -1001,6 +1009,8 @@ export default function MotoristProfileScreen() {
       <Modal
         visible={accountDetailsSuccessVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setAccountDetailsSuccessVisible(false)}
       >

@@ -704,6 +704,8 @@ export default function AdminDashboard() {
         <Modal
           visible={sidebarVisible}
           transparent
+          statusBarTranslucent
+          navigationBarTranslucent
           animationType="none"
           onRequestClose={() => closeSidebar()}
         >
@@ -784,6 +786,7 @@ export default function AdminDashboard() {
         transparent
         animationType="fade"
         statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setSelectedUserRole(null)}
       >
         <View style={styles.usersModalOverlay}>
@@ -939,6 +942,7 @@ export default function AdminDashboard() {
         transparent
         animationType="fade"
         statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setUserFormMode(null)}
       >
         <View style={styles.usersModalOverlay}>
@@ -1088,6 +1092,7 @@ export default function AdminDashboard() {
         transparent
         animationType="fade"
         statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => {
           if (!deletingUser) setDeletingProfile(null);
         }}
@@ -1153,6 +1158,7 @@ export default function AdminDashboard() {
         transparent
         animationType="fade"
         statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => undefined}
       >
         <View style={styles.signOutOverlay}>

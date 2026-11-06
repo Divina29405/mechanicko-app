@@ -42,6 +42,7 @@ type AuthResult = { error: string | null };
 
 type AuthContextValue = {
   session: Session | null;
+  authenticatedRole: { userId: string; role: AuthRole } | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<AuthResult>;
   signInAsMechanic: (email: string, password: string) => Promise<AuthResult>;
@@ -216,6 +217,9 @@ WebBrowser.maybeCompleteAuthSession();
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [authenticatedRole, setAuthenticatedRole] = useState<
+    AuthContextValue["authenticatedRole"]
+  >(null);
   const [loading, setLoading] = useState(true);
   const [signedOutRole, setSignedOutRole] = useState<
     "mechanic" | "customer" | null
@@ -310,6 +314,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         (_event, nextSession) => {
           if (!signupInProgress.current && !authOperationInProgress.current) {
             if (nextSession) setSignedOutRole(null);
+            setAuthenticatedRole((currentRole) =>
+              nextSession && currentRole?.userId === nextSession.user.id
+                ? currentRole
+                : null,
+            );
             setSession(nextSession);
           }
         },
@@ -326,6 +335,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
+      authenticatedRole,
       loading,
       signedOutRole,
       async signIn(email, password) {
@@ -350,6 +360,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const result = await completeSignIn(data.user, "customer");
           if (!result.error) {
             setSignedOutRole(null);
+            setAuthenticatedRole({ userId: data.user.id, role: "customer" });
             setSession(data.session);
           }
           return result;
@@ -379,6 +390,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const result = await completeSignIn(data.user, "mechanic");
           if (!result.error) {
             setSignedOutRole(null);
+            setAuthenticatedRole({ userId: data.user.id, role: "mechanic" });
             setSession(data.session);
           }
           return result;
@@ -408,6 +420,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const result = await completeSignIn(data.user, "admin");
           if (!result.error) {
             setSignedOutRole(null);
+            setAuthenticatedRole({ userId: data.user.id, role: "admin" });
             setSession(data.session);
           }
           return result;
@@ -488,6 +501,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const signInResult = await completeSignIn(user);
           if (!signInResult.error) {
             setSignedOutRole(null);
+            setAuthenticatedRole(null);
             setSession(currentSession);
           }
           return signInResult;
@@ -504,6 +518,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         mobileNumber,
       ) {
         signupInProgress.current = true;
+        setAuthenticatedRole(null);
         setSession(null);
 
         if (!isSupabaseConfigured) {
@@ -609,6 +624,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async signOut(returnTo = "customer") {
         setSignedOutRole(returnTo);
+        setAuthenticatedRole(null);
         setSession(null);
         if (!isSupabaseConfigured) {
           return;
@@ -653,7 +669,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
       },
     }),
-    [session, loading, signedOutRole],
+    [session, authenticatedRole, loading, signedOutRole],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

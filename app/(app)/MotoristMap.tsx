@@ -2085,6 +2085,8 @@ export default function MotoristMap() {
         visible={nearbyMechanicsVisible}
         animationType="slide"
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setNearbyMechanicsVisible(false)}
       >
         <Pressable
@@ -2712,6 +2714,8 @@ export default function MotoristMap() {
         visible={showServices && !!selectedMechanic}
         animationType="slide"
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setShowServices(false)}
       >
         <View style={[styles.servicesModalOverlay, { backgroundColor: colors.overlay }]}>
@@ -3492,6 +3496,8 @@ export default function MotoristMap() {
       <Modal
         visible={vehiclePickerVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="slide"
         onRequestClose={() => setVehiclePickerVisible(false)}
       >
@@ -3573,6 +3579,8 @@ export default function MotoristMap() {
       <Modal
         visible={bookingReceiptVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setBookingReceiptVisible(false)}
       >
@@ -3777,6 +3785,8 @@ export default function MotoristMap() {
         visible={cancelSuccessVisible}
         animationType="fade"
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setCancelSuccessVisible(false)}
       >
         <View style={styles.modalOverlay}>
@@ -3812,6 +3822,8 @@ export default function MotoristMap() {
         visible={bookingSubmittedVisible}
         animationType="fade"
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setBookingSubmittedVisible(false)}
       >
         <View style={styles.modalOverlay}>
@@ -3848,6 +3860,8 @@ export default function MotoristMap() {
       <Modal
         visible={ongoingBookingNoticeVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setOngoingBookingNoticeVisible(false)}
       >
@@ -3894,6 +3908,8 @@ export default function MotoristMap() {
       <Modal
         visible={cancellationReasonNoticeVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setCancellationReasonNoticeVisible(false)}
       >
@@ -3940,6 +3956,8 @@ export default function MotoristMap() {
       <Modal
         visible={warningRecordedVisible}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="fade"
         onRequestClose={() => setWarningRecordedVisible(false)}
       >
@@ -3992,6 +4010,8 @@ export default function MotoristMap() {
         visible={cancelModalVisible}
         animationType="slide"
         transparent={true}
+        statusBarTranslucent
+        navigationBarTranslucent
       >
         <View style={styles.modalOverlay}>
           <View

@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/updated_appicon.png",
     "scheme": "mechanikoapp",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
