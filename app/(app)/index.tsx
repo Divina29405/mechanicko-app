@@ -16,7 +16,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   TextInput,
   View,
 } from "react-native";
@@ -170,7 +169,6 @@ export default function MechanicHomeScreen() {
   const {
     colors: themeColors,
     isDarkMode,
-    toggleTheme,
     language,
     setLanguage,
   } = useAppTheme();
@@ -776,7 +774,7 @@ export default function MechanicHomeScreen() {
             {
               backgroundColor: themeColors.card,
               borderBottomColor: themeColors.border,
-              paddingTop: 10 + headerExtendUp,
+              paddingTop: 4 + headerExtendUp,
             },
           ]}
         >
@@ -1607,36 +1605,6 @@ export default function MechanicHomeScreen() {
                     <View
                       style={[
                         styles.settingsRow,
-                        { borderBottomColor: themeColors.border },
-                      ]}
-                    >
-                      <Ionicons
-                        name="moon-outline"
-                        size={24}
-                        color={themeColors.primary}
-                        style={styles.settingsRowIcon}
-                      />
-                      <View style={styles.settingsRowCopy}>
-                        <Text style={[styles.settingsRowTitle, { color: themeColors.text }]}>
-                          Dark Mode
-                        </Text>
-                        <Text style={[styles.settingsRowHint, { color: themeColors.textMuted }]}>
-                          Use a darker appearance
-                        </Text>
-                      </View>
-                      <Switch
-                        value={isDarkMode}
-                        onValueChange={toggleTheme}
-                        trackColor={{
-                          false: themeColors.border,
-                          true: themeColors.primary,
-                        }}
-                        thumbColor="#FFFFFF"
-                      />
-                    </View>
-                    <View
-                      style={[
-                        styles.settingsRow,
                         styles.settingsRadiusRow,
                         { borderBottomColor: themeColors.border, borderBottomWidth: 1 },
                       ]}
@@ -1919,8 +1887,7 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
     backgroundColor: colors.white,
     borderRadius: 0,
     paddingHorizontal: spacing.md,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingBottom: 6,
     marginHorizontal: -spacing.sm,
     marginBottom: spacing.md,
     elevation: 2,
@@ -2138,11 +2105,13 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
     backgroundColor: colors.bg,
   },
   settingsHeader: {
-    minHeight: 58,
+    minHeight: 78,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
     backgroundColor: colors.white,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -2160,11 +2129,13 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
   },
   settingsContent: {
     paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xxl,
   },
   settingsPanel: {
     marginTop: spacing.lg,
     borderRadius: radii.md,
+    borderWidth: 1,
     backgroundColor: colors.white,
     overflow: "hidden",
   },

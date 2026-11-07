@@ -10,11 +10,13 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   TextInput,
   View,
 } from "react-native";
@@ -23,7 +25,6 @@ import { Ionicons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
 import { StatusBar } from "expo-status-bar";
 
-import { ComingSoonModal } from "@/components/ComingSoonModal";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { MechanicText as Text } from "@/components/mechanic/MechanicText";
 import { useAuth } from "@/contexts/AuthContext";
@@ -50,12 +51,12 @@ export function MechanicSidebarProvider({
   children: ReactNode;
 }) {
   const [visible, setVisible] = useState(false);
-  const [comingSoonVisible, setComingSoonVisible] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const slideProgress = useRef(new Animated.Value(0)).current;
 
   const openSidebar = () => {
     slideProgress.setValue(0);
+    setSettingsVisible(false);
     setVisible(true);
   };
   const closeSidebar = (onClosed?: () => void) => {
@@ -89,13 +90,8 @@ export function MechanicSidebarProvider({
           }).start();
         }}
         onClose={closeSidebar}
-        onShowHelp={() => setComingSoonVisible(true)}
         onShowSettings={() => setSettingsVisible(true)}
         onCloseSettings={() => setSettingsVisible(false)}
-      />
-      <ComingSoonModal
-        visible={comingSoonVisible}
-        onClose={() => setComingSoonVisible(false)}
       />
     </MechanicSidebarContext.Provider>
   );
@@ -107,7 +103,6 @@ function MechanicSidebarModal({
   slideProgress,
   onOpen,
   onClose,
-  onShowHelp,
   onShowSettings,
   onCloseSettings,
 }: {
@@ -116,7 +111,6 @@ function MechanicSidebarModal({
   slideProgress: Animated.Value;
   onOpen: () => void;
   onClose: (onClosed?: () => void) => void;
-  onShowHelp: () => void;
   onShowSettings: () => void;
   onCloseSettings: () => void;
 }) {
@@ -160,9 +154,10 @@ function MechanicSidebarModal({
         >
           <Pressable
             style={styles.profile}
-            onPress={() =>
-              onClose(() => router.push("/(app)/profile"))
-            }
+            onPress={() => {
+              onCloseSettings();
+              onClose(() => router.push("/(app)/profile"));
+            }}
             accessibilityRole="button"
             accessibilityLabel="Open mechanic profile"
           >
@@ -182,23 +177,6 @@ function MechanicSidebarModal({
           <View
             style={[styles.divider, { backgroundColor: themeColors.border }]}
           />
-          <Pressable
-            style={[styles.menuItem, { borderBottomColor: themeColors.border }]}
-            onPress={onShowHelp}
-            accessibilityRole="button"
-          >
-            <Ionicons
-              name="help-circle-outline"
-              size={23}
-              color={themeColors.text}
-            />
-            <Text style={[styles.menuText, { color: themeColors.text }]}>Help</Text>
-            <Ionicons
-              name="chevron-forward"
-              size={19}
-              color={themeColors.textMuted}
-            />
-          </Pressable>
           <Pressable
             style={[styles.menuItem, { borderBottomColor: themeColors.border }]}
             onPress={onShowSettings}
@@ -243,7 +221,7 @@ function MechanicSettingsModal({
   insets: { top: number; bottom: number };
   onClose: () => void;
 }) {
-  const { colors: themeColors, isDarkMode, toggleTheme, language, setLanguage } =
+  const { colors: themeColors, isDarkMode, language, setLanguage } =
     useAppTheme();
   const colors = getMechanicThemeColors(themeColors);
   const { session } = useAuth();
@@ -257,6 +235,18 @@ function MechanicSettingsModal({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [passwordUpdating, setPasswordUpdating] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSubscription = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSubscription = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const userId = session?.user.id;
@@ -402,33 +392,6 @@ function MechanicSettingsModal({
               <View
                 style={[
                   styles.settingsRow,
-                  { borderBottomColor: themeColors.border },
-                ]}
-              >
-                <Ionicons
-                  name="moon-outline"
-                  size={24}
-                  color={themeColors.primary}
-                  style={styles.settingsRowIcon}
-                />
-                <View style={styles.settingsRowCopy}>
-                  <Text style={[styles.settingsRowTitle, { color: themeColors.text }]}>
-                    Dark Mode
-                  </Text>
-                  <Text style={[styles.settingsRowHint, { color: themeColors.textMuted }]}>
-                    Use a darker appearance
-                  </Text>
-                </View>
-                <Switch
-                  value={isDarkMode}
-                  onValueChange={toggleTheme}
-                  trackColor={{ false: themeColors.border, true: themeColors.primary }}
-                  thumbColor="#FFFFFF"
-                />
-              </View>
-              <View
-                style={[
-                  styles.settingsRow,
                   styles.settingsRadiusRow,
                   { borderBottomColor: themeColors.border },
                 ]}
@@ -552,13 +515,25 @@ function MechanicSettingsModal({
         navigationBarTranslucent
         onRequestClose={() => setSecurityVisible(false)}
       >
-        <View style={styles.securityOverlay}>
+        <KeyboardAvoidingView
+          style={styles.securityOverlay}
+          behavior="padding"
+          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 56}
+        >
           <Pressable
             style={StyleSheet.absoluteFill}
             onPress={() => setSecurityVisible(false)}
             accessibilityRole="button"
             accessibilityLabel="Close account security"
           />
+          <ScrollView
+            contentContainerStyle={[
+              styles.securityScrollContent,
+              keyboardVisible && styles.securityScrollContentKeyboard,
+            ]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
           <View
             style={[
               styles.securityCard,
@@ -645,7 +620,8 @@ function MechanicSettingsModal({
               )}
             </Pressable>
           </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -768,11 +744,13 @@ const styles = StyleSheet.create({
   dismiss: { flex: 1 },
   settingsScreen: { flex: 1 },
   settingsHeader: {
-    minHeight: 58,
+    minHeight: 94,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
+    paddingTop: 0,
+    paddingBottom: spacing.xs,
     borderBottomWidth: 1,
   },
   settingsBackButton: {
@@ -780,9 +758,18 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: "center",
     justifyContent: "center",
+    transform: [{ translateY: 18 }],
   },
-  settingsTitle: { fontSize: normalizeText(20), fontWeight: "800" },
-  settingsContent: { padding: spacing.md, paddingBottom: spacing.xxl },
+  settingsTitle: {
+    fontSize: normalizeText(20),
+    fontWeight: "800",
+    transform: [{ translateY: 18 }],
+  },
+  settingsContent: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
   settingsPanel: {
     paddingHorizontal: spacing.md,
     borderWidth: 1,
@@ -869,6 +856,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.lg,
     backgroundColor: "rgba(16, 24, 40, 0.56)",
+  },
+  securityScrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingVertical: spacing.md,
+  },
+  securityScrollContentKeyboard: {
+    justifyContent: "flex-end",
+    paddingBottom: spacing.xl,
   },
   securityCard: {
     padding: spacing.lg,

@@ -8,7 +8,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   TextInput,
   View,
 } from "react-native";
@@ -22,7 +21,7 @@ import { normalizeText } from "@/lib/typography";
 const MOTORIST_RADIUS_KEY = "motorist_search_radius_km";
 
 export default function MotoristSettingsScreen() {
-  const { colors, isDarkMode, toggleTheme, language, setLanguage } = useAppTheme();
+  const { colors, language, setLanguage } = useAppTheme();
   const [searchRadius, setSearchRadius] = useState(10);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [securityVisible, setSecurityVisible] = useState(false);
@@ -129,21 +128,6 @@ export default function MotoristSettingsScreen() {
             </View>
             <Ionicons name="chevron-forward" size={21} color={colors.primary} />
           </Pressable>
-
-          <View style={[styles.row, { borderBottomColor: colors.border }]}>
-            <Ionicons name="moon-outline" size={24} color={colors.primary} style={styles.rowIcon} />
-            <View style={styles.rowCopy}>
-              <Text style={[styles.rowText, { color: colors.text }]}>Dark Mode</Text>
-              <Text style={[styles.rowHint, { color: colors.textMuted }]}>Use a darker appearance</Text>
-            </View>
-            <Switch
-              value={isDarkMode}
-              onValueChange={toggleTheme}
-              accessibilityLabel="Enable dark mode"
-              trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
 
           <View style={[styles.preferenceSection, { borderBottomColor: colors.border }]}>
             <View style={styles.preferenceHeading}>

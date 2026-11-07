@@ -8,10 +8,8 @@ import {
 } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Image,
-    KeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
@@ -19,6 +17,9 @@ import {
     TextInput,
     View,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MechanicScreen } from '@/components/mechanic/MechanicScreen';
 import {
@@ -28,14 +29,12 @@ import {
 import { MotoristHomeHeader } from '@/components/MotoristHomeHeader';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { useAuth } from '@/contexts/AuthContext';
-import { useOptionalMotoristChat } from '@/contexts/MotoristChatContext';
 import { useMechanic } from '@/contexts/MechanicContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { imageAssetToBytes, refreshChatImageUrl } from '@/lib/chatMedia';
 import { supabase } from '@/lib/supabase';
 import { getMechanicThemeColors } from '@/lib/theme';
 import { useLocalSearchParams } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type ChatMessage = {
   id: string;
@@ -131,15 +130,10 @@ function isUuid(value: string | null): value is string {
 }
 
 export default function MessagesScreen() {
-  return <MessagesScreenContent />;
-}
-
-function MessagesScreenContent() {
   const { session } = useAuth();
-  const motoristChat = useOptionalMotoristChat();
   const { isMechanic } = useMechanic();
-  const insets = useSafeAreaInsets();
   const { colors, language } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const palette = useMemo(() => getMechanicThemeColors(colors), [colors]);
   const styles = useMemo(() => createStyles(palette), [palette]);
   const { serviceRequestId, counterpartId } = useLocalSearchParams<{
@@ -165,8 +159,11 @@ function MessagesScreenContent() {
   const activeMessageFilter =
     messageFilter ?? (isMechanic ? 'resolved' : 'all');
   const [conversationOpen, setConversationOpen] = useState(false);
+  const [showRecentConversations, setShowRecentConversations] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [photoPickerVisible, setPhotoPickerVisible] = useState(false);
   const [hasUnlinkedBookings, setHasUnlinkedBookings] = useState(false);
+  const [waitingForMechanic, setWaitingForMechanic] = useState(false);
   const [chatImageSizes, setChatImageSizes] = useState<
     Record<string, { width: number; height: number }>
   >({});
@@ -174,20 +171,12 @@ function MessagesScreenContent() {
     Record<string, boolean>
   >({});
   const [viewingChatImage, setViewingChatImage] = useState<string | null>(null);
-  const chatImageSizeRequests = useRef(new Set<string>());
   const chatImageRefreshRequests = useRef(new Set<string>());
+  const chatImageRefreshAttempts = useRef(new Set<string>());
   const historyListRef = useRef<FlatList<ChatMessage>>(null);
   const initialHistoryPositionSet = useRef(false);
+  const requestedConversationResolved = useRef(false);
   const newestFirstMessages = useMemo(() => [...messages].reverse(), [messages]);
-
-  useEffect(() => {
-    motoristChat?.setConversationOpen(isMechanic === false && conversationOpen);
-  }, [conversationOpen, isMechanic, motoristChat]);
-
-  useEffect(
-    () => () => motoristChat?.setConversationOpen(false),
-    [motoristChat],
-  );
 
   const visibleConversations = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -217,12 +206,36 @@ function MessagesScreenContent() {
       ).length,
     [conversations],
   );
+  const requestedConversationLoading = Boolean(
+    !showRecentConversations &&
+      (requestedServiceRequestId || requestedCounterpartId) &&
+      loading &&
+      !conversation &&
+      !waitingForMechanic &&
+      !error,
+  );
 
   const conversationIsActive = Boolean(
     conversation && ACTIVE_STATUSES.includes(conversation.status.toLowerCase()),
   );
+  const mechanicHasActiveBooking = Boolean(
+    isMechanic &&
+      conversation?.bookings.some((booking) =>
+        ACTIVE_STATUSES.includes(booking.status.toLowerCase()),
+      ),
+  );
+  const isOngoingBookingChat = Boolean(
+    isMechanic &&
+      requestedServiceRequestId &&
+      conversation?.id === requestedServiceRequestId,
+  );
+  const canReplyInConversation =
+    conversationIsActive &&
+    (!mechanicHasActiveBooking || isOngoingBookingChat);
 
   const openConversation = (item: Conversation) => {
+    chatImageRefreshAttempts.current.clear();
+    setChatImageErrors({});
     setConversation(item);
     setConversationOpen(true);
     setMessages([]);
@@ -233,12 +246,25 @@ function MessagesScreenContent() {
 
   useEffect(() => {
     let active = true;
+    requestedConversationResolved.current = false;
+    const activeRequestedServiceRequestId = showRecentConversations
+      ? undefined
+      : requestedServiceRequestId;
+    const activeRequestedCounterpartId = showRecentConversations
+      ? undefined
+      : requestedCounterpartId;
     const loadConversation = async () => {
       setLoading(true);
-      setConversation(null);
-      setConversations([]);
-      setMessages([]);
-      setHasUnlinkedBookings(false);
+      const isRefreshingRequestedConversation = Boolean(
+        activeRequestedServiceRequestId || activeRequestedCounterpartId,
+      );
+      if (!isRefreshingRequestedConversation) {
+        setConversation(null);
+        setConversations([]);
+        setMessages([]);
+        setHasUnlinkedBookings(false);
+        setWaitingForMechanic(false);
+      }
       setError(null);
       if (!session?.user.id) {
         setLoading(false);
@@ -251,10 +277,10 @@ function MessagesScreenContent() {
         .select('id,mechanic_id,motorist_id,status,created_at')
         .eq(isMechanic ? 'mechanic_id' : 'motorist_id', session.user.id)
         .not(counterpartColumn, 'is', null);
-      if (requestedCounterpartId) {
-        requestQuery = requestQuery.eq(counterpartColumn, requestedCounterpartId);
-      } else if (requestedServiceRequestId) {
-        requestQuery = requestQuery.eq('id', requestedServiceRequestId);
+      if (activeRequestedCounterpartId) {
+        requestQuery = requestQuery.eq(counterpartColumn, activeRequestedCounterpartId);
+      } else if (activeRequestedServiceRequestId) {
+        requestQuery = requestQuery.eq('id', activeRequestedServiceRequestId);
       }
       const { data: requests, error: requestError } = await requestQuery.order(
         'created_at',
@@ -282,6 +308,8 @@ function MessagesScreenContent() {
         ),
       ];
       if (counterpartIds.length === 0) {
+        setWaitingForMechanic(Boolean(requestedServiceRequestId) && !isMechanic);
+        setLoadingMessages(false);
         setLoading(false);
         return;
       }
@@ -355,36 +383,80 @@ function MessagesScreenContent() {
       const availableConversations = [...conversationByCounterpart.values()];
       if (!active) return;
       setConversations(availableConversations);
-      const requestedConversation = requestedCounterpartId
+      const requestedConversation = activeRequestedCounterpartId
         ? availableConversations.find(
-            (item) => item.counterpartId === requestedCounterpartId,
+            (item) => item.counterpartId === activeRequestedCounterpartId,
           ) ?? null
-        : requestedServiceRequestId
+        : activeRequestedServiceRequestId
         ? availableConversations.find((item) =>
-            item.requestIds.includes(requestedServiceRequestId),
+            item.requestIds.includes(activeRequestedServiceRequestId),
           ) ?? null
         : null;
+      if (requestedConversation) {
+        requestedConversationResolved.current = true;
+      }
       setConversation(requestedConversation);
       setConversationOpen(Boolean(requestedConversation));
-      setLoadingMessages(Boolean(requestedConversation));
+      if (!requestedConversation) {
+        setLoadingMessages(false);
+      }
+      setWaitingForMechanic(false);
       initialHistoryPositionSet.current = false;
       setLoading(false);
     };
 
     void loadConversation();
+    const refreshInterval =
+      activeRequestedServiceRequestId && !isMechanic
+        ? setInterval(() => {
+            if (!requestedConversationResolved.current) {
+              void loadConversation();
+            }
+          }, 2000)
+        : null;
     return () => {
       active = false;
+      if (refreshInterval) clearInterval(refreshInterval);
     };
   }, [
     isMechanic,
     requestedCounterpartId,
     requestedServiceRequestId,
+    showRecentConversations,
     session?.user.id,
   ]);
 
   useEffect(() => {
     if (!session?.user.id) return;
+    let active = true;
     const ownerColumn = isMechanic ? 'mechanic_id' : 'motorist_id';
+    const refreshBookingStatuses = async () => {
+      const { data: currentRequests, error } = await supabase
+        .from('service_requests')
+        .select('id,status')
+        .eq(ownerColumn, session.user.id);
+      if (!active || error || !currentRequests) return;
+
+      const statusById = new Map(
+        currentRequests.map((request) => [request.id, String(request.status ?? '')]),
+      );
+      const updateConversation = (item: Conversation): Conversation => {
+        const bookings = item.bookings.map((booking) => ({
+          ...booking,
+          status: statusById.get(booking.id) ?? booking.status,
+        }));
+        return {
+          ...item,
+          status: statusById.get(item.id) ?? item.status,
+          bookings,
+          historyStatus: getHistoryStatus(bookings),
+        };
+      };
+      setConversations((current) => current.map(updateConversation));
+      setConversation((current) =>
+        current ? updateConversation(current) : current,
+      );
+    };
     const channel = supabase
       .channel(`message_booking_status_${session.user.id}`)
       .on(
@@ -445,8 +517,13 @@ function MessagesScreenContent() {
         },
       )
       .subscribe();
+    const refreshInterval = setInterval(() => {
+      void refreshBookingStatuses();
+    }, 2000);
 
     return () => {
+      active = false;
+      clearInterval(refreshInterval);
       void supabase.removeChannel(channel);
     };
   }, [isMechanic, session?.user.id]);
@@ -518,7 +595,46 @@ function MessagesScreenContent() {
       if (messagesError) {
         setError(messagesError.message);
       } else {
-        setMessages((data ?? []) as ChatMessage[]);
+        const loadedMessages = (data ?? []) as ChatMessage[];
+        setMessages(loadedMessages);
+        void Promise.all(
+          loadedMessages.map(async (message) => {
+            if (!message.image_url || message.image_url.includes('://')) {
+              return null;
+            }
+            try {
+              const imageUrl = await refreshChatImageUrl(message.image_url);
+              return { id: message.id, imageUrl };
+            } catch (imageError) {
+              console.warn(
+                `Could not load chat photo ${message.id}:`,
+                imageError instanceof Error
+                  ? imageError.message
+                  : imageError,
+              );
+              return null;
+            }
+          }),
+        ).then((refreshedImages) => {
+          if (!active) return;
+          const imageUrlById = new Map(
+            refreshedImages
+              .filter(
+                (
+                  image,
+                ): image is { id: string; imageUrl: string } =>
+                  image !== null,
+              )
+              .map((image) => [image.id, image.imageUrl]),
+          );
+          if (imageUrlById.size === 0) return;
+          setMessages((current) =>
+            current.map((message) => {
+              const imageUrl = imageUrlById.get(message.id);
+              return imageUrl ? { ...message, image_url: imageUrl } : message;
+            }),
+          );
+        });
       }
       setLoadingMessages(false);
     };
@@ -566,9 +682,37 @@ function MessagesScreenContent() {
       supabase.channel(`mechanic_pair_chat_${conversation?.counterpartId}`),
     ).subscribe();
 
+    const refreshTimer = setInterval(() => {
+      if (!active) return;
+      void supabase
+        .from('chat_messages')
+        .select('id,sender_id,recipient_id,body,image_url,created_at')
+        .in('service_request_id', conversationRequestIds)
+        .order('created_at', { ascending: true })
+        .then(({ data: latestData, error: latestError }) => {
+          if (!active) return;
+          if (latestError) {
+            console.warn(
+              'Could not refresh the open conversation:',
+              latestError.message,
+            );
+            return;
+          }
+          const latestMessages = (latestData ?? []) as ChatMessage[];
+          setMessages((current) => {
+            const currentById = new Map(current.map((message) => [message.id, message]));
+            return latestMessages.map((message) => ({
+              ...message,
+              image_url: currentById.get(message.id)?.image_url ?? message.image_url,
+            }));
+          });
+        });
+    }, 1500);
+
     void loadMessages();
     return () => {
       active = false;
+      clearInterval(refreshTimer);
       void supabase.removeChannel(channel);
     };
   }, [
@@ -578,45 +722,21 @@ function MessagesScreenContent() {
     session?.user.id,
   ]);
 
-  useEffect(() => {
-    for (const message of messages) {
-      const imageUrl = message.image_url;
-      if (
-        !imageUrl ||
-        chatImageSizes[imageUrl] ||
-        chatImageErrors[imageUrl] ||
-        chatImageSizeRequests.current.has(imageUrl)
-      ) {
-        continue;
-      }
-
-      chatImageSizeRequests.current.add(imageUrl);
-      Image.getSize(
-        imageUrl,
-        (width, height) => {
-          if (width > 0 && height > 0) {
-            setChatImageSizes((current) => ({
-              ...current,
-              [imageUrl]: { width, height },
-            }));
-          }
-          chatImageSizeRequests.current.delete(imageUrl);
-        },
-        () => {
-          chatImageSizeRequests.current.delete(imageUrl);
-          void refreshConversationImage(message.id, imageUrl);
-        },
-      );
-    }
-  }, [chatImageErrors, chatImageSizes, messages]);
-
   async function refreshConversationImage(messageId: string, imageUrl: string) {
     if (chatImageRefreshRequests.current.has(messageId)) return;
+    if (chatImageRefreshAttempts.current.has(messageId)) {
+      setChatImageErrors((current) => ({ ...current, [imageUrl]: true }));
+      return;
+    }
+    chatImageRefreshAttempts.current.add(messageId);
     chatImageRefreshRequests.current.add(messageId);
-    setChatImageErrors((current) => ({ ...current, [imageUrl]: true }));
+    setChatImageErrors((current) => ({ ...current, [imageUrl]: false }));
     try {
       const refreshedUrl = await refreshChatImageUrl(imageUrl);
-      if (refreshedUrl === imageUrl) return;
+      if (refreshedUrl === imageUrl) {
+        setChatImageErrors((current) => ({ ...current, [imageUrl]: true }));
+        return;
+      }
       setMessages((current) =>
         current.map((message) =>
           message.id === messageId
@@ -630,12 +750,14 @@ function MessagesScreenContent() {
           ? imageError.message
           : 'Unable to reload this chat photo.',
       );
+      setChatImageErrors((current) => ({ ...current, [imageUrl]: true }));
     } finally {
       chatImageRefreshRequests.current.delete(messageId);
     }
   }
 
   async function retryConversationImage(messageId: string, imageUrl: string) {
+    chatImageRefreshAttempts.current.delete(messageId);
     setChatImageErrors((current) => ({ ...current, [imageUrl]: false }));
     await refreshConversationImage(messageId, imageUrl);
   }
@@ -646,7 +768,7 @@ function MessagesScreenContent() {
       !body ||
       !session?.user.id ||
       !conversation ||
-      !conversationIsActive ||
+      !canReplyInConversation ||
       sending
     ) {
       return;
@@ -698,7 +820,7 @@ function MessagesScreenContent() {
     if (
       !session?.user.id ||
       !conversation ||
-      !conversationIsActive ||
+      !canReplyInConversation ||
       uploadingImage
     ) {
       return;
@@ -712,12 +834,6 @@ function MessagesScreenContent() {
         .from('chat-media')
         .upload(path, body, { contentType, upsert: false });
       if (uploadError) throw new Error(uploadError.message);
-      const { data: signedImage, error: signedError } = await supabase.storage
-        .from('chat-media')
-        .createSignedUrl(path, 60 * 60 * 24);
-      if (signedError || !signedImage?.signedUrl) {
-        throw new Error(signedError?.message || 'Unable to prepare the image.');
-      }
       const { data, error: sendError } = await supabase
         .from('chat_messages')
         .insert({
@@ -725,7 +841,7 @@ function MessagesScreenContent() {
           sender_id: session.user.id,
           recipient_id: conversation.counterpartId,
           body: null,
-          image_url: signedImage.signedUrl,
+          image_url: path,
         })
         .select('id,sender_id,recipient_id,body,image_url,created_at')
         .single();
@@ -738,44 +854,37 @@ function MessagesScreenContent() {
     }
   };
 
-  const chooseImage = () => {
-    Alert.alert('Send photo', 'Choose a photo source.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Camera',
-        onPress: () => void (async () => {
-          const result = await ImagePicker.launchCameraAsync({
+  const selectPhotoSource = async (source: 'camera' | 'gallery') => {
+    setPhotoPickerVisible(false);
+    const result =
+      source === 'camera'
+        ? await ImagePicker.launchCameraAsync({
+            mediaTypes: ['images'],
+            quality: 0.8,
+            base64: true,
+          })
+        : await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
             quality: 0.8,
             base64: true,
           });
-          if (!result.canceled && result.assets[0]) await sendImage(result.assets[0]);
-        })(),
-      },
-      {
-        text: 'Gallery',
-        onPress: () => void (async () => {
-          const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
-            quality: 0.8,
-            base64: true,
-          });
-          if (!result.canceled && result.assets[0]) await sendImage(result.assets[0]);
-        })(),
-      },
-    ]);
+    if (!result.canceled && result.assets[0]) {
+      await sendImage(result.assets[0]);
+    }
   };
 
-  const screen = (
+  const chooseImage = () => setPhotoPickerVisible(true);
+
+  return (
     <MechanicScreen
       back
       title="Chat"
       profileHeader={isMechanic === true}
       hideHeader={isMechanic !== true}
-      safeAreaTop={isMechanic === true || conversationOpen}
+      safeAreaTop={isMechanic !== false}
     >
       <View style={[styles.screen, { backgroundColor: colors.bg }]}>
-      {isMechanic === false && !conversationOpen ? (
+      {isMechanic === false ? (
         <MotoristHomeHeader />
       ) : null}
       {isMechanic === false && !conversationOpen && <View style={[styles.messagesHeader, { backgroundColor: colors.bg }]}>
@@ -841,11 +950,7 @@ function MessagesScreenContent() {
           <Text style={[styles.recentTitle, { color: colors.text }]}>RECENT CONVERSATIONS</Text>
         </View>
       </View>}
-      <KeyboardAvoidingView
-        style={[styles.root, { backgroundColor: colors.bg }]}
-        behavior="padding"
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
-      >
+      <View style={[styles.root, { backgroundColor: colors.bg }]}>
         {isMechanic && !conversationOpen ? (
           <View style={[styles.filterRow, styles.mechanicFilterRow]}>
             <Pressable
@@ -902,7 +1007,7 @@ function MessagesScreenContent() {
             </Pressable>
           </View>
         ) : null}
-        {loading && !conversationOpen ? (
+        {(loading || requestedConversationLoading) && !conversationOpen ? (
           <ActivityIndicator color={colors.primary} style={styles.loader} />
         ) : conversations.length === 0 ? (
           <View style={styles.emptyState}>
@@ -912,6 +1017,8 @@ function MessagesScreenContent() {
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
               {error
                 ? 'Unable to load conversations'
+                : waitingForMechanic
+                  ? 'Waiting for mechanic acceptance'
                 : hasUnlinkedBookings
                   ? 'Some bookings are not chat-enabled'
                   : 'No conversations yet'}
@@ -919,6 +1026,8 @@ function MessagesScreenContent() {
             <Text style={[styles.emptyMessage, { color: colors.textMuted }]}>
               {error
                 ? error
+                : waitingForMechanic
+                  ? 'Chat will be available here after a mechanic accepts your booking.'
                 : hasUnlinkedBookings
                   ? 'Guest bookings do not have a motorist account to message.'
                   : isMechanic
@@ -1016,6 +1125,7 @@ function MessagesScreenContent() {
                   setConversationOpen(false);
                   setConversation(null);
                   setMessages([]);
+                  setShowRecentConversations(true);
                 }}
                 accessibilityLabel="Back to conversations"
                 hitSlop={8}
@@ -1047,40 +1157,50 @@ function MessagesScreenContent() {
               </Text>
             ) : null}
             {error ? <Text style={[styles.error, { color: '#EF4444' }]}>{error}</Text> : null}
-            {loadingMessages ? (
-              <View style={styles.chatHistoryLoading}>
-                <ActivityIndicator color={colors.primary} />
-              </View>
-            ) : (
-              <FlatList
-                key={conversation.id}
-                ref={historyListRef}
-                data={newestFirstMessages}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.messageList}
-                inverted
-                automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-                keyboardShouldPersistTaps="handled"
-                onContentSizeChange={() => {
-                  if (initialHistoryPositionSet.current || messages.length === 0) {
-                    return;
-                  }
-                  initialHistoryPositionSet.current = true;
-                  requestAnimationFrame(() => {
-                    historyListRef.current?.scrollToOffset({
-                      offset: 0,
-                      animated: false,
-                    });
-                  });
-                }}
-                ListEmptyComponent={
-                  <Text style={[styles.emptyChat, { color: colors.textMuted }]}>
-                    {conversationIsActive
-                      ? 'Send a message to your mechanic.'
-                      : 'No messages were recorded for this booking.'}
-                  </Text>
-                }
-                renderItem={({ item, index }) => {
+            <KeyboardAvoidingView
+              style={styles.root}
+              enabled={Platform.OS === 'ios' || conversationIsActive}
+              behavior={isMechanic && !isOngoingBookingChat ? 'height' : 'padding'}
+              keyboardVerticalOffset={
+                Platform.OS === 'ios' ? 88 : 40
+              }
+              automaticOffset={!isMechanic || isOngoingBookingChat}
+            >
+                {loadingMessages ? (
+                  <View style={styles.chatHistoryLoading}>
+                    <ActivityIndicator color={colors.primary} />
+                  </View>
+                ) : (
+                  <FlatList
+                    key={conversation.id}
+                    ref={historyListRef}
+                    data={newestFirstMessages}
+                    keyExtractor={(item) => item.id}
+                    style={styles.root}
+                    contentContainerStyle={styles.messageList}
+                    inverted
+                    automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+                    keyboardShouldPersistTaps="handled"
+                    onContentSizeChange={() => {
+                      if (initialHistoryPositionSet.current || messages.length === 0) {
+                        return;
+                      }
+                      initialHistoryPositionSet.current = true;
+                      requestAnimationFrame(() => {
+                        historyListRef.current?.scrollToOffset({
+                          offset: 0,
+                          animated: false,
+                        });
+                      });
+                    }}
+                    ListEmptyComponent={
+                      <Text style={[styles.emptyChat, { color: colors.textMuted }]}>
+                        {conversationIsActive
+                          ? 'Send a message to your mechanic.'
+                          : 'No messages were recorded for this booking.'}
+                      </Text>
+                    }
+                    renderItem={({ item, index }) => {
                 const isMine = item.sender_id === session?.user.id;
                 const originalIndex = messages.length - index - 1;
                 const messageTime = new Date(item.created_at).toLocaleTimeString([], {
@@ -1159,15 +1279,6 @@ function MessagesScreenContent() {
                                 Photo unavailable · Tap to retry
                               </Text>
                             </Pressable>
-                          ) : !chatImageSizes[item.image_url] ? (
-                            <View
-                              style={[
-                                styles.chatImageLoadingPlaceholder,
-                                { backgroundColor: colors.card },
-                              ]}
-                            >
-                              <ActivityIndicator size="small" color={colors.primary} />
-                            </View>
                           ) : (
                             <Pressable
                               onPress={() => setViewingChatImage(item.image_url ?? null)}
@@ -1175,16 +1286,40 @@ function MessagesScreenContent() {
                               accessibilityLabel="View image"
                               style={[
                                 styles.chatImagePreview,
-                                getChatImageDisplaySize(
-                                  chatImageSizes[item.image_url].width,
-                                  chatImageSizes[item.image_url].height,
-                                ),
+                                chatImageSizes[item.id]
+                                  ? getChatImageDisplaySize(
+                                      chatImageSizes[item.id].width,
+                                      chatImageSizes[item.id].height,
+                                    )
+                                  : { width: 220, height: 160 },
+                                { backgroundColor: colors.card },
                               ]}
                             >
-                              <Image
-                                source={{ uri: item.image_url }}
+                              {!chatImageSizes[item.id] ? (
+                                <ActivityIndicator
+                                  style={StyleSheet.absoluteFill}
+                                  color={colors.primary}
+                                />
+                              ) : null}
+                              <ExpoImage
+                                source={{
+                                  uri: item.image_url,
+                                  cacheKey: `chat-message-${item.id}`,
+                                }}
+                                cachePolicy="memory-disk"
+                                contentFit="contain"
                                 style={styles.chatMessageImage}
-                                resizeMode="contain"
+                                onLoad={({ source }) => {
+                                  if (source.width > 0 && source.height > 0) {
+                                    setChatImageSizes((current) => ({
+                                      ...current,
+                                      [item.id]: {
+                                        width: source.width,
+                                        height: source.height,
+                                      },
+                                    }));
+                                  }
+                                }}
                                 onError={() =>
                                   void refreshConversationImage(
                                     item.id,
@@ -1261,49 +1396,52 @@ function MessagesScreenContent() {
                     </View>
                   </View>
                 );
-                }}
-              />
-            )}
-            {conversationIsActive ? <View
-              style={[
-                styles.composer,
-                {
-                  backgroundColor: colors.card,
-                  borderTopColor: colors.border,
-                  paddingBottom: Math.max(insets.bottom, 10),
-                },
-              ]}
-            >
-              <TextInput
-                value={draft}
-                onChangeText={setDraft}
-                placeholder={translateMechanicValue('Type a message...', language)}
-                placeholderTextColor={colors.textMuted}
-                style={[styles.input, { backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }]}
-                multiline
-                maxLength={500}
-                editable={!sending}
-              />
-              <Pressable
-                onPress={chooseImage}
-                disabled={sending || uploadingImage}
-                style={styles.attachButton}
-                accessibilityLabel="Send photo"
-              >
-                {uploadingImage ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="camera-outline" size={22} color={colors.primary} />}
-              </Pressable>
-              <Pressable
-                onPress={() => void sendMessage()}
-                disabled={!draft.trim() || sending || uploadingImage}
-                style={[styles.sendButton, { backgroundColor: colors.primary }, (!draft.trim() || sending) && styles.disabled]}
-                accessibilityLabel="Send message"
-              >
-                {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="send" size={19} color="#FFFFFF" />}
-              </Pressable>
-            </View> : null}
+                    }}
+                  />
+                )}
+              {canReplyInConversation ? (
+                  <View
+                    style={[
+                      styles.composer,
+                      { backgroundColor: colors.card, borderTopColor: colors.border },
+                    ]}
+                  >
+                    <TextInput
+                      value={draft}
+                      onChangeText={setDraft}
+                      placeholder={translateMechanicValue('Type a message...', language)}
+                      placeholderTextColor={colors.textMuted}
+                      style={[styles.input, { backgroundColor: colors.bg, borderColor: colors.border, color: colors.text }]}
+                      multiline
+                      maxLength={500}
+                      editable={!sending}
+                    />
+                    <Pressable
+                      onPress={chooseImage}
+                      disabled={sending || uploadingImage}
+                      style={styles.attachButton}
+                      accessibilityLabel="Send photo"
+                    >
+                      {uploadingImage ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="camera-outline" size={22} color={colors.primary} />}
+                    </Pressable>
+                    <Pressable
+                      onPress={() => void sendMessage()}
+                      disabled={!draft.trim() || sending || uploadingImage}
+                      style={[styles.sendButton, { backgroundColor: colors.primary }, (!draft.trim() || sending) && styles.disabled]}
+                      accessibilityLabel="Send message"
+                    >
+                      {sending ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Ionicons name="send" size={19} color="#FFFFFF" />}
+                    </Pressable>
+                  </View>
+              ) : mechanicHasActiveBooking ? (
+                <Text style={[styles.readOnlyNotice, { color: colors.textMuted }]}>
+                  Please use the ongoing booking to message this customer.
+                </Text>
+              ) : null}
+            </KeyboardAvoidingView>
           </>
         )}
-      </KeyboardAvoidingView>
+      </View>
       <Modal
         visible={viewingChatImage !== null}
         transparent
@@ -1338,11 +1476,92 @@ function MessagesScreenContent() {
           </Pressable>
         </View>
       </Modal>
+      <Modal
+        visible={photoPickerVisible}
+        transparent
+        statusBarTranslucent
+        navigationBarTranslucent
+        animationType="fade"
+        onRequestClose={() => setPhotoPickerVisible(false)}
+      >
+        <View style={styles.photoPickerOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setPhotoPickerVisible(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close photo options"
+          />
+          <View
+            style={[
+              styles.photoPickerSheet,
+              { paddingBottom: Math.max(insets.bottom, 16) },
+            ]}
+          >
+            <View style={styles.photoPickerHandle} />
+            <View style={styles.photoPickerHeader}>
+              <View style={styles.photoPickerHeaderText}>
+                <Text style={styles.photoPickerTitle}>Send a photo</Text>
+                <Text style={styles.photoPickerSubtitle}>
+                  Choose how you want to add an image
+                </Text>
+              </View>
+              <Pressable
+                style={styles.photoPickerClose}
+                onPress={() => setPhotoPickerVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close photo options"
+              >
+                <Ionicons name="close" size={21} color={colors.textMuted} />
+              </Pressable>
+            </View>
+            <View style={styles.photoPickerOptions}>
+              <Pressable
+                style={styles.photoPickerOption}
+                onPress={() => void selectPhotoSource('camera')}
+                accessibilityRole="button"
+              >
+                <Image
+                  source={require('../../assets/images/camera.png')}
+                  style={styles.photoPickerOptionImage}
+                  resizeMode="contain"
+                />
+                <View style={styles.photoPickerOptionCopy}>
+                  <Text style={styles.photoPickerOptionTitle}>Take a photo</Text>
+                  <Text style={styles.photoPickerOptionHint}>Open the camera</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={19} color={colors.textMuted} />
+              </Pressable>
+              <Pressable
+                style={styles.photoPickerOption}
+                onPress={() => void selectPhotoSource('gallery')}
+                accessibilityRole="button"
+              >
+                <Image
+                  source={require('../../assets/images/gallery.png')}
+                  style={styles.photoPickerOptionImage}
+                  resizeMode="contain"
+                />
+                <View style={styles.photoPickerOptionCopy}>
+                  <Text style={styles.photoPickerOptionTitle}>Choose from gallery</Text>
+                  <Text style={styles.photoPickerOptionHint}>
+                    Select an existing image
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={19} color={colors.textMuted} />
+              </Pressable>
+            </View>
+            <Pressable
+              style={styles.photoPickerCancel}
+              onPress={() => setPhotoPickerVisible(false)}
+            >
+              <Text style={styles.photoPickerCancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
       </View>
     </MechanicScreen>
   );
-
-  return screen;
 }
 
 function createStyles(palette: ReturnType<typeof getMechanicThemeColors>) {
@@ -1437,6 +1656,22 @@ function createStyles(palette: ReturnType<typeof getMechanicThemeColors>) {
   chatImageViewer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.96)' },
   chatImageViewerImage: { position: 'absolute', top: '8%', bottom: '8%', width: '100%' },
   chatImageViewerClose: { position: 'absolute', top: 50, right: 16, zIndex: 1, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.18)' },
+  photoPickerOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(16, 24, 40, 0.56)' },
+  photoPickerSheet: { paddingHorizontal: 24, paddingTop: 10, backgroundColor: palette.bgElevated, borderTopLeftRadius: 26, borderTopRightRadius: 26, shadowColor: '#101828', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.16, shadowRadius: 20, elevation: 18 },
+  photoPickerHandle: { width: 38, height: 4, alignSelf: 'center', marginBottom: 16, borderRadius: 2, backgroundColor: palette.border },
+  photoPickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  photoPickerHeaderText: { flex: 1 },
+  photoPickerTitle: { color: palette.text, fontSize: 20, fontWeight: '800' },
+  photoPickerSubtitle: { color: palette.textMuted, fontSize: 13, marginTop: 4 },
+  photoPickerClose: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.bg },
+  photoPickerOptions: { gap: 8 },
+  photoPickerOption: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 16, borderWidth: 1, borderColor: palette.border, borderRadius: 16, backgroundColor: palette.bgElevated },
+  photoPickerOptionImage: { width: 42, height: 42 },
+  photoPickerOptionCopy: { flex: 1 },
+  photoPickerOptionTitle: { color: palette.text, fontSize: 15, fontWeight: '800' },
+  photoPickerOptionHint: { color: palette.textMuted, fontSize: 12, marginTop: 3 },
+  photoPickerCancel: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 8, borderRadius: 12 },
+  photoPickerCancelText: { color: palette.textMuted, fontSize: 14, fontWeight: '800' },
   sendButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.5 },
   });

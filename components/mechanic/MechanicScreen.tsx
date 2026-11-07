@@ -88,7 +88,7 @@ export function MechanicScreen({
             {
               backgroundColor: theme.colors.card,
               marginTop: -headerExtendUp,
-              paddingTop: 10 + headerExtendUp,
+              paddingTop: 4 + headerExtendUp,
             },
           ]}
         >
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
   },
   profileHeader: {
     paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    paddingBottom: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

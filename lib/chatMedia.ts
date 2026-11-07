@@ -4,11 +4,14 @@ import { supabase } from "@/lib/supabase";
 export async function refreshChatImageUrl(imageUrl: string): Promise<string> {
   const signedPathMarker = "/storage/v1/object/sign/chat-media/";
   const markerIndex = imageUrl.indexOf(signedPathMarker);
-  if (markerIndex === -1) return imageUrl;
-
-  const encodedPath = imageUrl
-    .slice(markerIndex + signedPathMarker.length)
-    .split(/[?#]/, 1)[0];
+  const encodedPath =
+    markerIndex === -1
+      ? imageUrl.includes("://")
+        ? null
+        : imageUrl
+      : imageUrl
+          .slice(markerIndex + signedPathMarker.length)
+          .split(/[?#]/, 1)[0];
   if (!encodedPath) return imageUrl;
 
   let path: string;
@@ -16,6 +19,13 @@ export async function refreshChatImageUrl(imageUrl: string): Promise<string> {
     path = decodeURIComponent(encodedPath);
   } catch {
     throw new Error("Unable to read the stored chat photo path.");
+  }
+  if (
+    path.startsWith("/") ||
+    path.split("/").length < 3 ||
+    path.split("/").some((segment) => !segment || segment === "." || segment === "..")
+  ) {
+    throw new Error("The stored chat photo path is invalid.");
   }
 
   const { data, error: signedUrlError } = await supabase.storage

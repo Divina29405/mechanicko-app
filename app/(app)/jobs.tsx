@@ -2,10 +2,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAudioPlayer } from "expo-audio";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { Asset, requestPermissionsAsync } from "expo-media-library";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Dimensions, FlatList, Image, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Dimensions, FlatList, Image, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import ViewShot, { type ViewShotRef } from "react-native-view-shot";
 
@@ -153,83 +152,6 @@ function getReceiptServiceBreakdown(
       price: serviceTotal,
     },
   ];
-}
-
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (character) => {
-    const entities: Record<string, string> = {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;",
-    };
-    return entities[character];
-  });
-}
-
-function getReceiptHtml(
-  job: ServiceRequest,
-  mechanicServicePrices: MechanicServicePrice[],
-  mechanicName: string,
-) {
-  const reference = `#${job.id.slice(0, 8).toUpperCase()}`;
-  const serviceRows = getReceiptServiceBreakdown(job, mechanicServicePrices)
-    .map(
-      (item) => `
-        <tr><td>${escapeHtml(item.service)}</td><td>₱${item.price.toFixed(2)}</td></tr>
-      `,
-    )
-    .join("");
-  const distanceFee = Number(job.delivery_fee ?? 0);
-  const distanceRow =
-    distanceFee > 0
-      ? `<tr><td>Distance fee</td><td>₱${distanceFee.toFixed(2)}</td></tr>`
-      : "";
-  const chargeRows = (job.additional_charges ?? [])
-    .map((charge) => {
-      const value =
-        charge.status === "rejected"
-          ? "Declined"
-          : `₱${Number(charge.amount).toFixed(2)}${
-              charge.status === "pending" ? " (Pending)" : ""
-            }`;
-      return `<tr><td>${escapeHtml(charge.description)}</td><td>${value}</td></tr>`;
-    })
-    .join("");
-  const total = getPayableTotal(job);
-  const createdAt = new Date(job.created_at).toLocaleString("en-PH");
-
-  return `
-    <!doctype html>
-    <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <style>
-          body { font-family: Arial, sans-serif; color: #172033; padding: 28px; }
-          h1 { font-size: 22px; margin: 0 0 8px; }
-          .muted { color: #667085; font-size: 13px; }
-          .reference { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 24px; }
-          td { padding: 12px 0; border-bottom: 1px solid #e4e7ec; font-size: 14px; }
-          td:last-child { text-align: right; font-weight: 700; }
-          .total td { border-top: 2px solid #d0d5dd; border-bottom: 0; font-size: 17px; font-weight: 700; }
-        </style>
-      </head>
-      <body>
-        <h1>Mechaniko Receipt</h1>
-        <p class="reference">Booking reference ${reference}</p>
-        <p class="muted">Mechanic: ${escapeHtml(mechanicName)}</p>
-        <p class="muted">Customer: ${escapeHtml(job.customer_name)} · ${escapeHtml(createdAt)}</p>
-        <table>
-          ${serviceRows}
-          ${distanceRow}
-          ${chargeRows}
-          <tr class="total"><td>Total</td><td>₱${total.toFixed(2)}</td></tr>
-        </table>
-      </body>
-    </html>
-  `;
 }
 
 function distanceInKm(from: Coordinates, to: Coordinates) {
@@ -438,7 +360,7 @@ export default function JobsScreen() {
   const [chargeDescription, setChargeDescription] = useState("");
   const [chargeAmount, setChargeAmount] = useState("");
   const [chargeSubmitting, setChargeSubmitting] = useState(false);
-  const [downloadingReceipt, setDownloadingReceipt] = useState(false);
+  const [chargeKeyboardVisible, setChargeKeyboardVisible] = useState(false);
   const receiptCaptureRef = useRef<ViewShotRef>(null);
   const [otherIssueReason, setOtherIssueReason] = useState("");
   const [enteringOtherReason, setEnteringOtherReason] = useState(false);
@@ -465,6 +387,21 @@ export default function JobsScreen() {
   } | null>(null);
   const [locationTrackingError, setLocationTrackingError] =
     useState<string | null>(null);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSubscription = Keyboard.addListener(showEvent, () => {
+      setChargeKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setChargeKeyboardVisible(false);
+    });
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const issueOptions = [
     "Vehicle or service issue changed",
@@ -1476,6 +1413,8 @@ export default function JobsScreen() {
         ),
       );
       setSelectedJob(null);
+      setLocalFilter("dropped");
+      router.setParams({ filter: "dropped" });
       setEnteringOtherReason(false);
       setOtherIssueReason("");
       setPendingCancellationJob(null);
@@ -1498,54 +1437,6 @@ export default function JobsScreen() {
       );
     } finally {
       setRefreshing(false);
-    }
-  }
-
-  async function downloadReceipt(job: ServiceRequest) {
-    if (downloadingReceipt) return;
-    setDownloadingReceipt(true);
-    try {
-      const html = getReceiptHtml(job, mechanicServicePrices, mechanicName);
-      if (Platform.OS === "web") {
-        const printWindow = window.open("", "_blank");
-        if (!printWindow) {
-          throw new Error(
-            "Allow pop-ups in your browser to print the receipt.",
-          );
-        }
-        printWindow.document.open();
-        printWindow.document.write(html);
-        printWindow.document.close();
-        printWindow.focus();
-        printWindow.onafterprint = () => printWindow.close();
-        printWindow.setTimeout(() => printWindow.print(), 250);
-        return;
-      }
-
-      const permission = await requestPermissionsAsync(true, ["photo"]);
-      if (permission.status !== "granted") {
-        Alert.alert(
-          "Gallery permission required",
-          "Allow photo access to save the receipt image to your gallery.",
-        );
-        return;
-      }
-
-      const imageUri = await receiptCaptureRef.current?.capture();
-      if (!imageUri) {
-        throw new Error("The receipt image could not be created.");
-      }
-      await Asset.create(imageUri);
-      Alert.alert("Receipt saved", "The receipt image is now in your gallery.");
-    } catch (receiptError) {
-      Alert.alert(
-        "Receipt download failed",
-        receiptError instanceof Error
-          ? receiptError.message
-          : "Please try again.",
-      );
-    } finally {
-      setDownloadingReceipt(false);
     }
   }
 
@@ -2013,7 +1904,6 @@ export default function JobsScreen() {
                       #{selectedJob.id.slice(0, 8).toUpperCase()}
                     </Text>
                   </View>
-                  <View style={styles.receiptHeaderActionSpace} />
                 </View>
                 <View style={styles.receiptRow}>
                   <Text style={styles.receiptLabel}>Mechanic</Text>
@@ -2056,23 +1946,6 @@ export default function JobsScreen() {
                   </Text>
                 </View>
                 </ViewShot>
-                <Pressable
-                  accessibilityLabel="Save receipt to gallery"
-                  accessibilityRole="button"
-                  disabled={downloadingReceipt}
-                  onPress={() => void downloadReceipt(selectedJob)}
-                  style={styles.receiptDownloadButton}
-                >
-                  {downloadingReceipt ? (
-                    <ActivityIndicator size="small" color={colors.blue} />
-                  ) : (
-                    <Image
-                      source={require("../../assets/images/downloads.png")}
-                      style={styles.receiptDownloadIcon}
-                      resizeMode="contain"
-                    />
-                  )}
-                </Pressable>
                 {selectedJob.status?.toLowerCase() !== "completed" &&
                 selectedJob.status?.toLowerCase() !== "cancelled" ? (
                   <Pressable
@@ -2336,14 +2209,28 @@ export default function JobsScreen() {
       >
         <KeyboardAvoidingView
           style={styles.chargeModalKeyboard}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
+          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
         >
-          <View style={styles.chargeModalOverlay}>
+          <View
+            style={[
+              styles.chargeModalOverlay,
+              chargeKeyboardVisible && {
+                backgroundColor: colors.bgElevated,
+              },
+            ]}
+          >
             <View
               style={[
                 styles.chargeModalSheet,
+                chargeKeyboardVisible && styles.chargeModalSheetKeyboard,
                 { paddingBottom: Math.max(insets.bottom, spacing.md) },
               ]}
+            >
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.chargeModalScrollContent}
             >
               <View style={styles.chargeModalHandle} />
               <View style={styles.chargeModalHeader}>
@@ -2444,6 +2331,7 @@ export default function JobsScreen() {
                   </Text>
                 </Pressable>
               </View>
+              </ScrollView>
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -2765,8 +2653,8 @@ export default function JobsScreen() {
             </View>
             <KeyboardAvoidingView
               style={styles.chatKeyboardArea}
-              behavior={Platform.OS === "ios" ? "padding" : undefined}
-              keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
+              behavior="padding"
+              keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 40}
             >
               <FlatList
                 key={chatJob.id}
@@ -3510,7 +3398,9 @@ function createStyles(
   mapChoiceCancelText: { color: colors.textMuted, fontSize: 15, fontWeight: "700" },
   chargeModalKeyboard: { flex: 1, justifyContent: "flex-end" },
   chargeModalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(16, 24, 40, 0.56)" },
-  chargeModalSheet: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, backgroundColor: colors.bgElevated, borderTopLeftRadius: 26, borderTopRightRadius: 26, shadowColor: "#101828", shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.14, shadowRadius: 18, elevation: 16 },
+  chargeModalSheet: { maxHeight: "86%", paddingHorizontal: spacing.lg, paddingTop: spacing.sm, backgroundColor: colors.bgElevated, borderTopLeftRadius: 26, borderTopRightRadius: 26, shadowColor: "#101828", shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.14, shadowRadius: 18, elevation: 16 },
+  chargeModalSheetKeyboard: { height: "100%", maxHeight: undefined },
+  chargeModalScrollContent: { flexGrow: 1, paddingBottom: spacing.xs },
   chargeModalHandle: { width: 38, height: 4, alignSelf: "center", marginBottom: spacing.md, borderRadius: 2, backgroundColor: colors.border },
   chargeModalHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   chargeModalIcon: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.blueSoft },
@@ -3537,9 +3427,6 @@ function createStyles(
   receiptCard: { marginTop: spacing.lg, padding: spacing.md, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgElevated },
   receiptImage: { backgroundColor: colors.bgElevated },
   receiptHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
-  receiptHeaderActionSpace: { width: 44, height: 44 },
-  receiptDownloadButton: { position: "absolute", top: spacing.md, right: spacing.md, width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  receiptDownloadIcon: { width: 24, height: 24, tintColor: colors.text },
   receiptEyebrow: { color: colors.textMuted, fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
   receiptTitle: { color: colors.text, fontSize: 16, fontWeight: "800", marginTop: 2 },
   receiptRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.sm, paddingTop: spacing.sm },

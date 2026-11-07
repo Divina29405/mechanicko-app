@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import {
   Animated,
   Image,
-  Platform,
   StyleSheet,
   TouchableOpacity,
   View,
@@ -24,6 +23,8 @@ import { normalizeText } from "@/lib/typography";
 
 const lightAppLogo = require("../assets/images/motoristheadericon.jpg");
 const darkAppLogo = require("../assets/images/motoristheaderdmode.png");
+
+export const MOTORIST_HOME_HEADER_HEIGHT_AFTER_SAFE_AREA = 44;
 
 type MotoristHomeHeaderProps = {
   title?: string;
@@ -107,17 +108,8 @@ export function MotoristHomeHeader({
         styles.topContainer,
         floating && styles.floatingTopContainer,
         {
-          height:
-            Math.max(
-              insets.top,
-              Platform.OS === "ios" ? 58 : 44,
-            ) + 43,
-          paddingTop: Math.max(
-            insets.top,
-            Platform.OS === "ios" ? 58 : 44,
-          ),
+          paddingTop: insets.top + 2,
           backgroundColor: colors.card,
-          borderColor: colors.border,
         },
       ]}
     >
@@ -179,11 +171,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 16, 
-    paddingBottom: 6, 
-    borderWidth: 1,
-    borderTopWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
+    paddingBottom: 6,
     zIndex: 10,
     elevation: 3, 
     shadowColor: "#000",
@@ -200,13 +188,13 @@ const styles = StyleSheet.create({
     shadowRadius: 7,
   },
   headerRow: { 
-    minHeight: 36, 
+    minHeight: 36,
     flexDirection: "row", 
     alignItems: "center" 
   },
   appLogo: { 
     width: 46, 
-    height: 36, 
+    height: 36,
   },
   screenTitle: { 
     flex: 1, 

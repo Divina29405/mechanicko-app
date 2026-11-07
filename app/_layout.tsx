@@ -10,6 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState, type ReactNode } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { AppState, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { LocationGate } from "@/components/LocationGate";
 import { GlobalMotoristRatingPrompt } from "@/components/GlobalMotoristRatingPrompt";
@@ -97,7 +98,7 @@ function GlobalMotoristCancellationNotice() {
   const router = useRouter();
   const [notice, setNotice] = useState<
     | { type: "cancelled"; role: "motorist" | "mechanic" }
-    | { type: "revoked"; reason: string | null }
+    | { type: "revoked"; reason: string | null; declined: boolean }
     | null
   >(null);
 
@@ -120,12 +121,18 @@ function GlobalMotoristCancellationNotice() {
             setNotice({
               type: "revoked",
               reason: String(payload.new.decline_reason ?? "").trim() || null,
+              declined: true,
             });
           } else if (
             ["cancelled", "canceled"].includes(status) &&
             payload.new.cancelled_by === "mechanic"
           ) {
-            setNotice({ type: "cancelled", role: "motorist" });
+            setNotice({
+              type: "revoked",
+              reason:
+                String(payload.new.cancellation_reason ?? "").trim() || null,
+              declined: false,
+            });
           }
         },
       )
@@ -179,13 +186,15 @@ function GlobalMotoristCancellationNotice() {
             <Ionicons name="close" size={36} color="#FFFFFF" />
           </View>
           <Text style={[globalNoticeStyles.title, { color: colors.text }]}>
-            {notice?.type === "revoked" ? "Booking declined" : "Booking cancelled"}
+            {notice?.type === "revoked"
+              ? "Booking moved to Revoked"
+              : "Booking cancelled"}
           </Text>
           <Text
             style={[globalNoticeStyles.message, { color: colors.textMuted }]}
           >
             {notice?.type === "revoked"
-              ? `Your mechanic declined this booking.${notice.reason ? ` Reason: ${notice.reason}` : ""} It has been moved to Revoked.`
+              ? `${notice.declined ? "Your mechanic declined this booking." : "Your booking was cancelled by the mechanic."}${notice.reason ? ` Reason: ${notice.reason}` : ""} It has been moved to Revoked.`
               : notice?.role === "mechanic"
                 ? "The motorist cancelled this booking."
                 : "Your mechanic cancelled this booking."}
@@ -416,15 +425,17 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <ThemeProvider>
-        <AuthProvider>
-          <NotificationProvider>
-            <RootLayoutNav />
-          </NotificationProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <KeyboardProvider statusBarTranslucent={false} navigationBarTranslucent={false}>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <ThemeProvider>
+          <AuthProvider>
+            <NotificationProvider>
+              <RootLayoutNav />
+            </NotificationProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </KeyboardProvider>
   );
 }
 

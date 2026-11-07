@@ -1,5 +1,8 @@
 import { MapWebView, type MapWebViewHandle } from "@/components/MapWebView";
-import { MotoristHomeHeader } from "@/components/MotoristHomeHeader";
+import {
+    MOTORIST_HOME_HEADER_HEIGHT_AFTER_SAFE_AREA,
+    MotoristHomeHeader,
+} from "@/components/MotoristHomeHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import {
@@ -41,7 +44,10 @@ import {
     useWindowDimensions,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+    SafeAreaView,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import EmergencyChecklistScreen from "./emergency-checklist";
 
 const bikeIcon = require("../../assets/images/bike.png");
@@ -322,6 +328,7 @@ export default function MotoristMap() {
   const bookingAcceptedPlayer = useAudioPlayer(bookingAcceptedSound);
   const bookingCancelledPlayer = useAudioPlayer(bookingCancelledSound);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { bookingId, mechanicId } = useLocalSearchParams<{
     bookingId?: string;
     mechanicId?: string;
@@ -1519,8 +1526,12 @@ export default function MotoristMap() {
       };
 
       void loadActiveBooking();
+      const refreshInterval = setInterval(() => {
+        void loadActiveBooking();
+      }, 2000);
       return () => {
         active = false;
+        clearInterval(refreshInterval);
       };
     }, [session]),
   );
@@ -1922,7 +1933,17 @@ export default function MotoristMap() {
         onPress={() => setNearbyMechanicsVisible(true)}
         style={[
           styles.nearbyMechanicsSummary,
-          { top: Platform.OS === "ios" ? 106 : 92 },
+          {
+            top:
+              activeRequest &&
+              ["accepted", "in_transit", "arrived", "in_progress"].includes(
+                String(activeRequest.status).toLowerCase(),
+              )
+                ? insets.top + MOTORIST_HOME_HEADER_HEIGHT_AFTER_SAFE_AREA - 35
+                : Platform.OS === "ios"
+                  ? 66
+                  : 52,
+          },
         ]}
         accessibilityLabel="Show mechanics near you"
       >
@@ -1944,6 +1965,7 @@ export default function MotoristMap() {
         style={[
           styles.ongoingOrderTopNotice,
           {
+            top: insets.top + MOTORIST_HOME_HEADER_HEIGHT_AFTER_SAFE_AREA,
             backgroundColor: colors.softCard,
             borderColor: colors.border,
           },
@@ -2096,7 +2118,10 @@ export default function MotoristMap() {
           <View
             style={[
               styles.nearbyMechanicsSheet,
-              { backgroundColor: colors.card },
+              {
+                backgroundColor: colors.card,
+                paddingBottom: Math.max(insets.bottom + 16, 24),
+              },
             ]}
             onStartShouldSetResponder={() => true}
           >
@@ -2129,8 +2154,18 @@ export default function MotoristMap() {
               </TouchableOpacity>
             </View>
             <ScrollView
+              style={{
+                maxHeight:
+                  5 * 74 +
+                  4 * 10 +
+                  6 +
+                  Math.max(insets.bottom + 16, 24),
+              }}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.nearbyMechanicsList}
+              contentContainerStyle={[
+                styles.nearbyMechanicsList,
+                { paddingBottom: Math.max(insets.bottom + 16, 24) },
+              ]}
             >
               {liveMechanics.length ? (
                 liveMechanics.map((mechanic) => (
@@ -4469,14 +4504,13 @@ const styles = StyleSheet.create({
   },
   ongoingOrderTopNotice: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 101 : 87,
     left: 0,
     right: 0,
     minHeight: 52,
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 0,
-    borderTopWidth: 1,
+    borderTopWidth: 0,
     borderBottomWidth: 1,
     borderColor: "#B8C9F5",
     backgroundColor: "#E8EEFF",
@@ -5159,12 +5193,12 @@ const styles = StyleSheet.create({
   },
   nearbyMechanicsSheet: {
     width: "100%",
-    maxHeight: "68%",
+    maxHeight: "90%",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 20,
     paddingHorizontal: 16,
-    paddingBottom: 24,
+    paddingBottom: 0,
     elevation: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -3 },

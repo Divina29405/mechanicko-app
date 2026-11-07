@@ -1,14 +1,13 @@
 import { Redirect, Tabs, useSegments } from "expo-router";
 import type { BottomTabBarProps } from "expo-router/build/layouts/Tabs.js";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { MechanicProvider } from "@/contexts/MechanicContext";
 import { MechanicSidebarProvider } from "@/contexts/MechanicSidebarContext";
-import { MotoristChatProvider } from "@/contexts/MotoristChatContext";
 import { MechanicText as Text } from "@/components/mechanic/MechanicText";
 import { MechanicThemeProvider, useAppTheme } from "@/contexts/ThemeContext";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
@@ -217,7 +216,6 @@ function CustomerTabs() {
   const { colors, isDarkMode } = useAppTheme();
   const segments = useSegments();
   const currentRoute = String(segments[segments.length - 1]);
-  const [conversationOpen, setConversationOpen] = useState(false);
   const isEmergencyChecklist =
     currentRoute === "emergency-checklist";
   const isFullScreenRoute = ["motorist-settings", "payment-methods"].includes(
@@ -233,16 +231,11 @@ function CustomerTabs() {
       ]}
     />
   );
-  const chatContextValue = useMemo(
-    () => ({ setConversationOpen }),
-    [setConversationOpen],
-  );
 
   return (
-    <MotoristChatProvider value={chatContextValue}>
-      <Tabs
-        detachInactiveScreens={false}
-        screenOptions={{
+    <Tabs
+      detachInactiveScreens={false}
+      screenOptions={{
         headerShown: false,
         animation: "none",
         tabBarActiveTintColor: colors.primary,
@@ -250,19 +243,11 @@ function CustomerTabs() {
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
-          borderTopWidth: 15,
-          height: 112,
-          minHeight: 112,
-          maxHeight: 112,
-          flexShrink: 0,
-          paddingTop: 6,
-          paddingBottom: 8,
-          display:
-            isEmergencyChecklist ||
-            isFullScreenRoute ||
-            (currentRoute === "messages" && conversationOpen)
-              ? "none"
-              : "flex",
+          borderTopWidth: 2,
+          height: 45,
+          paddingTop: 1,
+          paddingBottom: 2,
+          display: isEmergencyChecklist || isFullScreenRoute ? "none" : "flex",
         },
         tabBarLabelStyle: {
           fontSize: normalizeText(12),
@@ -279,7 +264,7 @@ function CustomerTabs() {
         tabBarItemStyle: {
           flex: 0,
           width: "20%",
-          height: 60,
+          height: 45,
           paddingTop: 2,
           paddingBottom: 0,
           justifyContent: "flex-start",
@@ -365,8 +350,7 @@ function CustomerTabs() {
       />
       <Tabs.Screen name="emergency-checklist" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />
-      </Tabs>
-    </MotoristChatProvider>
+    </Tabs>
   );
 }
 

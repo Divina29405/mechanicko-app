@@ -94,33 +94,8 @@ const mechanicDarkTheme = {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const userChangedTheme = useRef(false);
   const [language, setLanguageState] = useState<MechanicLanguage>('en');
   const userChangedLanguage = useRef(false);
-
-  useEffect(() => {
-    let active = true;
-    const loadTheme = async () => {
-      try {
-        const storedTheme =
-          Platform.OS === 'web'
-            ? typeof window !== 'undefined'
-              ? window.localStorage.getItem(THEME_STORAGE_KEY)
-              : null
-            : await SecureStore.getItemAsync(THEME_STORAGE_KEY);
-        if (active && !userChangedTheme.current) {
-          setIsDarkMode(storedTheme === 'dark');
-        }
-      } catch (error) {
-        console.warn('Unable to load saved theme preference:', error);
-      }
-    };
-
-    void loadTheme();
-    return () => {
-      active = false;
-    };
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -151,28 +126,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleTheme = () => {
-    userChangedTheme.current = true;
-    const next = !isDarkMode;
-    setIsDarkMode(next);
-    void (async () => {
-      try {
-        if (Platform.OS === 'web') {
-          if (typeof window !== 'undefined') {
-            window.localStorage.setItem(
-              THEME_STORAGE_KEY,
-              next ? 'dark' : 'light',
-            );
-          }
-        } else {
-          await SecureStore.setItemAsync(
-            THEME_STORAGE_KEY,
-            next ? 'dark' : 'light',
-          );
-        }
-      } catch (error) {
-        console.warn('Unable to save theme preference:', error);
-      }
-    })();
+    setIsDarkMode(false);
   };
   const setLanguage = (nextLanguage: MechanicLanguage) => {
     userChangedLanguage.current = true;
@@ -216,33 +170,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export function MechanicThemeProvider({ children }: { children: ReactNode }) {
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const userChangedTheme = useRef(false);
   const [language, setLanguageState] = useState<MechanicLanguage>('en');
   const userChangedLanguage = useRef(false);
-
-  useEffect(() => {
-    let active = true;
-    const loadTheme = async () => {
-      try {
-        const storedTheme =
-          Platform.OS === 'web'
-            ? typeof window !== 'undefined'
-              ? window.localStorage.getItem(MECHANIC_THEME_STORAGE_KEY)
-              : null
-            : await SecureStore.getItemAsync(MECHANIC_THEME_STORAGE_KEY);
-        if (active && !userChangedTheme.current) {
-          setIsDarkMode(storedTheme === 'dark');
-        }
-      } catch (error) {
-        console.warn('Unable to load saved mechanic theme preference:', error);
-      }
-    };
-
-    void loadTheme();
-    return () => {
-      active = false;
-    };
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -273,28 +202,7 @@ export function MechanicThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleTheme = () => {
-    userChangedTheme.current = true;
-    const next = !isDarkMode;
-    setIsDarkMode(next);
-    void (async () => {
-      try {
-        if (Platform.OS === 'web') {
-          if (typeof window !== 'undefined') {
-            window.localStorage.setItem(
-              MECHANIC_THEME_STORAGE_KEY,
-              next ? 'dark' : 'light',
-            );
-          }
-        } else {
-          await SecureStore.setItemAsync(
-            MECHANIC_THEME_STORAGE_KEY,
-            next ? 'dark' : 'light',
-          );
-        }
-      } catch (error) {
-        console.warn('Unable to save mechanic theme preference:', error);
-      }
-    })();
+    setIsDarkMode(false);
   };
 
   const setLanguage = (nextLanguage: MechanicLanguage) => {
@@ -325,7 +233,7 @@ export function MechanicThemeProvider({ children }: { children: ReactNode }) {
     <ThemeContext.Provider
       value={{
         isDarkMode,
-        colors: isDarkMode ? mechanicDarkTheme : mechanicLightTheme,
+        colors: mechanicLightTheme,
         toggleTheme,
         language,
         setLanguage,
