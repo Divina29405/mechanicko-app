@@ -2,10 +2,11 @@ import { Redirect, Tabs, useSegments } from "expo-router";
 import type { BottomTabBarProps } from "expo-router/build/layouts/Tabs.js";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text as NativeText, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotificationCount } from "@/contexts/NotificationContext";
 import { MechanicProvider } from "@/contexts/MechanicContext";
 import { MechanicSidebarProvider } from "@/contexts/MechanicSidebarContext";
 import { MechanicText as Text } from "@/components/mechanic/MechanicText";
@@ -144,6 +145,7 @@ function MechanicTabBar({
   navigateToTab,
 }: BottomTabBarProps) {
   const { colors } = useAppTheme();
+  const { unreadChatCount } = useNotificationCount();
   const insets = useSafeAreaInsets();
   const visibleRoutes = MECHANIC_TAB_NAMES.flatMap((name) => {
     const route = state.routes.find((item) => item.name === name);
@@ -176,7 +178,11 @@ function MechanicTabBar({
               key={route.key}
               accessibilityRole="button"
               accessibilityState={focused ? { selected: true } : {}}
-              accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
+              accessibilityLabel={
+                route.name === "messages" && unreadChatCount > 0
+                  ? `${label}, ${unreadChatCount} unread messages`
+                  : options.tabBarAccessibilityLabel ?? label
+              }
               testID={options.tabBarButtonTestID}
               onPress={() => {
                 const event = emitter.emit({
@@ -193,11 +199,20 @@ function MechanicTabBar({
               }}
               style={styles.mechanicTabItem}
             >
-              {options.tabBarIcon?.({
-                focused,
-                color,
-                size: 24,
-              })}
+              <View style={styles.mechanicTabIconContainer}>
+                {options.tabBarIcon?.({
+                  focused,
+                  color,
+                  size: 24,
+                })}
+                {route.name === "messages" && unreadChatCount > 0 ? (
+                  <View style={styles.mechanicChatBadge}>
+                    <NativeText style={styles.mechanicChatBadgeText}>
+                      {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                    </NativeText>
+                  </View>
+                ) : null}
+              </View>
               <Text
                 numberOfLines={1}
                 style={[styles.mechanicTabLabel, { color }]}
@@ -214,6 +229,8 @@ function MechanicTabBar({
 
 function CustomerTabs() {
   const { colors, isDarkMode } = useAppTheme();
+  const { unreadChatCount } = useNotificationCount();
+  const insets = useSafeAreaInsets();
   const segments = useSegments();
   const currentRoute = String(segments[segments.length - 1]);
   const isEmergencyChecklist =
@@ -244,9 +261,9 @@ function CustomerTabs() {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
           borderTopWidth: 2,
-          height: 45,
+          height: 45 + insets.bottom,
           paddingTop: 1,
-          paddingBottom: 2,
+          paddingBottom: insets.bottom + 2,
           display: isEmergencyChecklist || isFullScreenRoute ? "none" : "flex",
         },
         tabBarLabelStyle: {
@@ -310,11 +327,25 @@ function CustomerTabs() {
         name="messages"
         options={{
           title: "Messages",
-          tabBarIcon: ({ size }) =>
-            motoristTabIcon(
-              require("../../assets/images/motorist-message-transparent.png"),
-              size,
-            ),
+          tabBarAccessibilityLabel:
+            unreadChatCount > 0
+              ? `Messages, ${unreadChatCount} unread messages`
+              : "Messages",
+          tabBarIcon: ({ size }) => (
+            <View style={styles.mechanicTabIconContainer}>
+              {motoristTabIcon(
+                require("../../assets/images/motorist-message-transparent.png"),
+                size,
+              )}
+              {unreadChatCount > 0 ? (
+                <View style={styles.mechanicChatBadge}>
+                  <Text style={styles.mechanicChatBadgeText}>
+                    {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
@@ -496,6 +527,29 @@ const styles = StyleSheet.create({
     width: "100%",
     minHeight: 58,
     borderTopWidth: 1,
+  },
+  mechanicTabIconContainer: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mechanicChatBadge: {
+    position: "absolute",
+    top: -5,
+    right: -9,
+    minWidth: 17,
+    height: 17,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#D92D20",
+  },
+  mechanicChatBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: "800",
   },
   mechanicTabItems: {
     width: "88%",

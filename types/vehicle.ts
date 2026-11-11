@@ -4,9 +4,40 @@ export const VEHICLE_TYPES = [
   "sedan",
   "suv",
   "van",
+  "pickup",
 ] as const;
 
 export type VehicleType = (typeof VEHICLE_TYPES)[number];
+export type VehiclePricingCategory = "motorcycle" | "four_wheel";
+
+export function getVehicleTypeLabel(type: VehicleType): string {
+  switch (type) {
+    case "car":
+      return "Car";
+    case "motorcycle":
+      return "Motorcycle";
+    case "sedan":
+      return "Sedan / Hatchback";
+    case "suv":
+      return "SUV";
+    case "van":
+      return "Van";
+    case "pickup":
+      return "Pickup";
+  }
+}
+
+export function getVehiclePricingCategory(
+  type: VehicleType | null | undefined,
+): VehiclePricingCategory {
+  return type === "motorcycle" ? "motorcycle" : "four_wheel";
+}
+
+export function getVehiclePricingCategoryForService(
+  category: unknown,
+): VehiclePricingCategory {
+  return category === "four_wheel" ? "four_wheel" : "motorcycle";
+}
 
 export const FUEL_TYPES = ["Gasoline", "Diesel", "Electric"] as const;
 

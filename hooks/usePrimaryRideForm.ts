@@ -6,8 +6,9 @@ import * as SecureStore from "expo-secure-store";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { isValidPlateNumber, sanitizePlateNumber } from "@/lib/plateNumber";
+import type { VehicleType as StoredVehicleType } from "@/types/vehicle";
 
-export type VehicleType = "motorcycle" | "sedan" | "suv" | "van";
+export type VehicleType = Exclude<StoredVehicleType, "car">;
 export type FuelType = "Gasoline" | "Diesel" | "Electric";
 
 export function usePrimaryRideForm() {

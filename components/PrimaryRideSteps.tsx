@@ -3,16 +3,30 @@ import { Image, Pressable, Text, TextInput, View, type ImageStyle, type StylePro
 import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
 import type { Dispatch, SetStateAction } from "react";
 import { sanitizePlateNumber } from "@/lib/plateNumber";
+import type { VehicleType as StoredVehicleType } from "@/types/vehicle";
 
 export type RideStepStyles = Record<
   string,
   StyleProp<ViewStyle & TextStyle & ImageStyle>
 >;
 
+type PrimaryRideVehicleType = Exclude<StoredVehicleType, "car">;
+
 const carIcon = require("../assets/images/car.png");
 const motorcycleIcon = require("../assets/images/motorcycle.png");
 const fuelIcon = require("../assets/images/gasoline-icon.png"); // Corrected asset filename
 const electricIcon = require("../assets/images/electric-icon.png");
+const vehicleOptions: {
+  type: PrimaryRideVehicleType;
+  title: string;
+  description: string;
+}[] = [
+  { type: "motorcycle", title: "Motorcycle", description: "Scooter / Underbone / Big Bike" },
+  { type: "sedan", title: "Sedan / Hatchback", description: "Cars and hatchbacks" },
+  { type: "suv", title: "SUV", description: "Sport utility vehicles" },
+  { type: "van", title: "Van", description: "Passenger and utility vans" },
+  { type: "pickup", title: "Pickup", description: "Pickup trucks" },
+];
 
 export function PrimaryRideSteps({
   styles,
@@ -36,8 +50,8 @@ export function PrimaryRideSteps({
 }: {
   styles: RideStepStyles;
   step: number;
-  selectedVehicle: string | null;
-  setSelectedVehicle: Dispatch<SetStateAction<any>>;
+  selectedVehicle: PrimaryRideVehicleType | null;
+  setSelectedVehicle: Dispatch<SetStateAction<PrimaryRideVehicleType | null>>;
   multipleVehicles: boolean;
   setMultipleVehicles: Dispatch<SetStateAction<boolean>>;
   makeDropdownOpen: boolean;
@@ -67,103 +81,58 @@ export function PrimaryRideSteps({
           </View>
 
           <View style={styles.vehicleGrid}>
-            <Pressable
-              onPress={() => setSelectedVehicle("motorcycle")}
-              style={[
-                styles.vehicleCard,
-                selectedVehicle === "motorcycle" && styles.vehicleCardSelected,
-              ]}
-            >
-              <View
-                style={[
-                  styles.vehicleIcon,
-                  selectedVehicle === "motorcycle" &&
-                    styles.vehicleIconSelected,
-                ]}
-              >
-                <Image
-                  source={motorcycleIcon}
-                  resizeMode="contain"
+            {vehicleOptions.map(({ type, title, description }) => {
+              const selected = selectedVehicle === type;
+              return (
+                <Pressable
+                  key={type}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => setSelectedVehicle(type)}
                   style={[
-                    styles.vehicleImage,
-                    { tintColor: selectedVehicle === "motorcycle" ? "#FFFFFF" : "#1E3A8A" }, 
+                    styles.vehicleCard,
+                    selected && styles.vehicleCardSelected,
                   ]}
-                />
-              </View>
-              {selectedVehicle === "motorcycle" ? (
-                <View style={styles.selectedCheck}>
-                  <Ionicons name="checkmark" size={14} color="#24439A" />
-                </View>
-              ) : null}
-              <Text
-                style={[
-                  styles.vehicleTitle,
-                  selectedVehicle === "motorcycle" &&
-                    styles.vehicleCardSelectedText,
-                ]}
-              >
-                Motorcycle
-              </Text>
-              <Text
-                style={[
-                  styles.vehicleDescription,
-                  selectedVehicle === "motorcycle"
-                    ? styles.vehicleCardSelectedText
-                    : null,
-                ]}
-              >
-                Scooter / Underbone / Big Bike
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => setSelectedVehicle("car")}
-              style={[
-                styles.vehicleCard,
-                (selectedVehicle === "car" || selectedVehicle === "sedan") && styles.vehicleCardSelected,
-              ]}
-            >
-              <View
-                style={[
-                  styles.vehicleIcon,
-                  (selectedVehicle === "car" || selectedVehicle === "sedan") &&
-                    styles.vehicleIconSelected,
-                ]}
-              >
-                <Image
-                  source={carIcon}
-                  resizeMode="contain"
-                  style={[
-                    styles.vehicleImage,
-                    { tintColor: (selectedVehicle === "car" || selectedVehicle === "sedan") ? "#FFFFFF" : "#1E3A8A" }, 
-                  ]}
-                />
-              </View>
-              {(selectedVehicle === "car" || selectedVehicle === "sedan") ? (
-                <View style={styles.selectedCheck}>
-                  <Ionicons name="checkmark" size={14} color="#24439A" />
-                </View>
-              ) : null}
-              <Text
-                style={[
-                  styles.vehicleTitle,
-                  (selectedVehicle === "car" || selectedVehicle === "sedan") &&
-                    styles.vehicleCardSelectedText,
-                ]}
-              >
-                Car / SUV
-              </Text>
-              <Text
-                style={[
-                  styles.vehicleDescription,
-                  (selectedVehicle === "car" || selectedVehicle === "sedan")
-                    ? styles.vehicleCardSelectedText
-                    : null,
-                ]}
-              >
-                Sedan / Hatchback / SUV
-              </Text>
-            </Pressable>
+                >
+                  <View
+                    style={[
+                      styles.vehicleIcon,
+                      selected && styles.vehicleIconSelected,
+                    ]}
+                  >
+                    <Image
+                      source={type === "motorcycle" ? motorcycleIcon : carIcon}
+                      resizeMode="contain"
+                      style={[
+                        styles.vehicleImage,
+                        { tintColor: selected ? "#FFFFFF" : "#1E3A8A" },
+                      ]}
+                    />
+                  </View>
+                  {selected ? (
+                    <View style={styles.selectedCheck}>
+                      <Ionicons name="checkmark" size={14} color="#24439A" />
+                    </View>
+                  ) : null}
+                  <Text
+                    style={[
+                      styles.vehicleTitle,
+                      selected && styles.vehicleCardSelectedText,
+                    ]}
+                  >
+                    {title}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.vehicleDescription,
+                      selected ? styles.vehicleCardSelectedText : null,
+                    ]}
+                  >
+                    {description}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
 
           <Pressable

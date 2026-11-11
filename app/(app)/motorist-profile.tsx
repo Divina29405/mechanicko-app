@@ -17,7 +17,7 @@ import {
   subscribeToSharedAvatar,
 } from '@/lib/avatarStore';
 import { listVehicles, setPrimaryVehicle } from '@/services/vehicleService';
-import type { Vehicle } from '@/types/vehicle';
+import { getVehicleTypeLabel, type Vehicle, type VehicleType } from '@/types/vehicle';
 import { normalizeText } from '@/lib/typography';
 import { isValidPlateNumber, sanitizePlateNumber } from '@/lib/plateNumber';
 
@@ -69,7 +69,7 @@ export default function MotoristProfileScreen() {
   const [motoristVehicles, setMotoristVehicles] = useState<Vehicle[]>([]);
   const [vehiclesLoadedFor, setVehiclesLoadedFor] = useState<string | null>(null);
   const [addVehicleVisible, setAddVehicleVisible] = useState(false);
-  const [vehicleType, setVehicleType] = useState<'car' | 'motorcycle'>('motorcycle');
+  const [vehicleType, setVehicleType] = useState<Exclude<VehicleType, 'car'>>('motorcycle');
   const [vehicleMake, setVehicleMake] = useState('');
   const [vehicleModel, setVehicleModel] = useState('');
   const [vehicleYear, setVehicleYear] = useState('');
@@ -523,7 +523,7 @@ export default function MotoristProfileScreen() {
           >
             <View style={[styles.vehicleIconBox, { backgroundColor: colors.softCard }]}>
               <Image
-                source={vehicle.type === 'car' ? carIcon : motorcycleIcon}
+                source={vehicle.type === 'motorcycle' ? motorcycleIcon : carIcon}
                 resizeMode="contain"
                 style={[
                   styles.vehicleIconImage,
@@ -536,7 +536,7 @@ export default function MotoristProfileScreen() {
                 {vehicle.make} {vehicle.model}
               </Text>
               <Text style={[styles.vehiclePlate, { color: colors.textMuted }]}>
-                {vehicle.year}  •  Plate: {vehicle.plate_number}
+                {getVehicleTypeLabel(vehicle.type)}  •  {vehicle.year}  •  Plate: {vehicle.plate_number}
               </Text>
               <TouchableOpacity
                 onPress={() => void makePrimaryVehicle(vehicle)}
@@ -786,7 +786,7 @@ export default function MotoristProfileScreen() {
           </View>
           <View style={styles.addVehicleForm}>
             <View style={styles.vehicleTypeRow}>
-              {(['motorcycle', 'car'] as const).map((type) => (
+              {(['motorcycle', 'sedan', 'suv', 'van', 'pickup'] as const).map((type) => (
                 <TouchableOpacity
                   key={type}
                   onPress={() => setVehicleType(type)}
@@ -796,7 +796,7 @@ export default function MotoristProfileScreen() {
                   ]}
                 >
                   <Image
-                    source={type === 'car' ? carIcon : motorcycleIcon}
+                    source={type === 'motorcycle' ? motorcycleIcon : carIcon}
                     resizeMode="contain"
                     style={[
                       styles.vehicleTypeIcon,
@@ -807,8 +807,8 @@ export default function MotoristProfileScreen() {
                       },
                     ]}
                   />
-                  <Text style={{ color: vehicleType === type ? '#FFFFFF' : colors.text, fontWeight: '700', fontSize: normalizeText(15) }}>
-                    {type === 'car' ? 'Car' : 'Motorcycle'}
+                  <Text style={{ color: vehicleType === type ? '#FFFFFF' : colors.text, fontWeight: '700', fontSize: normalizeText(14) }}>
+                    {getVehicleTypeLabel(type)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -1193,8 +1193,8 @@ const styles = StyleSheet.create({
   logoutButtonText: { color: '#D92D20', fontSize: normalizeText(16), fontWeight: '800' },
   settingsRowSubtitle: { fontSize: normalizeText(14), marginTop: 2 },
   addVehicleForm: { padding: 22, gap: 16 },
-  vehicleTypeRow: { flexDirection: 'row', gap: 12 },
-  vehicleTypeButton: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderRadius: 10 },
+  vehicleTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  vehicleTypeButton: { width: '48%', minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderRadius: 10 },
   vehicleTypeIcon: { width: 25, height: 25 },
   vehicleInput: { minHeight: 52, borderWidth: 1, borderRadius: 10, paddingHorizontal: 16, fontSize: normalizeText(17) },
   saveVehicleButton: { minHeight: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#0037B0', marginTop: 4 },

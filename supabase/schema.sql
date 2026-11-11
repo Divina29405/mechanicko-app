@@ -365,6 +365,17 @@ begin
   from public.profiles mechanic
   where mechanic.role = 'mechanic'
     and mechanic.application_status = 'approved'
+    and mechanic.is_online = true
+    and mechanic.home_latitude is not null
+    and mechanic.home_longitude is not null
+    and new.latitude is not null
+    and new.longitude is not null
+    and mechanic.id <> new.motorist_id::uuid
+    and 6371 * 2 * asin(sqrt(least(1.0,
+      power(sin(radians(mechanic.home_latitude - new.latitude) / 2), 2) +
+      cos(radians(new.latitude)) * cos(radians(mechanic.home_latitude)) *
+      power(sin(radians(mechanic.home_longitude - new.longitude) / 2), 2)
+    ))) <= greatest(coalesce(new.search_radius_km, 5), 0)
     and not exists (
       select 1
       from public.app_notifications existing_notification

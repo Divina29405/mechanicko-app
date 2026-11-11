@@ -18,6 +18,7 @@ const notificationSound = require("../assets/soundeffects/notification.mp3");
 type UnreadState = {
   userId: string | undefined;
   count: number;
+  chatCount: number;
 };
 
 export type NotificationPreview = {
@@ -31,6 +32,7 @@ export type NotificationPreview = {
 
 type NotificationContextValue = {
   unreadCount: number;
+  unreadChatCount: number;
   markNotificationRead: () => void;
   markAllNotificationsRead: () => void;
   notificationPreview: NotificationPreview | null;
@@ -48,12 +50,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [unreadState, setUnreadState] = useState<UnreadState>({
     userId: undefined,
     count: 0,
+    chatCount: 0,
   });
   const [previewState, setPreviewState] = useState<{
     userId: string;
     notification: NotificationPreview;
   } | null>(null);
   const unreadCount = unreadState.userId === userId ? unreadState.count : 0;
+  const unreadChatCount =
+    unreadState.userId === userId ? unreadState.chatCount : 0;
   const notificationPreview =
     previewState && previewState.userId === userId
       ? previewState.notification
@@ -61,25 +66,42 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!userId) {
-      setUnreadState({ userId: undefined, count: 0 });
+      setUnreadState({ userId: undefined, count: 0, chatCount: 0 });
       return;
     }
 
     let active = true;
     const loadUnreadCount = async () => {
       try {
-        const { count, error } = await supabase
-          .from("app_notifications")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", userId)
-          .gte("created_at", getNotificationCutoff())
-          .is("read_at", null);
+        const [allNotifications, chatNotifications] = await Promise.all([
+          supabase
+            .from("app_notifications")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", userId)
+            .gte("created_at", getNotificationCutoff())
+            .is("read_at", null),
+          supabase
+            .from("app_notifications")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", userId)
+            .eq("type", "chat_message")
+            .gte("created_at", getNotificationCutoff())
+            .is("read_at", null),
+        ]);
         if (!active) return;
-        if (error) {
-          console.warn("Could not load unread notification count:", error.message);
+        if (allNotifications.error || chatNotifications.error) {
+          console.warn(
+            "Could not load unread notification counts:",
+            allNotifications.error?.message ??
+              chatNotifications.error?.message,
+          );
           return;
         }
-        setUnreadState({ userId, count: count ?? 0 });
+        setUnreadState({
+          userId,
+          count: allNotifications.count ?? 0,
+          chatCount: chatNotifications.count ?? 0,
+        });
       } catch (error) {
         if (active) {
           console.warn("Could not load unread notification count:", error);
@@ -153,7 +175,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [userId]);
 
   const markAllNotificationsRead = useCallback(() => {
-    if (userId) setUnreadState({ userId, count: 0 });
+    if (userId) setUnreadState({ userId, count: 0, chatCount: 0 });
   }, [userId]);
 
   const dismissNotificationPreview = useCallback(() => {
@@ -163,6 +185,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       unreadCount,
+      unreadChatCount,
       markNotificationRead,
       markAllNotificationsRead,
       notificationPreview,
@@ -170,6 +193,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }),
     [
       unreadCount,
+      unreadChatCount,
       markNotificationRead,
       markAllNotificationsRead,
       notificationPreview,

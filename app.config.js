@@ -25,6 +25,7 @@ module.exports = ({ config }) => ({
   },
   plugins: [
     ...(config.plugins ?? []),
+    "expo-asset",
     "expo-font",
     [
       "expo-media-library",

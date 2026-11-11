@@ -90,6 +90,8 @@ const translations: Record<string, string> = {
   'You can always log back in at any time.': 'Maaari kang mag-log in muli anumang oras.',
   'List your motorcycle maintenance labor and prices for customers to see.': 'Ilista ang labor at presyo ng maintenance ng motorsiklo para makita ng mga customer.',
   'Add the motorcycle services you provide. Separate each service with a comma or a new line.': 'Idagdag ang mga serbisyong ginagawa mo para sa motorsiklo. Paghiwalayin ang bawat serbisyo gamit ang kuwit o bagong linya.',
+  'Set separate labor prices for motorcycles and four-wheel vehicles.': 'Magtakda ng magkahiwalay na presyo ng labor para sa motorsiklo at four-wheel na sasakyan.',
+  'Add the vehicle services you provide. Separate each service with a comma or a new line.': 'Idagdag ang mga serbisyong ginagawa mo para sa mga sasakyan. Paghiwalayin ang bawat serbisyo gamit ang kuwit o bagong linya.',
   'No specializations added yet. Add them above to display your services.': 'Wala pang naidagdag na espesyalisasyon. Idagdag ang mga ito sa itaas para ipakita ang iyong mga serbisyo.',
   'Update the service name or price.': 'I-update ang pangalan o presyo ng serbisyo.',
   'Set Home Address': 'Itakda ang tirahan',

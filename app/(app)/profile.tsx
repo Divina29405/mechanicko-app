@@ -31,12 +31,19 @@ import { useAppTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { getMechanicThemeColors, radii, spacing } from '@/lib/theme';
 import { createVehicle, listVehicles, setPrimaryVehicle } from '@/services/vehicleService';
-import type { FuelType, Vehicle, VehicleType } from '@/types/vehicle';
+import { getVehicleTypeLabel } from '@/types/vehicle';
+import type {
+  FuelType,
+  Vehicle,
+  VehiclePricingCategory,
+  VehicleType,
+} from '@/types/vehicle';
 import { isValidPlateNumber, sanitizePlateNumber } from '@/lib/plateNumber';
 
 type MaintenancePrice = {
   service: string;
   price: string;
+  vehicle_category: VehiclePricingCategory;
 };
 
 type SelectedAddress = {
@@ -106,9 +113,13 @@ export default function ProfileScreen() {
   const [editingPriceIndex, setEditingPriceIndex] = useState<number | null>(null);
   const [editingService, setEditingService] = useState('');
   const [editingPrice, setEditingPrice] = useState('');
+  const [editingPriceVehicleCategory, setEditingPriceVehicleCategory] =
+    useState<VehiclePricingCategory>('motorcycle');
   const [specializationDraft, setSpecializationDraft] = useState('');
   const [newService, setNewService] = useState('');
   const [newPrice, setNewPrice] = useState('');
+  const [newPriceVehicleCategory, setNewPriceVehicleCategory] =
+    useState<VehiclePricingCategory>('motorcycle');
   const [savingSpecializations, setSavingSpecializations] = useState(false);
   const [savingPrices, setSavingPrices] = useState(false);
   const [priceAdded, setPriceAdded] = useState(false);
@@ -202,7 +213,13 @@ export default function ProfileScreen() {
       setSpecializationDraft(mergedProfile.skills ?? '');
       setMaintenancePrices(
         Array.isArray(mergedProfile.maintenance_pricing)
-          ? mergedProfile.maintenance_pricing
+          ? mergedProfile.maintenance_pricing.map((item) => ({
+              ...item,
+              vehicle_category:
+                item.vehicle_category === 'four_wheel'
+                  ? 'four_wheel'
+                  : 'motorcycle',
+            }))
           : [],
       );
     };
@@ -405,7 +422,14 @@ export default function ProfileScreen() {
       Alert.alert('Invalid price', 'Enter a valid price greater than zero.');
       return;
     }
-    const nextPrices = [...maintenancePrices, { service, price }];
+    const nextPrices = [
+      ...maintenancePrices,
+      {
+        service,
+        price,
+        vehicle_category: newPriceVehicleCategory,
+      },
+    ];
     setPriceAdded(false);
     const saved = await saveMaintenancePrices(nextPrices);
     if (saved) {
@@ -429,7 +453,13 @@ export default function ProfileScreen() {
       return;
     }
     const nextPrices = maintenancePrices.map((item, itemIndex) =>
-      itemIndex === index ? { service, price } : item,
+      itemIndex === index
+        ? {
+            service,
+            price,
+            vehicle_category: editingPriceVehicleCategory,
+          }
+        : item,
     );
     if (await saveMaintenancePrices(nextPrices)) {
       setEditingPriceIndex(null);
@@ -1133,7 +1163,7 @@ export default function ProfileScreen() {
                     </Text>
                   </View>
                   <View style={styles.garageChoiceRow}>
-                    {(['motorcycle', 'car'] as const).map((type) => (
+                    {(['motorcycle', 'sedan', 'suv', 'van', 'pickup'] as const).map((type) => (
                       <Pressable
                         key={type}
                         onPress={() => setGarageVehicleType(type)}
@@ -1148,7 +1178,7 @@ export default function ProfileScreen() {
                             garageVehicleType === type && styles.garageChoiceTextSelected,
                           ]}
                         >
-                          {type === 'motorcycle' ? 'Motorcycle' : 'Car'}
+                          {getVehicleTypeLabel(type)}
                         </Text>
                       </Pressable>
                     ))}
@@ -1349,9 +1379,35 @@ export default function ProfileScreen() {
             ) : expandedSection === 'maintenance-pricing' ? (
               <>
                 <Text style={styles.detailIntro}>
-                  List your motorcycle maintenance labor and prices for customers to see.
+                  Set separate labor prices for motorcycles and four-wheel vehicles.
                 </Text>
                 <View style={styles.priceForm}>
+                  <View style={styles.pricingCategoryRow}>
+                    {([
+                      ['motorcycle', 'Motorcycle'],
+                      ['four_wheel', 'Four-wheel'],
+                    ] as const).map(([category, label]) => (
+                      <Pressable
+                        key={category}
+                        onPress={() => setNewPriceVehicleCategory(category)}
+                        style={[
+                          styles.pricingCategoryButton,
+                          newPriceVehicleCategory === category &&
+                            styles.pricingCategoryButtonSelected,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.pricingCategoryText,
+                            newPriceVehicleCategory === category &&
+                              styles.pricingCategoryTextSelected,
+                          ]}
+                        >
+                          {label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
                   <TextInput
                     value={newService}
                     onChangeText={setNewService}
@@ -1386,13 +1442,16 @@ export default function ProfileScreen() {
                     <View key={`${item.service}-${index}`}>
                       <View style={styles.detailItem}>
                         <Ionicons name="construct-outline" size={20} color={colors.amber} />
-                        <Text style={styles.detailItemText}>{item.service}</Text>
+                        <Text style={styles.detailItemText}>
+                          {item.service} · {item.vehicle_category === 'four_wheel' ? 'Four-wheel' : 'Motorcycle'}
+                        </Text>
                         <Text style={styles.priceValue}>{item.price}</Text>
                         <Pressable
                           onPress={() => {
                             setEditingPriceIndex(index);
                             setEditingService(item.service);
                             setEditingPrice(item.price);
+                            setEditingPriceVehicleCategory(item.vehicle_category);
                           }}
                           disabled={savingPrices}
                           hitSlop={8}
@@ -1415,7 +1474,7 @@ export default function ProfileScreen() {
             ) : expandedSection === 'specializations' ? (
               <>
                 <Text style={styles.detailIntro}>
-                  Add the motorcycle services you provide. Separate each service with a comma or a new line.
+                  Add the vehicle services you provide. Separate each service with a comma or a new line.
                 </Text>
                 <TextInput
                   value={specializationDraft}
@@ -1542,6 +1601,35 @@ export default function ProfileScreen() {
                     >
                       <Ionicons name="close" size={22} color={colors.textMuted} />
                     </Pressable>
+                  </View>
+                  <View style={styles.editPriceField}>
+                    <Text style={styles.editPriceLabel}>Vehicle category</Text>
+                    <View style={styles.pricingCategoryRow}>
+                      {([
+                        ['motorcycle', 'Motorcycle'],
+                        ['four_wheel', 'Four-wheel'],
+                      ] as const).map(([category, label]) => (
+                        <Pressable
+                          key={category}
+                          onPress={() => setEditingPriceVehicleCategory(category)}
+                          style={[
+                            styles.pricingCategoryButton,
+                            editingPriceVehicleCategory === category &&
+                              styles.pricingCategoryButtonSelected,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.pricingCategoryText,
+                              editingPriceVehicleCategory === category &&
+                                styles.pricingCategoryTextSelected,
+                            ]}
+                          >
+                            {label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
                   </View>
                   <View style={styles.editPriceField}>
                     <Text style={styles.editPriceLabel}>Service name</Text>
@@ -1974,6 +2062,32 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
     borderRadius: radii.md,
     backgroundColor: colors.blueSoft,
   },
+  pricingCategoryRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  pricingCategoryButton: {
+    flex: 1,
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    backgroundColor: colors.bgElevated,
+  },
+  pricingCategoryButtonSelected: {
+    borderColor: colors.blue,
+    backgroundColor: colors.blue,
+  },
+  pricingCategoryText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  pricingCategoryTextSelected: {
+    color: colors.white,
+  },
   specializationInput: {
     minHeight: 76,
     padding: 12,
@@ -2020,10 +2134,11 @@ function createStyles(colors: ReturnType<typeof getMechanicThemeColors>) {
   },
   garageChoiceRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 6,
   },
   garageChoice: {
-    flex: 1,
+    width: '31%',
     minHeight: 36,
     alignItems: 'center',
     justifyContent: 'center',

@@ -11,6 +11,7 @@ import { Platform } from "react-native";
 import {
   createContext,
   useContext,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -48,6 +49,10 @@ type AuthContextValue = {
   signInAsMechanic: (email: string, password: string) => Promise<AuthResult>;
   signInAsAdmin: (email: string, password: string) => Promise<AuthResult>;
   signInWithGoogle: () => Promise<AuthResult>;
+  completeGoogleSignInFromUrl: (
+    callbackUrl: string,
+    expectedRole?: AuthRole,
+  ) => Promise<AuthResult>;
   signUp: (
     email: string,
     password: string,
@@ -69,7 +74,10 @@ async function getAccountStatus(userId: string) {
     .eq("id", userId)
     .maybeSingle();
 
-  if (!error && data) {
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (data) {
     return data as Pick<ProfileRecord, "role" | "application_status">;
   }
 
@@ -78,6 +86,9 @@ async function getAccountStatus(userId: string) {
     .select("status")
     .eq("id", userId)
     .maybeSingle();
+  if (application.error) {
+    throw new Error(application.error.message);
+  }
   if (application.data) {
     return {
       role: "mechanic",
@@ -183,9 +194,54 @@ async function completeSignIn(
   user: Session["user"],
   expectedRole?: AuthRole,
 ) {
-  const profile = await getAccountStatus(user.id);
+  let profile: Pick<ProfileRecord, "role" | "application_status"> | null;
+  try {
+    profile = await getAccountStatus(user.id);
+  } catch (profileError) {
+    return {
+      error:
+        profileError instanceof Error
+          ? `Unable to verify your account: ${profileError.message}`
+          : "Unable to verify your account.",
+    };
+  }
+
+  if (!profile && expectedRole !== "mechanic" && expectedRole !== "admin") {
+    const metadataName =
+      typeof user.user_metadata?.full_name === "string"
+        ? user.user_metadata.full_name
+        : typeof user.user_metadata?.name === "string"
+          ? user.user_metadata.name
+          : "";
+    const profileError = await upsertProfile(
+      user.id,
+      user.email ?? "",
+      metadataName || "User",
+      "customer",
+    );
+    if (profileError) {
+      return {
+        error: `Unable to prepare your customer profile: ${profileError}`,
+      };
+    }
+    profile = { role: "customer", application_status: "approved" };
+  }
+
   if (expectedRole && profile?.role !== expectedRole) {
     await supabase.auth.signOut();
+    if (
+      (expectedRole === "customer" || expectedRole === "mechanic") &&
+      (profile?.role === "customer" || profile?.role === "mechanic")
+    ) {
+      const actualRole =
+        profile.role === "mechanic" ? "mechanic" : "motorist";
+      const requestedRole =
+        expectedRole === "mechanic" ? "mechanic" : "motorist";
+      return {
+        error:
+          `This account is registered as a ${actualRole}, not a ${requestedRole}. Please choose the matching sign-in or use a different email.`,
+      };
+    }
     const roleName =
       expectedRole === "admin"
         ? "admin"
@@ -209,6 +265,37 @@ async function completeSignIn(
   }
 
   return { error: null };
+}
+
+function getGoogleCallbackError(callbackUrl: URL) {
+  const hash = new URLSearchParams(callbackUrl.hash.replace(/^#/, ""));
+  const errorCode =
+    callbackUrl.searchParams.get("error_code") ??
+    hash.get("error_code") ??
+    callbackUrl.searchParams.get("error") ??
+    hash.get("error");
+  const description =
+    callbackUrl.searchParams.get("error_description") ??
+    hash.get("error_description");
+  if (!errorCode && !description) return null;
+
+  const errorDetails = `${errorCode ?? ""} ${description ?? ""}`.toLowerCase();
+  if (isExistingAccountError(errorDetails)) {
+    return "This Google email is already associated with an account. Sign in using that account's original method, or choose another Google account.";
+  }
+
+  return description || errorCode || "Google sign-in could not be completed.";
+}
+
+function isExistingAccountError(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    ["user_already_exists", "identity_already_exists", "email_exists"].some(
+      (code) => normalized.includes(code),
+    ) ||
+    normalized.includes("user already registered") ||
+    normalized.includes("identity already exists")
+  );
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -332,12 +419,99 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const completeGoogleSignInFromUrl = useCallback(
+    async (
+      callbackUrl: string,
+      expectedRole: AuthRole = "customer",
+    ): Promise<AuthResult> => {
+      if (!isSupabaseConfigured) {
+        return { error: "Google login needs Supabase to be configured." };
+      }
+
+      authOperationInProgress.current = true;
+      try {
+        const parsedUrl = new URL(callbackUrl);
+        const callbackError = getGoogleCallbackError(parsedUrl);
+        if (callbackError) return { error: callbackError };
+
+        const hash = new URLSearchParams(parsedUrl.hash.replace(/^#/, ""));
+        const code = parsedUrl.searchParams.get("code");
+        const accessToken = hash.get("access_token");
+        const refreshToken = hash.get("refresh_token");
+
+        if (code) {
+          const exchanged = await supabase.auth.exchangeCodeForSession(code);
+          if (exchanged.error) {
+            const existingSession = await supabase.auth.getSession();
+            if (existingSession.error || !existingSession.data.session) {
+              const exchangeError = isExistingAccountError(
+                exchanged.error.message,
+              )
+                ? "This Google email is already associated with an account. Sign in using that account's original method, or choose another Google account."
+                : exchanged.error.message;
+              return {
+                error:
+                    exchangeError ||
+                    "Google sign-in could not complete its secure callback.",
+              };
+            }
+          }
+        } else if (accessToken && refreshToken) {
+          const sessionResult = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (sessionResult.error) {
+            const existingSession = await supabase.auth.getSession();
+            if (existingSession.error || !existingSession.data.session) {
+              return { error: sessionResult.error.message };
+            }
+          }
+        } else {
+          return {
+            error: "Google sign-in returned no authorization code or session.",
+          };
+        }
+
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        const currentSession = data.session;
+        if (sessionError || !currentSession) {
+          return {
+            error: sessionError?.message ?? "Google sign-in did not create a session.",
+          };
+        }
+
+        const signInResult = await completeSignIn(
+          currentSession.user,
+          expectedRole,
+        );
+        if (signInResult.error) return signInResult;
+
+        setSignedOutRole(null);
+        setAuthenticatedRole(null);
+        setSession(currentSession);
+        return { error: null };
+      } catch (callbackFailure) {
+        return {
+          error:
+            callbackFailure instanceof Error
+              ? callbackFailure.message
+              : "Google sign-in callback failed.",
+        };
+      } finally {
+        authOperationInProgress.current = false;
+      }
+    },
+    [],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
       authenticatedRole,
       loading,
       signedOutRole,
+      completeGoogleSignInFromUrl,
       async signIn(email, password) {
         if (!isSupabaseConfigured) {
           return {
@@ -450,7 +624,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
 
           if (error || !data.url) {
-            return { error: error?.message ?? "Could not start Google login." };
+            const errorMessage = error?.message;
+            return {
+              error:
+                errorMessage && isExistingAccountError(errorMessage)
+                  ? "This Google email is already associated with an account. Sign in using that account's original method, or choose another Google account."
+                  : errorMessage ?? "Could not start Google login.",
+            };
           }
 
           if (isWeb) {
@@ -466,45 +646,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return { error: "Google login was cancelled." };
           }
 
-          const callbackUrl = new URL(result.url);
-          const code = callbackUrl.searchParams.get("code");
-
-          if (code) {
-            const exchanged = await supabase.auth.exchangeCodeForSession(code);
-            if (exchanged.error) return { error: exchanged.error.message };
-          } else {
-            const hash = new URLSearchParams(callbackUrl.hash.replace(/^#/, ""));
-            const accessToken = hash.get("access_token");
-            const refreshToken = hash.get("refresh_token");
-
-            if (!accessToken || !refreshToken) {
-              return { error: "Google login did not return a valid session." };
-            }
-
-            const sessionResult = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            if (sessionResult.error)
-              return { error: sessionResult.error.message };
-          }
-
-          const sessionResult = await supabase.auth.getSession();
-          const currentSession = sessionResult.data.session;
-          const user = currentSession?.user;
-          if (sessionResult.error || !user || !currentSession) {
-            return {
-              error: sessionResult.error?.message ?? "Google login failed.",
-            };
-          }
-
-          const signInResult = await completeSignIn(user);
-          if (!signInResult.error) {
-            setSignedOutRole(null);
-            setAuthenticatedRole(null);
-            setSession(currentSession);
-          }
-          return signInResult;
+          return completeGoogleSignInFromUrl(result.url);
         } finally {
           authOperationInProgress.current = false;
         }
@@ -553,7 +695,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (error) {
           signupInProgress.current = false;
-          return { error: error.message ?? null };
+          return {
+            error:
+              isExistingAccountError(error.message)
+                ? "An account with this email already exists. Please sign in instead, or use password reset if you forgot your password."
+                : error.message,
+          };
+        }
+
+        if (data.user && data.user.identities?.length === 0) {
+          signupInProgress.current = false;
+          return {
+            error:
+              "This email may already be linked to an account. Try signing in or reset your password if you already registered.",
+          };
         }
 
         const userId = data.user?.id;
@@ -669,7 +824,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
       },
     }),
-    [session, authenticatedRole, loading, signedOutRole],
+    [
+      session,
+      authenticatedRole,
+      loading,
+      signedOutRole,
+      completeGoogleSignInFromUrl,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

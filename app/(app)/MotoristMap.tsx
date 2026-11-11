@@ -15,7 +15,11 @@ import { isValidPlateNumber } from "@/lib/plateNumber";
 import { supabase } from "@/lib/supabase";
 import { normalizeText } from "@/lib/typography";
 import { listVehicles } from "@/services/vehicleService";
-import type { Vehicle } from "@/types/vehicle";
+import {
+    getVehiclePricingCategory,
+    getVehiclePricingCategoryForService,
+    type Vehicle,
+} from "@/types/vehicle";
 import { Ionicons } from "@expo/vector-icons";
 import { useAudioPlayer } from "expo-audio";
 import DateTimePicker, {
@@ -63,6 +67,15 @@ const LOCATION_UPDATE_INTERVAL_MS = 10000;
 const MAX_CACHED_LOCATION_AGE_MS = 5 * 60 * 1000;
 
 let cachedDeviceLocation: Location.LocationObject | null = null;
+function getServicesForVehicle(services: any[], type: Vehicle["type"] | null | undefined) {
+  const category = getVehiclePricingCategory(type);
+  return services.filter(
+    (service) =>
+      getVehiclePricingCategoryForService(service.vehicle_category) ===
+      category,
+  );
+}
+
 const completedJobsCountCache = new Map<string, number>();
 const completedJobsCountKey = (mechanicId: string) =>
   `mechanic_completed_jobs_${mechanicId}`;
@@ -374,6 +387,7 @@ export default function MotoristMap() {
   const [vehicleType, setVehicleType] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
   const [primaryVehicle, setPrimaryVehicle] = useState<Vehicle | null>(null);
+  const [bookingVehicle, setBookingVehicle] = useState<Vehicle | null>(null);
   const [availableVehicles, setAvailableVehicles] = useState<Vehicle[]>([]);
   const [vehiclePickerVisible, setVehiclePickerVisible] = useState(false);
   const [bookingDate, setBookingDate] = useState(() => {
@@ -382,6 +396,12 @@ export default function MotoristMap() {
     tomorrow.setHours(9, 0, 0, 0);
     return tomorrow;
   });
+  const bookingServices = selectedMechanic?.services
+    ? getServicesForVehicle(
+        selectedMechanic.services,
+        bookingVehicle?.type ?? primaryVehicle?.type,
+      )
+    : [];
   const [showBookingDatePicker, setShowBookingDatePicker] = useState(false);
   const [showBookingTimePicker, setShowBookingTimePicker] = useState(false);
   const updateBookingDate = useCallback(
@@ -551,7 +571,9 @@ export default function MotoristMap() {
           return;
         }
         setAvailableVehicles(data);
-        setPrimaryVehicle(data.find((vehicle) => vehicle.is_primary) ?? data[0] ?? null);
+        const primary = data.find((vehicle) => vehicle.is_primary) ?? data[0] ?? null;
+        setPrimaryVehicle(primary);
+        setBookingVehicle(primary);
       });
       return () => {
         active = false;
@@ -750,7 +772,7 @@ export default function MotoristMap() {
               .from("mechanic-avatars")
               .getPublicUrl(mech.avatar_path).data.publicUrl
           : null,
-        skills: mech.skills || "General motorcycle service",
+        skills: mech.skills || "General vehicle service",
         experience: mech.experience || null,
         services: Array.isArray(mech.maintenance_pricing)
           ? mech.maintenance_pricing
@@ -892,7 +914,7 @@ export default function MotoristMap() {
           isOnline: profile.is_online !== false,
           rating: Number(profile.average_rating) || 5,
           price: 500,
-          skills: profile.skills || "General motorcycle service",
+          skills: profile.skills || "General vehicle service",
           experience: profile.experience || null,
           services: Array.isArray(profile.maintenance_pricing)
             ? profile.maintenance_pricing
@@ -913,11 +935,12 @@ export default function MotoristMap() {
         .split(",")
         .map((service) => service.trim().toLowerCase())
         .filter(Boolean);
-      const matchingServices = mechanic.services.filter((service: any) =>
+      const matchingServices = getServicesForVehicle(
+        mechanic.services,
+        primaryVehicle?.type,
+      ).filter((service: any) =>
         serviceNames.includes(
-          String(service.service ?? "")
-            .trim()
-            .toLowerCase(),
+          String(service.service ?? "").trim().toLowerCase(),
         ),
       );
       if (!matchingServices.length) {
@@ -934,6 +957,7 @@ export default function MotoristMap() {
       tomorrow.setHours(9, 0, 0, 0);
       setSelectedMechanic(mechanic);
       setDisplayedMechanic(mechanic);
+      setBookingVehicle(primaryVehicle);
       setSelectedServices(matchingServices);
       setVehicleType(
         primaryVehicle
@@ -980,9 +1004,18 @@ export default function MotoristMap() {
       handledMechanicId.current = mechanicId;
       return;
     }
+    if (!getServicesForVehicle(mechanic.services, primaryVehicle?.type).length) {
+      Alert.alert(
+        "No prices for this vehicle",
+        `This mechanic has not listed ${getVehiclePricingCategory(primaryVehicle?.type) === "motorcycle" ? "motorcycle" : "four-wheel"} service prices yet.`,
+      );
+      handledMechanicId.current = mechanicId;
+      return;
+    }
     const openTimer = setTimeout(() => {
       setSelectedMechanic(mechanic);
       setDisplayedMechanic(mechanic);
+      setBookingVehicle(primaryVehicle);
       setSelectedServices([]);
       setBookingNotes("");
       setVehicleType(
@@ -1315,7 +1348,20 @@ export default function MotoristMap() {
       );
       return;
     }
+    if (
+      !getServicesForVehicle(
+        selectedMechanic.services,
+        primaryVehicle.type,
+      ).length
+    ) {
+      Alert.alert(
+        "No prices for this vehicle",
+        `This mechanic has not listed ${getVehiclePricingCategory(primaryVehicle.type) === "motorcycle" ? "motorcycle" : "four-wheel"} service prices yet. Please choose another mechanic or try again later.`,
+      );
+      return;
+    }
     setSelectedServices([]);
+    setBookingVehicle(primaryVehicle);
     setBookingNotes("");
     setVehicleType(`${primaryVehicle.make} ${primaryVehicle.model}`.trim());
     setPlateNumber(primaryVehicle.plate_number);
@@ -1338,6 +1384,8 @@ export default function MotoristMap() {
   };
 
   const selectBookingVehicle = (vehicle: Vehicle) => {
+    setBookingVehicle(vehicle);
+    setSelectedServices([]);
     setVehicleType(`${vehicle.make} ${vehicle.model}`.trim());
     setPlateNumber(vehicle.plate_number);
     setVehiclePickerVisible(false);
@@ -1430,6 +1478,9 @@ export default function MotoristMap() {
             service: String(service.service),
             price:
               Number(String(service.price).replace(/[^\d.]/g, "")) || 0,
+            vehicle_category: getVehiclePricingCategoryForService(
+              service.vehicle_category,
+            ),
           })),
           delivery_fee: deliveryFee,
           estimated_total: totalPrice,
@@ -1861,6 +1912,12 @@ export default function MotoristMap() {
     isDarkMode,
   ]);
   const mapSource = useMemo(() => ({ html: mapHtml }), [mapHtml]);
+  const hasOngoingBooking = Boolean(
+    activeRequest &&
+      ["accepted", "in_transit", "arrived", "in_progress"].includes(
+        String(activeRequest.status).toLowerCase(),
+      ),
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
@@ -1935,14 +1992,9 @@ export default function MotoristMap() {
           styles.nearbyMechanicsSummary,
           {
             top:
-              activeRequest &&
-              ["accepted", "in_transit", "arrived", "in_progress"].includes(
-                String(activeRequest.status).toLowerCase(),
-              )
-                ? insets.top + MOTORIST_HOME_HEADER_HEIGHT_AFTER_SAFE_AREA - 35
-                : Platform.OS === "ios"
-                  ? 66
-                  : 52,
+              insets.top +
+              MOTORIST_HOME_HEADER_HEIGHT_AFTER_SAFE_AREA +
+              (hasOngoingBooking ? 52 + 8 : 8),
           },
         ]}
         accessibilityLabel="Show mechanics near you"
@@ -1957,10 +2009,7 @@ export default function MotoristMap() {
           <Ionicons name="chevron-forward" size={18} color="#536078" />
         </View>
       </TouchableOpacity>
-      {activeRequest &&
-      ["accepted", "in_transit", "arrived", "in_progress"].includes(
-        String(activeRequest.status).toLowerCase(),
-      ) ? (
+      {hasOngoingBooking ? (
         <TouchableOpacity
         style={[
           styles.ongoingOrderTopNotice,
@@ -2815,6 +2864,9 @@ export default function MotoristMap() {
                         >
                           {service.service}
                         </Text>
+                        <Text style={[styles.serviceDescription, { color: colors.primary }]}>
+                          {getVehiclePricingCategoryForService(service.vehicle_category) === "motorcycle" ? "Motorcycle" : "Four-wheel"}
+                        </Text>
                         <Text style={[styles.serviceDescription, { color: colors.textMuted }]}>
                           {service.description || service.details || ""}
                         </Text>
@@ -2948,6 +3000,14 @@ export default function MotoristMap() {
                           numberOfLines={1}
                         >
                           {result.service.service}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.comparisonMetaText,
+                            { color: colors.primary },
+                          ]}
+                        >
+                          {getVehiclePricingCategoryForService(result.service.vehicle_category) === "motorcycle" ? "Motorcycle" : "Four-wheel"}
                         </Text>
                       </View>
                       <Text
@@ -3242,12 +3302,13 @@ export default function MotoristMap() {
               </Text>
             </View>
             <View style={styles.bookingServicesGrid}>
-              {selectedMechanic?.services.map(
+              {bookingServices.map(
                   (service: any, index: number) => {
                     const selected = selectedServices.some(
                       (item) =>
                         item.service === service.service &&
-                        item.price === service.price,
+                        item.price === service.price &&
+                        item.vehicle_category === service.vehicle_category,
                     );
                     return (
                       <TouchableOpacity
@@ -3267,7 +3328,8 @@ export default function MotoristMap() {
                               ? current.filter(
                                   (item) =>
                                     item.service !== service.service ||
-                                    item.price !== service.price,
+                                    item.price !== service.price ||
+                                    item.vehicle_category !== service.vehicle_category,
                                 )
                               : [...current, service],
                           )
@@ -3299,6 +3361,16 @@ export default function MotoristMap() {
                   },
                 )}
             </View>
+            {!bookingServices.length ? (
+              <Text
+                  style={[
+                    styles.bookingSelectionHint,
+                    { color: bookingSosColors.muted },
+                  ]}
+              >
+                  This mechanic has not listed prices for this vehicle category.
+              </Text>
+            ) : null}
 
             <Text style={[styles.bookingSectionTitle, styles.bookingScheduleHeading, { color: colors.text }]}>
               SCHEDULE YOUR VISIT
