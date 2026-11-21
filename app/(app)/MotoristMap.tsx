@@ -12,6 +12,10 @@ import {
 } from "@/lib/activeBookingStore";
 import { getSharedAvatarUrl, subscribeToSharedAvatar } from "@/lib/avatarStore";
 import { isValidPlateNumber } from "@/lib/plateNumber";
+import {
+  getBookingDistanceFee,
+  getDistanceKmBetweenCoordinates,
+} from "@/lib/bookingPricing";
 import { supabase } from "@/lib/supabase";
 import { normalizeText } from "@/lib/typography";
 import { listVehicles } from "@/services/vehicleService";
@@ -1319,7 +1323,10 @@ export default function MotoristMap() {
   };
 
   const deliveryFeeFor = (distanceKm: number) =>
-    100 + Math.max(0, Math.ceil(distanceKm) - 1) * 10;
+    getBookingDistanceFee(
+      distanceKm,
+      bookingVehicle?.type ?? primaryVehicle?.type,
+    );
 
   const openBooking = () => {
     if (
@@ -1392,11 +1399,13 @@ export default function MotoristMap() {
   };
 
   const handleBookNow = async () => {
+    const requestVehicle = bookingVehicle ?? primaryVehicle;
     if (
       !selectedMechanic ||
       !selectedServices.length ||
       !session?.user?.id ||
       !location ||
+      !requestVehicle ||
       submittingBooking
     )
       return;
@@ -1421,6 +1430,40 @@ export default function MotoristMap() {
       Alert.alert(
         "Date required",
         "Please choose a future date for this scheduled booking.",
+      );
+      return;
+    }
+
+    const requestVehicleCategory = getVehiclePricingCategory(
+      requestVehicle.type,
+    );
+    if (
+      selectedServices.some(
+        (service) =>
+          getVehiclePricingCategoryForService(service.vehicle_category) !==
+          requestVehicleCategory,
+      )
+    ) {
+      Alert.alert(
+        "Service unavailable",
+        "Selected services must match your chosen vehicle category.",
+      );
+      return;
+    }
+
+    const mechanicLatitude = Number(selectedMechanic.latitude);
+    const mechanicLongitude = Number(selectedMechanic.longitude);
+    if (
+      !Number.isFinite(mechanicLatitude) ||
+      mechanicLatitude < -90 ||
+      mechanicLatitude > 90 ||
+      !Number.isFinite(mechanicLongitude) ||
+      mechanicLongitude < -180 ||
+      mechanicLongitude > 180
+    ) {
+      Alert.alert(
+        "Distance unavailable",
+        "The mechanic's service location is unavailable. Please choose another mechanic.",
       );
       return;
     }
@@ -1454,7 +1497,22 @@ export default function MotoristMap() {
         total + (Number(String(service.price).replace(/[^\d.]/g, "")) || 0),
       0,
     );
-    const deliveryFee = deliveryFeeFor(selectedMechanic.distanceKm);
+    const distanceKm = getDistanceKmBetweenCoordinates(
+      location.coords.latitude,
+      location.coords.longitude,
+      mechanicLatitude,
+      mechanicLongitude,
+    );
+    const deliveryFee = deliveryFeeFor(distanceKm);
+    setSelectedMechanic((current: any) =>
+      current?.id === selectedMechanic.id
+        ? {
+            ...current,
+            distanceKm,
+            distance: `${distanceKm.toFixed(1)} km`,
+          }
+        : current,
+    );
     const totalPrice = servicePrice + deliveryFee;
     const serviceNames = selectedServices
       .map((service) => service.service)
@@ -1470,6 +1528,8 @@ export default function MotoristMap() {
           status: "scheduled",
           request_type: "scheduled",
           scheduled_at: bookingDate.toISOString(),
+          vehicle_id: requestVehicle.id,
+          vehicle_category: requestVehicleCategory,
           vehicle_type: vehicleType.trim(),
           plate_number: plateNumber.trim().toUpperCase(),
           service_name: serviceNames,
@@ -1723,6 +1783,26 @@ export default function MotoristMap() {
     !!activeRequest && ["scheduled", "pending"].includes(activeRequestStatus);
   const isEmergencyRequest =
     String(activeRequest?.request_type ?? "").toLowerCase() === "emergency";
+  const selectedMechanicLatitude = Number(selectedMechanic?.latitude);
+  const selectedMechanicLongitude = Number(selectedMechanic?.longitude);
+  const selectedMechanicDistanceKm =
+    selectedMechanic &&
+    location &&
+    selectedMechanic.latitude != null &&
+    selectedMechanic.longitude != null &&
+    Number.isFinite(selectedMechanicLatitude) &&
+    selectedMechanicLatitude >= -90 &&
+    selectedMechanicLatitude <= 90 &&
+    Number.isFinite(selectedMechanicLongitude) &&
+    selectedMechanicLongitude >= -180 &&
+    selectedMechanicLongitude <= 180
+      ? getDistanceKmBetweenCoordinates(
+          location.coords.latitude,
+          location.coords.longitude,
+          selectedMechanicLatitude,
+          selectedMechanicLongitude,
+        )
+      : Number(selectedMechanic?.distanceKm ?? 0);
   const isAcceptedBooking =
     !!activeRequest &&
     ["accepted", "in_transit", "arrived", "in_progress"].includes(
@@ -3529,12 +3609,16 @@ export default function MotoristMap() {
                 <Text
                   style={[styles.summaryLabel, { color: bookingSosColors.muted }]}
                 >
-                  Distance fee ({selectedMechanic?.distance})
+                  Distance fee (
+                  {selectedMechanic
+                    ? `${selectedMechanicDistanceKm.toFixed(1)} km`
+                    : "—"}
+                  )
                 </Text>
                 <Text style={[styles.summaryValue, { color: bookingSosColors.text }]}>
                   ₱
                   {selectedMechanic
-                    ? deliveryFeeFor(selectedMechanic.distanceKm)
+                    ? deliveryFeeFor(selectedMechanicDistanceKm)
                     : 100}
                 </Text>
               </View>
@@ -3546,7 +3630,7 @@ export default function MotoristMap() {
                 </Text>
                 <Text style={[styles.totalValue, { color: bookingSosColors.primary }]}>
                   ₱
-                  {selectedServices.length && selectedMechanic
+                  {selectedMechanic
                     ? selectedServices.reduce(
                         (total, service) =>
                           total +
@@ -3554,7 +3638,7 @@ export default function MotoristMap() {
                             String(service.price).replace(/[^\d.]/g, ""),
                           ) || 0),
                         0,
-                      ) + deliveryFeeFor(selectedMechanic.distanceKm)
+                      ) + deliveryFeeFor(selectedMechanicDistanceKm)
                     : 0}
                 </Text>
               </View>

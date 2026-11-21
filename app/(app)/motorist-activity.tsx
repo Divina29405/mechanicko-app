@@ -1,6 +1,11 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppTheme } from "@/contexts/ThemeContext";
 import { setCachedActiveBooking } from "@/lib/activeBookingStore";
+import {
+  getBookingDistanceFee,
+  getDistanceKmBetweenCoordinates,
+  parseMaintenancePrice,
+} from "@/lib/bookingPricing";
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { useAudioPlayer } from "expo-audio";
@@ -35,7 +40,11 @@ import { MotoristHomeHeader } from "@/components/MotoristHomeHeader";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { normalizeText } from "@/lib/typography";
 import { listVehicles } from "@/services/vehicleService";
-import type { Vehicle } from "@/types/vehicle";
+import {
+  getVehiclePricingCategory,
+  getVehiclePricingCategoryForService,
+  type Vehicle,
+} from "@/types/vehicle";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type BookingColors = {
@@ -54,11 +63,18 @@ type NearbyMechanic = {
   rating: number;
   reviewCount: number;
   distanceKm: number;
+  homeLatitude: number | null;
+  homeLongitude: number | null;
   distance: string;
   etaMinutes: number;
   isOnline: boolean;
   skills: string;
-  services: { name: string; price: number; description?: string }[];
+  services: {
+    name: string;
+    price: number;
+    description?: string;
+    vehicle_category: "motorcycle" | "four_wheel";
+  }[];
 };
 
 const mechanicAvatarUrlCache = new Map<string, string>();
@@ -903,6 +919,20 @@ export default function MotoristActivityScreen() {
   >([]);
   const [scheduleVehicles, setScheduleVehicles] = useState<Vehicle[]>([]);
   const [scheduleVehicle, setScheduleVehicle] = useState<Vehicle | null>(null);
+  const schedulePricingCategory = scheduleVehicle
+    ? getVehiclePricingCategory(scheduleVehicle.type)
+    : null;
+  const availableScheduleServices = schedulePricingCategory
+    ? scheduleServices.filter(
+        (service) => service.vehicle_category === schedulePricingCategory,
+      )
+    : [];
+  const scheduleDeliveryFee = scheduleMechanic
+    ? getBookingDistanceFee(
+        scheduleMechanic.distanceKm,
+        scheduleVehicle?.type,
+      )
+    : 100;
   const [scheduleVehiclePickerVisible, setScheduleVehiclePickerVisible] =
     useState(false);
   const [scheduleNotes, setScheduleNotes] = useState("");
@@ -1165,18 +1195,37 @@ export default function MotoristActivityScreen() {
 
       const formattedMechanics = (data ?? []).map((mechanic: any) => {
         const distanceKm = Number(mechanic.distance_km) || 0;
+        const homeLatitude =
+          mechanic.home_latitude == null
+            ? null
+            : Number(mechanic.home_latitude);
+        const homeLongitude =
+          mechanic.home_longitude == null
+            ? null
+            : Number(mechanic.home_longitude);
         const services = Array.isArray(mechanic.maintenance_pricing)
-          ? mechanic.maintenance_pricing
-              .map((service: any) => ({
-                name:
-                  service.name ||
-                  service.service_name ||
-                  service.service ||
-                  "Roadside service",
-                price: Number(service.price ?? service.amount ?? 0),
-                description: service.description || service.details || "",
-              }))
-              .filter((service: { name: string }) => service.name)
+          ? mechanic.maintenance_pricing.flatMap((service: any) => {
+              const name =
+                service.name ||
+                service.service_name ||
+                service.service ||
+                "Roadside service";
+              const price = parseMaintenancePrice(
+                service.price ?? service.amount,
+              );
+              return price === null
+                ? []
+                : [
+                    {
+                      name,
+                      price,
+                      description: service.description || service.details || "",
+                      vehicle_category: getVehiclePricingCategoryForService(
+                        service.vehicle_category,
+                      ),
+                    },
+                  ];
+            })
           : [];
 
         return {
@@ -1190,6 +1239,14 @@ export default function MotoristActivityScreen() {
           rating: Number(mechanic.average_rating) || 5,
           reviewCount: Number(mechanic.review_count) || 0,
           distanceKm,
+          homeLatitude:
+            homeLatitude !== null && Number.isFinite(homeLatitude)
+              ? homeLatitude
+              : null,
+          homeLongitude:
+            homeLongitude !== null && Number.isFinite(homeLongitude)
+              ? homeLongitude
+              : null,
           distance: `${distanceKm.toFixed(1)} km away from you`,
           etaMinutes: Math.max(4, Math.round(distanceKm * 8)),
           isOnline: mechanic.is_online !== false,
@@ -1614,6 +1671,42 @@ export default function MotoristActivityScreen() {
       );
       return;
     }
+    if (scheduleDate.getTime() <= Date.now()) {
+      showBookingAlert(
+        language,
+        "Date required",
+        "Choose a future date for this scheduled booking.",
+      );
+      return;
+    }
+    const vehicleCategory = getVehiclePricingCategory(scheduleVehicle.type);
+    if (
+      scheduleSelected.some(
+        (service) => service.vehicle_category !== vehicleCategory,
+      )
+    ) {
+      showBookingAlert(
+        language,
+        "Service unavailable",
+        "Selected services must match your chosen vehicle category.",
+      );
+      return;
+    }
+    if (
+      scheduleMechanic.homeLatitude === null ||
+      scheduleMechanic.homeLatitude < -90 ||
+      scheduleMechanic.homeLatitude > 90 ||
+      scheduleMechanic.homeLongitude === null ||
+      scheduleMechanic.homeLongitude < -180 ||
+      scheduleMechanic.homeLongitude > 180
+    ) {
+      showBookingAlert(
+        language,
+        "Distance unavailable",
+        "The mechanic's service location is unavailable. Please choose another mechanic.",
+      );
+      return;
+    }
     let permission = await Location.getForegroundPermissionsAsync();
     if (permission.status !== "granted") {
       permission = await Location.requestForegroundPermissionsAsync();
@@ -1658,12 +1751,27 @@ export default function MotoristActivityScreen() {
       (await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       }));
+    const distanceKm = getDistanceKmBetweenCoordinates(
+      location.coords.latitude,
+      location.coords.longitude,
+      scheduleMechanic.homeLatitude,
+      scheduleMechanic.homeLongitude,
+    );
+    setScheduleMechanic((current) =>
+      current?.id === scheduleMechanic.id
+        ? {
+            ...current,
+            distanceKm,
+            distance: `${distanceKm.toFixed(1)} km away from you`,
+          }
+        : current,
+    );
     const servicePrice = scheduleSelected.reduce(
       (total, service) => total + Number(service.price || 0),
       0,
     );
     const serviceNames = scheduleSelected.map((service) => service.name).join(", ");
-    const deliveryFee = 100 + Math.max(0, Math.ceil(scheduleMechanic.distanceKm) - 1) * 10;
+    const deliveryFee = getBookingDistanceFee(distanceKm, scheduleVehicle.type);
     const { data: createdBooking, error } = await supabase
       .from("service_requests")
       .insert({
@@ -1674,13 +1782,16 @@ export default function MotoristActivityScreen() {
       status: "scheduled",
       request_type: "scheduled",
       scheduled_at: scheduleDate.toISOString(),
+      vehicle_id: scheduleVehicle.id,
+      vehicle_category: vehicleCategory,
       vehicle_type: `${scheduleVehicle.make} ${scheduleVehicle.model}`.trim(),
       plate_number: scheduleVehicle.plate_number,
       service_name: serviceNames,
       service_price: servicePrice,
       service_breakdown: scheduleSelected.map((service) => ({
         service: service.name,
-        price: Number(service.price) || 0,
+        price: service.price,
+        vehicle_category: service.vehicle_category,
       })),
       delivery_fee: deliveryFee,
       estimated_total: servicePrice + deliveryFee,
@@ -2017,7 +2128,7 @@ export default function MotoristActivityScreen() {
               <Text style={[styles.scheduleHint, { color: colors.textMuted }]}>Select one or more services</Text>
             </View>
             <View style={styles.scheduleGrid}>
-              {scheduleServices.map((service, index) => {
+              {availableScheduleServices.map((service, index) => {
                 const selected = scheduleSelected.some(
                   (item) => item.name === service.name && item.price === service.price,
                 );
@@ -2051,6 +2162,11 @@ export default function MotoristActivityScreen() {
                       />
                     </View>
                     <Text style={[styles.scheduleServiceName, { color: colors.text }]}>{service.name}</Text>
+                    <Text style={[styles.scheduleHint, { color: colors.textMuted }]}>
+                      {service.vehicle_category === "motorcycle"
+                        ? "Motorcycle pricing"
+                        : "Four-wheel pricing"}
+                    </Text>
                     <Text style={[styles.scheduleServicePrice, { color: colors.primary }]}>
                       ₱{Number(service.price || 0).toLocaleString("en-PH")}
                     </Text>
@@ -2058,6 +2174,11 @@ export default function MotoristActivityScreen() {
                 );
               })}
             </View>
+            {!availableScheduleServices.length ? (
+              <Text style={[styles.scheduleHint, { color: colors.textMuted }]}>
+                This mechanic has not listed prices for this vehicle category.
+              </Text>
+            ) : null}
 
             <Text style={[styles.scheduleSectionTitle, { color: colors.text }]}>SCHEDULE YOUR VISIT</Text>
             <View style={styles.scheduleDateRow}>
@@ -2140,10 +2261,7 @@ export default function MotoristActivityScreen() {
                   )}
                 </Text>
                 <Text style={[styles.scheduleEstimateValue, { color: colors.primary }]}>
-                  ₱{(scheduleMechanic
-                    ? 100 + Math.max(0, Math.ceil(scheduleMechanic.distanceKm) - 1) * 10
-                    : 100
-                  ).toLocaleString("en-PH")}
+                  ₱{scheduleDeliveryFee.toLocaleString("en-PH")}
                 </Text>
               </View>
               <View style={styles.scheduleEstimateTotal}>
@@ -2154,9 +2272,7 @@ export default function MotoristActivityScreen() {
                       (sum, service) => sum + Number(service.price || 0),
                       0,
                     ) +
-                    (scheduleMechanic
-                      ? 100 + Math.max(0, Math.ceil(scheduleMechanic.distanceKm) - 1) * 10
-                      : 100)
+                    scheduleDeliveryFee
                   ).toLocaleString("en-PH")}
                 </Text>
               </View>
@@ -2242,6 +2358,9 @@ export default function MotoristActivityScreen() {
                       },
                     ]}
                     onPress={() => {
+                      if (scheduleVehicle?.id !== vehicle.id) {
+                        setScheduleSelected([]);
+                      }
                       setScheduleVehicle(vehicle);
                       setScheduleVehiclePickerVisible(false);
                     }}
