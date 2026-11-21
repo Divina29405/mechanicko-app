@@ -1071,7 +1071,7 @@ export default function MechanicHomeScreen() {
                                 GUARANTEED EARNINGS
                               </Text>
                               <Text style={styles.sosFareHint}>
-                                Base fare ₱350.00 · Emergency dispatch
+                                Base fare · Emergency dispatch
                               </Text>
                             </View>
                             <Text style={styles.sosFareValue}>

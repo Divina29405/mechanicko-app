@@ -52,7 +52,7 @@ const translations: Record<string, string> = {
   PLATE: 'PLAKA',
   'SYMPTOMS / SITUATION': 'MGA SINTOMAS / SITWASYON',
   'GUARANTEED EARNINGS': 'GARANTISADONG KITA',
-  'Base fare ₱350.00 · Emergency dispatch': 'Pangunahing bayad ₱350.00 · Emergency dispatch',
+  'Base fare · Emergency dispatch': 'Pangunahing bayad · Emergency dispatch',
   Dismiss: 'Isara',
   'Customer location is not available for this booking.': 'Hindi available ang lokasyon ng customer para sa booking na ito.',
   'URGENT REQUEST': 'AGARANG REQUEST',

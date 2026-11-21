@@ -2090,7 +2090,6 @@ export default function MotoristMap() {
           <View style={styles.dispatchHeader}>
             <View style={styles.dispatchClock}>
               <View style={styles.dispatchClockFace}>
-                <View style={styles.dispatchClockHourHand} />
                 <View style={styles.dispatchClockMinuteHand} />
                 <Animated.View
                   style={[
@@ -4329,15 +4328,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#2450D8",
     alignItems: "center",
     justifyContent: "center",
-  },
-  dispatchClockHourHand: {
-    position: "absolute",
-    top: 10,
-    width: 3,
-    height: 9,
-    borderRadius: 2,
-    backgroundColor: "#FFFFFF",
-    transform: [{ rotate: "-45deg" }],
   },
   dispatchClockMinuteHand: {
     position: "absolute",

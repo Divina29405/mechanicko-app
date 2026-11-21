@@ -2,7 +2,12 @@ import { useAppTheme } from '@/contexts/ThemeContext';
 import { isValidPlateNumber } from '@/lib/plateNumber';
 import { supabase } from '@/lib/supabase';
 import { listVehicles } from '@/services/vehicleService';
-import type { Vehicle } from '@/types/vehicle';
+import { EMERGENCY_DISPATCH_BASE_FEES } from '@/lib/emergencyPricing';
+import {
+  getVehiclePricingCategory,
+  type Vehicle,
+  type VehiclePricingCategory,
+} from '@/types/vehicle';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -70,6 +75,12 @@ export default function EmergencyChecklistScreen({
       ? `${initialVehicle.make} ${initialVehicle.model}`.trim()
       : "",
   );
+  const [vehiclePricingCategory, setVehiclePricingCategory] =
+    useState<VehiclePricingCategory>(
+      initialVehicle
+        ? getVehiclePricingCategory(initialVehicle.type)
+        : "motorcycle",
+    );
   const [plateNumber, setPlateNumber] = useState(
     initialVehicle?.plate_number ?? "",
   );
@@ -88,22 +99,39 @@ export default function EmergencyChecklistScreen({
   } | null>(null);
 
   useEffect(() => {
+    let active = true;
     const loadPrimaryVehicle = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user.id) return;
+      if (!active || !session?.user.id) return;
       const { data, error } = await listVehicles(session.user.id);
+      if (!active) return;
       if (error) {
         Alert.alert('Unable to load vehicle', error);
         return;
       }
       setAvailableVehicles(data);
-      if (initialVehicle) return;
+      if (initialVehicle) {
+        setVehicleType(
+          `${initialVehicle.make} ${initialVehicle.model}`.trim(),
+        );
+        setPlateNumber(initialVehicle.plate_number);
+        setVehiclePricingCategory(
+          getVehiclePricingCategory(initialVehicle.type),
+        );
+        return;
+      }
       const primaryVehicle: Vehicle | undefined = data.find((vehicle) => vehicle.is_primary) ?? data[0];
       if (!primaryVehicle) return;
       setVehicleType(`${primaryVehicle.make} ${primaryVehicle.model}`.trim());
       setPlateNumber(primaryVehicle.plate_number);
+      setVehiclePricingCategory(
+        getVehiclePricingCategory(primaryVehicle.type),
+      );
     };
     void loadPrimaryVehicle();
+    return () => {
+      active = false;
+    };
   }, [initialVehicle]);
 
   const openNotesEditor = () => {
@@ -130,6 +158,7 @@ export default function EmergencyChecklistScreen({
   const selectVehicle = (vehicle: Vehicle) => {
     setVehicleType(`${vehicle.make} ${vehicle.model}`.trim());
     setPlateNumber(vehicle.plate_number);
+    setVehiclePricingCategory(getVehiclePricingCategory(vehicle.type));
     setVehiclePickerVisible(false);
   };
 
@@ -168,7 +197,9 @@ export default function EmergencyChecklistScreen({
       return;
     }
     setIsSubmitting(true);
-    
+
+    const baseDispatchFee =
+      EMERGENCY_DISPATCH_BASE_FEES[vehiclePricingCategory];
     const issueDescription = `Symptoms: ${selectedSymptoms.join(', ')}.\nNotes: ${additionalNotes}`;
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session ? session.user.id : 'guest_motorist';
@@ -212,10 +243,10 @@ export default function EmergencyChecklistScreen({
           status: 'pending',
           request_type: 'emergency',
           search_radius_km: 5,
-          service_price: 350,
+          service_price: baseDispatchFee,
           service_name: 'Emergency SOS Dispatch',
           delivery_fee: 0,
-          estimated_total: 350,
+          estimated_total: baseDispatchFee,
           vehicle_type: vehicleType.trim(),
           plate_number: plateNumber.trim().toUpperCase(),
           vehicle_issue: issueDescription
@@ -286,7 +317,7 @@ export default function EmergencyChecklistScreen({
 
           <View style={[styles.feeCard, { backgroundColor: colors.softCard }]}>
             <View style={styles.feeHeader}><Text style={[styles.feeTitle, { color: colors.text }]}><Ionicons name="shield-checkmark-outline" size={19} color={colors.primary} /> Standard Roadside Guarantee</Text><Text style={[styles.fixedBadge, { color: colors.primary, backgroundColor: colors.btnSecondary }]}>FIXED DISPATCH</Text></View>
-            <View style={styles.feeRow}><View><Text style={[styles.feeAmount, { color: colors.text }]}>₱350.00</Text><Text style={[styles.feeCaption, { color: colors.textMuted }]}>Base emergency dispatch fee</Text></View><View><Text style={[styles.cashText, { color: colors.primary }]}>Cash</Text><Text style={[styles.feeCaption, { color: colors.textMuted }]}>Paid directly upon arrival</Text></View></View>
+            <View style={styles.feeRow}><View><Text style={[styles.feeAmount, { color: colors.text }]}>₱{EMERGENCY_DISPATCH_BASE_FEES[vehiclePricingCategory].toFixed(2)}</Text><Text style={[styles.feeCaption, { color: colors.textMuted }]}>Base emergency dispatch fee</Text></View><View><Text style={[styles.cashText, { color: colors.primary }]}>Cash</Text><Text style={[styles.feeCaption, { color: colors.textMuted }]}>Paid directly upon arrival</Text></View></View>
             <Text style={[styles.feeNote, { color: colors.textMuted }]}><Ionicons name="information-circle-outline" size={16} color={colors.primary} /> Parts and replacement labor are assessed & approved on-site before work begins.</Text>
           </View>
 
