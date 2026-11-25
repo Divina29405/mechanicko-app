@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const COMMON_SYMPTOMS = [
   'Flat Tire / Puncture',
@@ -26,7 +26,7 @@ const COMMON_SYMPTOMS = [
 ];
 
 const SYMPTOM_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  'Flat Tire / Puncture': 'ellipse-outline',
+  'Flat Tire | Puncture': 'ellipse-outline',
   'Dead Battery': 'battery-dead-outline',
   'Engine Won\'t Start': 'power-outline',
   'Engine Overheating': 'thermometer-outline',
@@ -55,6 +55,7 @@ export default function EmergencyChecklistScreen({
 }: EmergencyChecklistProps = {}) {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   const { colors: themeColors } = useAppTheme();
   const colors = { ...themeColors, primary: EMERGENCY_PRIMARY };
   const closeScreen = () => {
@@ -334,9 +335,19 @@ export default function EmergencyChecklistScreen({
         presentationStyle="pageSheet"
         onRequestClose={saveNotesDraft}
       >
-        <KeyboardAvoidingView style={[styles.modalContainer, { backgroundColor: colors.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView
+          style={[
+            styles.modalContainer,
+            {
+              backgroundColor: colors.bg,
+              paddingTop: (Platform.OS === 'ios' ? 24 : 20) + 4,
+              paddingBottom: Math.max(insets.bottom + 12, 32),
+            },
+          ]}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={saveNotesDraft} style={styles.modalCloseButton} accessibilityLabel="Back to emergency form">
+            <TouchableOpacity onPress={saveNotesDraft} style={[styles.modalCloseButton, styles.notesBackButton]} accessibilityLabel="Back to emergency form">
               <Ionicons name="arrow-back" size={22} color={colors.text} />
             </TouchableOpacity>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Your location & situation</Text>
@@ -344,6 +355,7 @@ export default function EmergencyChecklistScreen({
           </View>
 
           <ScrollView
+            style={styles.notesEditorScroll}
             contentContainerStyle={styles.notesEditorContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -648,10 +660,12 @@ const styles = StyleSheet.create({
   modalContainer: { flex: 1, padding: 20, paddingTop: Platform.OS === 'ios' ? 24 : 20 },
   modalHeader: { minHeight: 52, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 14, marginBottom: 18, borderBottomWidth: 1 },
   modalCloseButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  notesBackButton: { marginTop: 4 },
   modalHeaderSpacer: { width: 36 },
   modalTitle: { fontSize: 18, fontWeight: '900', textTransform: 'capitalize' },
   modalCloseText: { fontSize: 15, fontWeight: '800' },
   notesEditorContent: { paddingBottom: 20 },
+  notesEditorScroll: { flex: 1 },
   notesIntro: { borderRadius: 18, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 26 },
   notesIntroIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   notesIntroCopy: { flex: 1 },
